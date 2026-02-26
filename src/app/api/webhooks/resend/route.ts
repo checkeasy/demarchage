@@ -79,6 +79,68 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "email.opened": {
+        await supabase
+          .from("emails_sent")
+          .update({ opened_at: new Date().toISOString() })
+          .eq("id", emailSent.id);
+
+        await supabase.from("tracking_events").insert({
+          email_sent_id: emailSent.id,
+          event_type: "open",
+        });
+
+        // Increment open stats on campaign
+        if (emailSent.campaign_prospect_id) {
+          const { data: cp } = await supabase
+            .from("campaign_prospects")
+            .select("campaign_id")
+            .eq("id", emailSent.campaign_prospect_id)
+            .single();
+
+          if (cp) {
+            try {
+              await supabase.rpc("increment_campaign_stat", {
+                p_campaign_id: cp.campaign_id,
+                p_column: "total_opened",
+              });
+            } catch { /* RPC may not exist */ }
+          }
+        }
+        break;
+      }
+
+      case "email.clicked": {
+        await supabase
+          .from("emails_sent")
+          .update({ clicked_at: new Date().toISOString() })
+          .eq("id", emailSent.id);
+
+        await supabase.from("tracking_events").insert({
+          email_sent_id: emailSent.id,
+          event_type: "click",
+          metadata: { url: data.click?.link || null },
+        });
+
+        if (emailSent.campaign_prospect_id) {
+          const { data: cp } = await supabase
+            .from("campaign_prospects")
+            .select("campaign_id")
+            .eq("id", emailSent.campaign_prospect_id)
+            .single();
+
+          if (cp) {
+            try {
+              await supabase.rpc("increment_campaign_stat", {
+                p_campaign_id: cp.campaign_id,
+                p_column: "total_clicked",
+              });
+            } catch { /* RPC may not exist */ }
+          }
+        }
+        break;
+      }
+
       case "email.complained": {
         await supabase
           .from("emails_sent")

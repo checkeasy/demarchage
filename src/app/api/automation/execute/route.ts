@@ -50,13 +50,33 @@ export async function POST() {
         const actionType = item.step_action_type as string;
         const isEmailAction = actionType === "email";
 
-        // Get LinkedIn cookies from env (simpler than DB for single-user)
-        const liAt = process.env.LINKEDIN_SESSION_COOKIE;
-        const jsessionId = process.env.LINKEDIN_JSESSIONID;
+        // Load LinkedIn cookies from workspace settings in DB
+        let liAt = "";
+        let jsessionId = "";
 
-        if (!isEmailAction && (!liAt || !jsessionId)) {
-          logs.push(`Skipped: No LinkedIn cookies configured`);
-          continue;
+        if (!isEmailAction) {
+          const { data: seqForCookies } = await supabase
+            .from("automation_sequences")
+            .select("workspace_id")
+            .eq("id", item.sequence_id as string)
+            .single();
+
+          if (seqForCookies?.workspace_id) {
+            const { data: ws } = await supabase
+              .from("workspaces")
+              .select("settings")
+              .eq("id", seqForCookies.workspace_id)
+              .single();
+
+            const settings = (ws?.settings || {}) as Record<string, string>;
+            liAt = settings.linkedin_li_at || "";
+            jsessionId = settings.linkedin_jsessionid || "";
+          }
+
+          if (!liAt || !jsessionId) {
+            logs.push(`Skipped: No LinkedIn cookies configured in workspace settings`);
+            continue;
+          }
         }
 
         const headers: Record<string, string> = {

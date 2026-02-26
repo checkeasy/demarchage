@@ -284,6 +284,31 @@ export default function NewCampaignPage() {
         if (stepsError) throw stepsError;
       }
 
+      // Enroll selected prospects into the campaign
+      if (selectedProspectIds.size > 0) {
+        // Get the first step ID for assigning prospects
+        const { data: firstStep } = await supabase
+          .from("sequence_steps")
+          .select("id")
+          .eq("campaign_id", campaign.id)
+          .order("step_order", { ascending: true })
+          .limit(1)
+          .single();
+
+        const prospectRows = [...selectedProspectIds].map((prospectId) => ({
+          campaign_id: campaign.id,
+          prospect_id: prospectId,
+          status: "active" as const,
+          current_step_id: firstStep?.id || null,
+        }));
+
+        const { error: enrollError } = await supabase
+          .from("campaign_prospects")
+          .insert(prospectRows);
+
+        if (enrollError) throw enrollError;
+      }
+
       // Update campaign prospect count
       const { error: updateError } = await supabase
         .from("campaigns")

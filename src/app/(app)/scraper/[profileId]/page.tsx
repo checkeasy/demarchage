@@ -128,6 +128,24 @@ export default function ProfileDetailPage() {
     "connection"
   );
   const [copied, setCopied] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+
+  // Load workspace ID
+  useEffect(() => {
+    async function loadWorkspace() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
+      if (profile?.current_workspace_id) {
+        setWorkspaceId(profile.current_workspace_id);
+      }
+    }
+    loadWorkspace();
+  }, [supabase]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -261,6 +279,10 @@ export default function ProfileDetailPage() {
 
   async function handleAddToProspects() {
     if (!profile) return;
+    if (!workspaceId) {
+      toast.error("Aucun workspace selectionne");
+      return;
+    }
 
     try {
       const { error } = await supabase.from("prospects").insert({
@@ -275,7 +297,7 @@ export default function ProfileDetailPage() {
         phone: profile.phone,
         source: "linkedin" as const,
         status: "active" as const,
-        workspace_id: "",
+        workspace_id: workspaceId,
         custom_fields: {
           headline: profile.headline,
           relevance_score: profile.relevanceScore,
@@ -994,11 +1016,36 @@ export default function ProfileDetailPage() {
               {copied ? "Copie !" : "Copier"}
             </Button>
             <Button
-              onClick={() => {
-                toast.success("Message envoye (simulation)");
-                setShowMessageDialog(false);
+              onClick={async () => {
+                if (!profile || !generatedMessage || !workspaceId) {
+                  if (!workspaceId) toast.error("Aucun workspace selectionne");
+                  return;
+                }
+                try {
+                  const publicId = profile.profileUrl?.split("/in/")?.[1]?.replace(/\//g, "") || "";
+                  const profileUrn = publicId ? `urn:li:fsd_profile:${publicId}` : profile.id;
+                  const res = await fetch("/api/linkedin/message", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      workspace_id: workspaceId,
+                      profile_urn: profileUrn,
+                      public_id: publicId,
+                      message: generatedMessage,
+                    }),
+                  });
+                  if (res.ok) {
+                    toast.success("Message envoye avec succes");
+                    setShowMessageDialog(false);
+                  } else {
+                    const data = await res.json();
+                    toast.error(data.error || "Erreur lors de l'envoi");
+                  }
+                } catch {
+                  toast.error("Erreur lors de l'envoi du message");
+                }
               }}
-              disabled={isGenerating}
+              disabled={isGenerating || !generatedMessage}
             >
               <Send className="size-4" />
               Envoyer
