@@ -35,12 +35,19 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require auth
-  const publicRoutes = ["/", "/auth/login", "/auth/register", "/auth/callback", "/auth/confirm"];
+  // Public routes that don't require auth (no register - signup disabled)
+  const publicRoutes = ["/", "/auth/login", "/auth/callback", "/auth/confirm"];
   const isPublicRoute = publicRoutes.includes(pathname);
   const isApiRoute = pathname.startsWith("/api/");
   const isTrackingRoute = pathname.startsWith("/api/tracking/");
   const isWebhookRoute = pathname.startsWith("/api/webhooks/");
+
+  // Block register page - redirect to login
+  if (pathname === "/auth/register") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
 
   // Allow public routes, API routes, tracking and webhook routes
   if (isPublicRoute || isTrackingRoute || isWebhookRoute) {

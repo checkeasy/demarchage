@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Mail, Lock, Chrome, Loader2 } from "lucide-react";
@@ -207,13 +206,7 @@ export default function LoginPage() {
 
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
-          Pas encore de compte ?{" "}
-          <Link
-            href="/auth/register"
-            className="text-primary font-medium hover:underline"
-          >
-            Creer un compte
-          </Link>
+          Acces reserve aux utilisateurs autorises
         </p>
       </CardFooter>
     </Card>
