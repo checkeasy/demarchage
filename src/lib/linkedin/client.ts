@@ -961,3 +961,32 @@ export function getLinkedInClient(): LinkedInClient {
 export function createLinkedInClient(config: LinkedInAccountConfig): LinkedInClient {
   return new LinkedInClient(config);
 }
+
+/**
+ * Crée un client LinkedIn en lisant les cookies depuis le workspace en BDD.
+ * Fallback sur les variables d'environnement si rien en BDD.
+ */
+export async function getLinkedInClientForWorkspace(workspaceId: string): Promise<LinkedInClient> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const supabase = createAdminClient();
+
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('settings')
+      .eq('id', workspaceId)
+      .single();
+
+    const settings = (workspace?.settings || {}) as Record<string, string>;
+    const liAt = settings.linkedin_li_at;
+    const jsessionId = settings.linkedin_jsessionid;
+
+    if (liAt && jsessionId) {
+      return new LinkedInClient({ liAt, jsessionId });
+    }
+  } catch {
+    // Fallback to env vars
+  }
+
+  return getLinkedInClient();
+}

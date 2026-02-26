@@ -29,6 +29,13 @@ import {
   TestTube,
   Loader2,
   Bot,
+  Linkedin,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 
 interface EmailAccountForm {
@@ -85,6 +92,18 @@ export default function SettingsPage() {
     warmup_enabled: false,
   });
 
+  // LinkedIn state
+  const [linkedinLiAt, setLinkedinLiAt] = useState("");
+  const [linkedinJsessionId, setLinkedinJsessionId] = useState("");
+  const [linkedinStatus, setLinkedinStatus] = useState<"unknown" | "configured" | "not_configured" | "connected" | "expired" | "error">("unknown");
+  const [linkedinStatusMessage, setLinkedinStatusMessage] = useState("");
+  const [linkedinMaskedLiAt, setLinkedinMaskedLiAt] = useState("");
+  const [linkedinMaskedJsessionId, setLinkedinMaskedJsessionId] = useState("");
+  const [showLiAt, setShowLiAt] = useState(false);
+  const [showJsessionId, setShowJsessionId] = useState(false);
+  const [savingLinkedin, setSavingLinkedin] = useState(false);
+  const [testingLinkedin, setTestingLinkedin] = useState(false);
+
   const supabase = createClient();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,6 +145,19 @@ export default function SettingsPage() {
       .eq("workspace_id", profile.current_workspace_id);
 
     setEmailAccounts(accounts || []);
+
+    // Load LinkedIn settings
+    try {
+      const linkedinRes = await fetch("/api/settings/linkedin");
+      if (linkedinRes.ok) {
+        const linkedinData = await linkedinRes.json();
+        setLinkedinStatus(linkedinData.configured ? "configured" : "not_configured");
+        setLinkedinMaskedLiAt(linkedinData.li_at_masked || "");
+        setLinkedinMaskedJsessionId(linkedinData.jsessionid_masked || "");
+      }
+    } catch {
+      // Non-blocking
+    }
   }, []);
 
   useEffect(() => {
@@ -291,6 +323,89 @@ export default function SettingsPage() {
     });
   }
 
+  async function saveLinkedinSettings() {
+    if (!linkedinLiAt || !linkedinJsessionId) {
+      toast.error("Les deux cookies sont requis");
+      return;
+    }
+    setSavingLinkedin(true);
+    try {
+      const res = await fetch("/api/settings/linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ li_at: linkedinLiAt, jsessionid: linkedinJsessionId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Cookies LinkedIn sauvegardes");
+        setLinkedinStatus("configured");
+        setLinkedinLiAt("");
+        setLinkedinJsessionId("");
+        loadSettings();
+      } else {
+        toast.error(data.error || "Erreur lors de la sauvegarde");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    }
+    setSavingLinkedin(false);
+  }
+
+  async function testLinkedinConnection() {
+    const liAt = linkedinLiAt || undefined;
+    const jsessionId = linkedinJsessionId || undefined;
+
+    if (!liAt && !jsessionId && linkedinStatus !== "configured") {
+      toast.error("Saisissez vos cookies avant de tester");
+      return;
+    }
+
+    setTestingLinkedin(true);
+    setLinkedinStatusMessage("");
+    try {
+      // If user typed new values, test those; otherwise test saved ones
+      let testLiAt = liAt;
+      let testJsessionId = jsessionId;
+
+      if (!testLiAt || !testJsessionId) {
+        // Fetch the saved raw values via a special test with saved cookies
+        // We send action=test without cookies to test the saved ones
+        const admin = createClient();
+        const { data: { user } } = await admin.auth.getUser();
+        if (!user) { setTestingLinkedin(false); return; }
+        const { data: profile } = await admin.from("profiles").select("current_workspace_id").eq("id", user.id).single();
+        if (!profile?.current_workspace_id) { setTestingLinkedin(false); return; }
+        const { data: workspace } = await admin.from("workspaces").select("settings").eq("id", profile.current_workspace_id).single();
+        const settings = (workspace?.settings || {}) as Record<string, string>;
+        testLiAt = settings.linkedin_li_at;
+        testJsessionId = settings.linkedin_jsessionid;
+      }
+
+      if (!testLiAt || !testJsessionId) {
+        toast.error("Aucun cookie configure");
+        setTestingLinkedin(false);
+        return;
+      }
+
+      const res = await fetch("/api/settings/linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", li_at: testLiAt, jsessionid: testJsessionId }),
+      });
+      const data = await res.json();
+      setLinkedinStatus(data.status as typeof linkedinStatus);
+      setLinkedinStatusMessage(data.message);
+      if (data.success) {
+        toast.success("Connexion LinkedIn reussie !");
+      } else {
+        toast.error(data.message || "Echec de la connexion");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    }
+    setTestingLinkedin(false);
+  }
+
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold">Parametres</h1>
@@ -308,6 +423,10 @@ export default function SettingsPage() {
           <TabsTrigger value="ai">
             <Bot className="mr-2 h-4 w-4" />
             IA & Prospection
+          </TabsTrigger>
+          <TabsTrigger value="linkedin">
+            <Linkedin className="mr-2 h-4 w-4" />
+            LinkedIn
           </TabsTrigger>
         </TabsList>
 
@@ -711,6 +830,201 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
                 )}
                 Sauvegarder la configuration IA
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="linkedin" className="space-y-4">
+          {/* How it works */}
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-600" />
+                Comment fonctionne la connexion LinkedIn
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ul className="text-sm text-blue-900 space-y-2 list-disc list-inside">
+                <li>
+                  L&apos;outil utilise les <strong>cookies de session</strong> de votre compte LinkedIn pour effectuer des recherches, voir des profils et envoyer des messages.
+                </li>
+                <li>
+                  Toutes les actions passent par votre compte LinkedIn personnel. LinkedIn ne fournit pas d&apos;API publique pour ces fonctionnalites.
+                </li>
+                <li>
+                  Les cookies <strong>expirent regulierement</strong> (toutes les quelques semaines). Quand ca arrive, mettez-les a jour ici.
+                </li>
+                <li>
+                  Pour eviter les restrictions LinkedIn, l&apos;outil respecte des <strong>limites quotidiennes</strong> sur chaque type d&apos;action.
+                </li>
+              </ul>
+              <Separator className="bg-blue-200" />
+              <div>
+                <h4 className="font-medium text-sm text-blue-900 mb-2">
+                  Comment recuperer vos cookies LinkedIn
+                </h4>
+                <ol className="text-sm text-blue-800 space-y-1.5 list-decimal list-inside">
+                  <li>Connectez-vous a <strong>linkedin.com</strong> dans votre navigateur</li>
+                  <li>Ouvrez les DevTools : <kbd className="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">F12</kbd> ou <kbd className="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">Ctrl+Shift+I</kbd></li>
+                  <li>Allez dans l&apos;onglet <strong>Application</strong> (ou Storage)</li>
+                  <li>Dans le menu de gauche : <strong>Cookies &gt; https://www.linkedin.com</strong></li>
+                  <li>Copiez la valeur du cookie <code className="px-1 py-0.5 bg-blue-100 rounded text-xs font-mono">li_at</code></li>
+                  <li>Copiez la valeur du cookie <code className="px-1 py-0.5 bg-blue-100 rounded text-xs font-mono">JSESSIONID</code> (sans les guillemets)</li>
+                  <li>Collez les valeurs ci-dessous et sauvegardez</li>
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Configuration */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Configuration LinkedIn</CardTitle>
+                {linkedinStatus === "connected" && (
+                  <Badge className="bg-green-100 text-green-800 gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Connecte
+                  </Badge>
+                )}
+                {linkedinStatus === "configured" && (
+                  <Badge className="bg-blue-100 text-blue-800 gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Configure
+                  </Badge>
+                )}
+                {linkedinStatus === "expired" && (
+                  <Badge className="bg-red-100 text-red-800 gap-1">
+                    <XCircle className="h-3 w-3" />
+                    Session expiree
+                  </Badge>
+                )}
+                {linkedinStatus === "not_configured" && (
+                  <Badge className="bg-gray-100 text-gray-600 gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Non configure
+                  </Badge>
+                )}
+                {linkedinStatus === "error" && (
+                  <Badge className="bg-red-100 text-red-800 gap-1">
+                    <XCircle className="h-3 w-3" />
+                    Erreur
+                  </Badge>
+                )}
+              </div>
+              {linkedinStatusMessage && (
+                <p className={`text-sm mt-1 ${linkedinStatus === "connected" ? "text-green-700" : "text-red-600"}`}>
+                  {linkedinStatusMessage}
+                </p>
+              )}
+              <CardDescription>
+                {linkedinStatus === "configured" || linkedinStatus === "connected"
+                  ? "Vos cookies LinkedIn sont configures. Vous pouvez les mettre a jour ci-dessous."
+                  : "Configurez vos cookies LinkedIn pour activer les recherches et l'automatisation."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(linkedinStatus === "configured" || linkedinStatus === "connected") && !linkedinLiAt && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                  <p className="text-xs text-muted-foreground">Cookies actuels (masques)</p>
+                  <p className="text-sm font-mono">li_at: {linkedinMaskedLiAt || "***"}</p>
+                  <p className="text-sm font-mono">JSESSIONID: {linkedinMaskedJsessionId || "***"}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="li_at">Cookie li_at</Label>
+                <div className="relative">
+                  <Input
+                    id="li_at"
+                    type={showLiAt ? "text" : "password"}
+                    value={linkedinLiAt}
+                    onChange={(e) => setLinkedinLiAt(e.target.value)}
+                    placeholder="AQEDARuUvd0DJsy6..."
+                    className="pr-10 font-mono text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    onClick={() => setShowLiAt(!showLiAt)}
+                    type="button"
+                  >
+                    {showLiAt ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="jsessionid">Cookie JSESSIONID</Label>
+                <div className="relative">
+                  <Input
+                    id="jsessionid"
+                    type={showJsessionId ? "text" : "password"}
+                    value={linkedinJsessionId}
+                    onChange={(e) => setLinkedinJsessionId(e.target.value)}
+                    placeholder="ajax:8203344785197656309"
+                    className="pr-10 font-mono text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    onClick={() => setShowJsessionId(!showJsessionId)}
+                    type="button"
+                  >
+                    {showJsessionId ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={saveLinkedinSettings} disabled={savingLinkedin || (!linkedinLiAt && !linkedinJsessionId)}>
+                  {savingLinkedin && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sauvegarder
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={testLinkedinConnection}
+                  disabled={testingLinkedin}
+                >
+                  {testingLinkedin ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <TestTube className="mr-2 h-4 w-4" />
+                  )}
+                  Tester la connexion
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Daily limits */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Limites quotidiennes LinkedIn</CardTitle>
+              <CardDescription>
+                Pour proteger votre compte, l&apos;outil respecte ces limites par jour.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">25-30</p>
+                  <p className="text-xs text-muted-foreground">Recherches / jour</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">80-150</p>
+                  <p className="text-xs text-muted-foreground">Vues profil / jour</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">20-25</p>
+                  <p className="text-xs text-muted-foreground">Connexions / jour</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">50-100</p>
+                  <p className="text-xs text-muted-foreground">Messages / jour</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

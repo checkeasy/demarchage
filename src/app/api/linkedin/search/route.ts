@@ -4,7 +4,8 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getLinkedInClient } from '@/lib/linkedin/client';
+import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
 import type { LinkedInSearchParams } from '@/lib/linkedin/types';
 
@@ -40,7 +41,15 @@ export async function POST(request: NextRequest) {
       count: count ?? 25,
     };
 
-    const client = getLinkedInClient();
+    // Resolve workspace for DB-stored LinkedIn cookies
+    let workspaceId = body.workspace_id as string | undefined;
+    if (!workspaceId) {
+      const admin = createAdminClient();
+      const { data: ws } = await admin.from('workspaces').select('id').limit(1).single();
+      workspaceId = ws?.id;
+    }
+
+    const client = await getLinkedInClientForWorkspace(workspaceId || '');
     const results = await client.searchPeople(searchParams);
 
     // Mapper les résultats au format attendu par le frontend

@@ -4,7 +4,8 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getLinkedInClient } from '@/lib/linkedin/client';
+import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
 
 export async function POST(request: NextRequest) {
@@ -30,7 +31,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getLinkedInClient();
+    // Resolve workspace for DB-stored LinkedIn cookies
+    let workspaceId = body.workspace_id as string | undefined;
+    if (!workspaceId) {
+      const admin = createAdminClient();
+      const { data: ws } = await admin.from('workspaces').select('id').limit(1).single();
+      workspaceId = ws?.id;
+    }
+
+    const client = await getLinkedInClientForWorkspace(workspaceId || '');
 
     // Extraire le publicIdentifier depuis profileUrl ou profileId
     let publicId = profileId;
