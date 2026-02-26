@@ -1,0 +1,438 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export interface WorkspaceSettings {
+  timezone: string;
+  daily_sending_limit: number;
+  sending_window_start: string;
+  sending_window_end: string;
+  sending_days: number[];
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      workspaces: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          owner_id: string;
+          plan: "free" | "starter" | "pro" | "enterprise";
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          settings: WorkspaceSettings;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          owner_id: string;
+          plan?: "free" | "starter" | "pro" | "enterprise";
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          settings?: WorkspaceSettings;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          owner_id?: string;
+          plan?: "free" | "starter" | "pro" | "enterprise";
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          settings?: WorkspaceSettings;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      profiles: {
+        Row: {
+          id: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          current_workspace_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          current_workspace_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          current_workspace_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      workspace_members: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          user_id: string;
+          role: "owner" | "admin" | "member";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          user_id: string;
+          role?: "owner" | "admin" | "member";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          user_id?: string;
+          role?: "owner" | "admin" | "member";
+          created_at?: string;
+        };
+      };
+      email_accounts: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          email_address: string;
+          display_name: string | null;
+          smtp_host: string | null;
+          smtp_port: number;
+          smtp_user: string | null;
+          smtp_pass_encrypted: string | null;
+          imap_host: string | null;
+          imap_port: number;
+          imap_user: string | null;
+          imap_pass_encrypted: string | null;
+          provider: "gmail" | "outlook" | "custom";
+          resend_api_key_encrypted: string | null;
+          signature_html: string;
+          daily_limit: number;
+          warmup_enabled: boolean;
+          warmup_daily_target: number;
+          warmup_current_volume: number;
+          health_score: number;
+          is_active: boolean;
+          last_synced_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          email_address: string;
+          display_name?: string | null;
+          smtp_host?: string | null;
+          smtp_port?: number;
+          smtp_user?: string | null;
+          smtp_pass_encrypted?: string | null;
+          imap_host?: string | null;
+          imap_port?: number;
+          imap_user?: string | null;
+          imap_pass_encrypted?: string | null;
+          provider?: "gmail" | "outlook" | "custom";
+          resend_api_key_encrypted?: string | null;
+          signature_html?: string;
+          daily_limit?: number;
+          warmup_enabled?: boolean;
+          warmup_daily_target?: number;
+          warmup_current_volume?: number;
+          health_score?: number;
+          is_active?: boolean;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          email_address?: string;
+          display_name?: string | null;
+          smtp_host?: string | null;
+          smtp_port?: number;
+          smtp_user?: string | null;
+          smtp_pass_encrypted?: string | null;
+          imap_host?: string | null;
+          imap_port?: number;
+          imap_user?: string | null;
+          imap_pass_encrypted?: string | null;
+          provider?: "gmail" | "outlook" | "custom";
+          resend_api_key_encrypted?: string | null;
+          signature_html?: string;
+          daily_limit?: number;
+          warmup_enabled?: boolean;
+          warmup_daily_target?: number;
+          warmup_current_volume?: number;
+          health_score?: number;
+          is_active?: boolean;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      prospects: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          email: string;
+          first_name: string | null;
+          last_name: string | null;
+          company: string | null;
+          job_title: string | null;
+          phone: string | null;
+          linkedin_url: string | null;
+          website: string | null;
+          location: string | null;
+          custom_fields: Json;
+          status: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
+          source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps";
+          last_contacted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          email: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          company?: string | null;
+          job_title?: string | null;
+          phone?: string | null;
+          linkedin_url?: string | null;
+          website?: string | null;
+          location?: string | null;
+          custom_fields?: Json;
+          status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
+          source?: "manual" | "csv_import" | "api" | "linkedin";
+          last_contacted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          email?: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          company?: string | null;
+          job_title?: string | null;
+          phone?: string | null;
+          linkedin_url?: string | null;
+          website?: string | null;
+          location?: string | null;
+          custom_fields?: Json;
+          status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
+          source?: "manual" | "csv_import" | "api" | "linkedin";
+          last_contacted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      campaigns: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          description: string | null;
+          status: "draft" | "active" | "paused" | "completed" | "archived";
+          email_account_id: string | null;
+          timezone: string;
+          sending_window_start: string;
+          sending_window_end: string;
+          sending_days: number[];
+          daily_limit: number | null;
+          track_opens: boolean;
+          track_clicks: boolean;
+          stop_on_reply: boolean;
+          total_prospects: number;
+          total_sent: number;
+          total_opened: number;
+          total_clicked: number;
+          total_replied: number;
+          total_bounced: number;
+          total_unsubscribed: number;
+          created_by: string | null;
+          launched_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          description?: string | null;
+          status?: "draft" | "active" | "paused" | "completed" | "archived";
+          email_account_id?: string | null;
+          timezone?: string;
+          sending_window_start?: string;
+          sending_window_end?: string;
+          sending_days?: number[];
+          daily_limit?: number | null;
+          track_opens?: boolean;
+          track_clicks?: boolean;
+          stop_on_reply?: boolean;
+          created_by?: string | null;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          status?: "draft" | "active" | "paused" | "completed" | "archived";
+          email_account_id?: string | null;
+          timezone?: string;
+          sending_window_start?: string;
+          sending_window_end?: string;
+          sending_days?: number[];
+          daily_limit?: number | null;
+          track_opens?: boolean;
+          track_clicks?: boolean;
+          stop_on_reply?: boolean;
+          total_prospects?: number;
+          total_sent?: number;
+          total_opened?: number;
+          total_clicked?: number;
+          total_replied?: number;
+          total_bounced?: number;
+          total_unsubscribed?: number;
+          launched_at?: string | null;
+          completed_at?: string | null;
+        };
+      };
+      sequence_steps: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          step_order: number;
+          step_type: "email" | "linkedin_connect" | "linkedin_message" | "delay" | "condition";
+          delay_days: number;
+          delay_hours: number;
+          subject: string | null;
+          body_html: string | null;
+          body_text: string | null;
+          linkedin_message: string | null;
+          ab_enabled: boolean;
+          ab_winner_metric: "open_rate" | "click_rate" | "reply_rate";
+          ab_winner_after_hours: number;
+          ab_winner_variant_id: string | null;
+          condition_type: string | null;
+          condition_true_step_id: string | null;
+          condition_false_step_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          step_order: number;
+          step_type: "email" | "linkedin_connect" | "linkedin_message" | "delay" | "condition";
+          delay_days?: number;
+          delay_hours?: number;
+          subject?: string | null;
+          body_html?: string | null;
+          body_text?: string | null;
+          linkedin_message?: string | null;
+          ab_enabled?: boolean;
+          ab_winner_metric?: "open_rate" | "click_rate" | "reply_rate";
+          ab_winner_after_hours?: number;
+          condition_type?: string | null;
+        };
+        Update: {
+          step_order?: number;
+          step_type?: "email" | "linkedin_connect" | "linkedin_message" | "delay" | "condition";
+          delay_days?: number;
+          delay_hours?: number;
+          subject?: string | null;
+          body_html?: string | null;
+          body_text?: string | null;
+          linkedin_message?: string | null;
+          ab_enabled?: boolean;
+          ab_winner_metric?: "open_rate" | "click_rate" | "reply_rate";
+          ab_winner_after_hours?: number;
+          ab_winner_variant_id?: string | null;
+          condition_type?: string | null;
+          condition_true_step_id?: string | null;
+          condition_false_step_id?: string | null;
+          is_active?: boolean;
+        };
+      };
+      emails_sent: {
+        Row: {
+          id: string;
+          campaign_prospect_id: string;
+          step_id: string;
+          ab_variant_id: string | null;
+          email_account_id: string;
+          from_email: string;
+          to_email: string;
+          subject: string;
+          body_html: string;
+          body_text: string | null;
+          tracking_id: string;
+          resend_message_id: string | null;
+          status: "queued" | "sending" | "sent" | "delivered" | "opened" | "clicked" | "replied" | "bounced" | "failed" | "complained";
+          queued_at: string;
+          sent_at: string | null;
+          delivered_at: string | null;
+          opened_at: string | null;
+          clicked_at: string | null;
+          replied_at: string | null;
+          bounced_at: string | null;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_prospect_id: string;
+          step_id: string;
+          ab_variant_id?: string | null;
+          email_account_id: string;
+          from_email: string;
+          to_email: string;
+          subject: string;
+          body_html: string;
+          body_text?: string | null;
+          tracking_id?: string;
+          resend_message_id?: string | null;
+          status?: "queued" | "sending" | "sent" | "delivered" | "opened" | "clicked" | "replied" | "bounced" | "failed" | "complained";
+        };
+        Update: {
+          status?: "queued" | "sending" | "sent" | "delivered" | "opened" | "clicked" | "replied" | "bounced" | "failed" | "complained";
+          resend_message_id?: string | null;
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          opened_at?: string | null;
+          clicked_at?: string | null;
+          replied_at?: string | null;
+          bounced_at?: string | null;
+          error_message?: string | null;
+        };
+      };
+    };
+  };
+}
+
+// Helper types
+export type Workspace = Database["public"]["Tables"]["workspaces"]["Row"];
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+export type WorkspaceMember = Database["public"]["Tables"]["workspace_members"]["Row"];
+export type EmailAccount = Database["public"]["Tables"]["email_accounts"]["Row"];
+export type Prospect = Database["public"]["Tables"]["prospects"]["Row"];
+export type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
+export type SequenceStep = Database["public"]["Tables"]["sequence_steps"]["Row"];
+export type EmailSent = Database["public"]["Tables"]["emails_sent"]["Row"];

@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { searchGoogleMaps } from '@/lib/scraper/google-maps-scraper';
+
+export const maxDuration = 60;
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { query, location, maxResults = 20 } = body as {
+      query: string;
+      location?: string;
+      maxResults?: number;
+    };
+
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      return NextResponse.json(
+        { error: 'Le champ "query" est requis (minimum 2 caracteres)' },
+        { status: 400 }
+      );
+    }
+
+    const result = await searchGoogleMaps(query.trim(), location?.trim());
+
+    // Limit results
+    result.businesses = result.businesses.slice(0, Math.min(maxResults, 20));
+    result.totalFound = result.businesses.length;
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    console.error('[API search-maps] Error:', err);
+    return NextResponse.json(
+      { error: 'Erreur interne lors de la recherche Google Maps' },
+      { status: 500 }
+    );
+  }
+}
