@@ -25,6 +25,7 @@ import {
   Clock,
   UserPlus,
   MessageSquare,
+  Phone,
   GripVertical,
   Plus,
   Trash2,
@@ -42,6 +43,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   linkedin_connect: UserPlus,
   linkedin_message: MessageSquare,
   condition: Clock,
+  whatsapp: Phone,
 };
 
 const STEP_COLORS: Record<string, string> = {
@@ -50,6 +52,7 @@ const STEP_COLORS: Record<string, string> = {
   linkedin_connect: "border-l-sky-500 bg-sky-50/50",
   linkedin_message: "border-l-sky-500 bg-sky-50/50",
   condition: "border-l-purple-500 bg-purple-50/50",
+  whatsapp: "border-l-green-500 bg-green-50/50",
 };
 
 const ICON_COLORS: Record<string, string> = {
@@ -58,6 +61,7 @@ const ICON_COLORS: Record<string, string> = {
   linkedin_connect: "text-sky-600 bg-sky-100",
   linkedin_message: "text-sky-600 bg-sky-100",
   condition: "text-purple-600 bg-purple-100",
+  whatsapp: "text-green-600 bg-green-100",
 };
 
 const ADD_STEP_OPTIONS: {
@@ -69,6 +73,7 @@ const ADD_STEP_OPTIONS: {
   { type: "delay", label: "Delai", icon: Clock },
   { type: "linkedin_connect", label: "LinkedIn Connexion", icon: UserPlus },
   { type: "linkedin_message", label: "LinkedIn Message", icon: MessageSquare },
+  { type: "whatsapp", label: "WhatsApp", icon: Phone },
 ];
 
 let stepIdCounter = 0;
@@ -92,6 +97,7 @@ function createDefaultStep(
     body_text: type === "email" ? "" : null,
     linkedin_message:
       type === "linkedin_connect" || type === "linkedin_message" ? "" : null,
+    whatsapp_message: type === "whatsapp" ? "" : null,
     ab_enabled: false,
   };
 }
@@ -120,6 +126,10 @@ function getStepSummary(step: StepData): string {
       return step.linkedin_message
         ? step.linkedin_message.slice(0, 60) + "..."
         : "Message LinkedIn";
+    case "whatsapp":
+      return step.whatsapp_message
+        ? step.whatsapp_message.slice(0, 60) + "..."
+        : "Message WhatsApp";
     default:
       return "Etape";
   }

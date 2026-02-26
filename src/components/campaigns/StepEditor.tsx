@@ -17,15 +17,16 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailComposer } from "./EmailComposer";
 import { STEP_TYPES } from "@/lib/constants";
-import { Mail, Clock, UserPlus, MessageSquare } from "lucide-react";
+import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle } from "lucide-react";
 import type { StepData } from "./types";
 
-const STEP_ICONS = {
+const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   email: Mail,
   delay: Clock,
   linkedin_connect: UserPlus,
   linkedin_message: MessageSquare,
   condition: Clock,
+  whatsapp: Phone,
 };
 
 const VARIABLE_BUTTONS = [
@@ -101,6 +102,10 @@ function StepEditorContent({
 
   if (step.step_type === "linkedin_message") {
     return <LinkedInMessageEditor step={step} onSave={onSave} />;
+  }
+
+  if (step.step_type === "whatsapp") {
+    return <WhatsAppMessageEditor step={step} onSave={onSave} />;
   }
 
   return (
@@ -350,6 +355,95 @@ function LinkedInMessageEditor({
           placeholder="Bonjour {firstName}, merci d'avoir accepte ma demande..."
           rows={8}
         />
+      </div>
+
+      <SheetFooter className="p-0">
+        <Button onClick={handleSave} className="w-full">
+          Enregistrer
+        </Button>
+      </SheetFooter>
+    </div>
+  );
+}
+
+// --- WHATSAPP MESSAGE ---
+function WhatsAppMessageEditor({
+  step,
+  onSave,
+}: {
+  step: StepData;
+  onSave: (step: StepData) => void;
+}) {
+  const [message, setMessage] = useState(step.whatsapp_message ?? "");
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const insertVariable = (variable: string) => {
+    if (textareaRef.current) {
+      const el = textareaRef.current;
+      const start = el.selectionStart ?? message.length;
+      const end = el.selectionEnd ?? message.length;
+      const newValue =
+        message.substring(0, start) + variable + message.substring(end);
+      setMessage(newValue);
+      requestAnimationFrame(() => {
+        el.focus();
+        const pos = start + variable.length;
+        el.setSelectionRange(pos, pos);
+      });
+    }
+  };
+
+  const handleSave = () => {
+    onSave({ ...step, whatsapp_message: message });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Variable buttons */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">
+          Inserer une variable
+        </Label>
+        <div className="flex flex-wrap gap-1.5">
+          {VARIABLE_BUTTONS.map((v) => (
+            <Button
+              key={v.key}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs font-mono"
+              onClick={() => insertVariable(v.key)}
+            >
+              {v.key}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="whatsapp-message">Message WhatsApp</Label>
+        <Textarea
+          id="whatsapp-message"
+          ref={textareaRef}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Bonjour {firstName}, je me permets de vous contacter ici..."
+          rows={6}
+        />
+        <p className="text-xs text-muted-foreground">
+          Gardez vos messages courts et personnalises pour un meilleur taux de reponse.
+        </p>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <p className="font-medium">Prerequis</p>
+          <p className="text-xs mt-1">
+            Le prospect doit avoir un numero de telephone valide et un compte WhatsApp actif.
+            Les prospects sans numero seront automatiquement ignores.
+          </p>
+        </div>
       </div>
 
       <SheetFooter className="p-0">

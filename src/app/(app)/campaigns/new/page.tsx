@@ -274,6 +274,7 @@ export default function NewCampaignPage() {
           body_html: s.body_html,
           body_text: s.body_text,
           linkedin_message: s.linkedin_message,
+          whatsapp_message: s.whatsapp_message,
           ab_enabled: s.ab_enabled,
         }));
 

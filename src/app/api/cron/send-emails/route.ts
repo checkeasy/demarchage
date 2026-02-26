@@ -7,6 +7,16 @@ import {
 } from "@/lib/email/template-engine";
 import { processEmailForTracking } from "@/lib/email/tracking";
 import { isWithinSendingWindow, getNextSendTime } from "@/lib/email/scheduler";
+import {
+  getWhatsAppClient,
+  formatPhoneNumber,
+} from "@/lib/whatsapp/client";
+import {
+  canPerformAction as canWhatsApp,
+  recordAction as recordWhatsApp,
+  logWhatsAppAction,
+} from "@/lib/whatsapp/rate-limiter";
+import { WhatsAppActionType } from "@/lib/whatsapp/types";
 
 const BATCH_SIZE = 10;
 
@@ -64,9 +74,11 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (!step || step.step_type !== "email") {
-          // Handle non-email steps (LinkedIn tasks, etc.)
+          // Handle non-email steps (LinkedIn tasks, WhatsApp, etc.)
           if (step?.step_type === "linkedin_connect" || step?.step_type === "linkedin_message") {
             await handleLinkedInStep(supabase, item, step);
+          } else if (step?.step_type === "whatsapp") {
+            await handleWhatsAppStep(supabase, item, step);
           }
           await advanceToNextStep(supabase, item);
           continue;
@@ -361,4 +373,116 @@ async function handleLinkedInStep(
     status: "pending",
     due_at: new Date().toISOString(),
   });
+}
+
+async function handleWhatsAppStep(
+  supabase: ReturnType<typeof createAdminClient>,
+  item: Record<string, unknown>,
+  step: Record<string, unknown>
+) {
+  const workspaceId = item.workspace_id as string;
+  const prospectId = item.prospect_id as string;
+
+  // Get prospect phone number
+  const { data: prospect } = await supabase
+    .from("prospects")
+    .select("phone, first_name, last_name, company, job_title")
+    .eq("id", prospectId)
+    .single();
+
+  if (!prospect?.phone) {
+    console.log(`[WhatsApp] Prospect ${prospectId} has no phone number, skipping`);
+    await logWhatsAppAction({
+      workspaceId,
+      prospectId,
+      phoneNumber: null,
+      messageText: null,
+      status: "invalid_number",
+      errorMessage: "Pas de numero de telephone",
+    });
+    return;
+  }
+
+  // Check rate limit
+  const allowed = await canWhatsApp(workspaceId, WhatsAppActionType.MESSAGE);
+  if (!allowed) {
+    console.log(`[WhatsApp] Rate limit reached for workspace ${workspaceId}`);
+    await logWhatsAppAction({
+      workspaceId,
+      prospectId,
+      phoneNumber: prospect.phone,
+      messageText: null,
+      status: "rate_limited",
+      errorMessage: "Limite quotidienne atteinte",
+    });
+    return;
+  }
+
+  // Get WhatsApp client
+  let client;
+  try {
+    client = await getWhatsAppClient(workspaceId);
+  } catch {
+    console.error(`[WhatsApp] Client not initialized for workspace ${workspaceId}`);
+    await logWhatsAppAction({
+      workspaceId,
+      prospectId,
+      phoneNumber: prospect.phone,
+      messageText: null,
+      status: "failed",
+      errorMessage: "Client WhatsApp non connecte",
+    });
+    return;
+  }
+
+  // Merge template variables
+  let messageText = (step.whatsapp_message as string) || "";
+  messageText = messageText
+    .replace(/\{firstName\}/g, prospect.first_name || "")
+    .replace(/\{prenom\}/g, prospect.first_name || "")
+    .replace(/\{lastName\}/g, prospect.last_name || "")
+    .replace(/\{nom\}/g, prospect.last_name || "")
+    .replace(/\{company\}/g, prospect.company || "")
+    .replace(/\{entreprise\}/g, prospect.company || "")
+    .replace(/\{jobTitle\}/g, prospect.job_title || "")
+    .replace(/\{poste\}/g, prospect.job_title || "");
+
+  if (!messageText.trim()) {
+    console.log(`[WhatsApp] Empty message for step ${step.id}, skipping`);
+    return;
+  }
+
+  try {
+    const formattedPhone = formatPhoneNumber(prospect.phone);
+    const result = await client.sendMessage(formattedPhone, messageText);
+
+    await recordWhatsApp(workspaceId, WhatsAppActionType.MESSAGE);
+
+    await logWhatsAppAction({
+      workspaceId,
+      prospectId,
+      phoneNumber: prospect.phone,
+      messageText,
+      status: "success",
+      waMessageId: result?.messageId || null,
+    });
+
+    // Update prospect last_contacted_at
+    await supabase
+      .from("prospects")
+      .update({ last_contacted_at: new Date().toISOString() })
+      .eq("id", prospectId);
+
+    console.log(`[WhatsApp] Message sent to ${prospect.phone}`);
+  } catch (err) {
+    console.error(`[WhatsApp] Send error:`, err);
+    await logWhatsAppAction({
+      workspaceId,
+      prospectId,
+      phoneNumber: prospect.phone,
+      messageText,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Erreur inconnue",
+    });
+  }
 }

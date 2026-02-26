@@ -36,6 +36,10 @@ import {
   XCircle,
   AlertTriangle,
   Info,
+  Phone,
+  QrCode,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
 interface EmailAccountForm {
@@ -104,6 +108,14 @@ export default function SettingsPage() {
   const [savingLinkedin, setSavingLinkedin] = useState(false);
   const [testingLinkedin, setTestingLinkedin] = useState(false);
 
+  // WhatsApp state
+  const [whatsappStatus, setWhatsappStatus] = useState<"disconnected" | "qr_pending" | "authenticating" | "ready" | "error">("disconnected");
+  const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [whatsappQrCode, setWhatsappQrCode] = useState<string | null>(null);
+  const [whatsappLastError, setWhatsappLastError] = useState("");
+  const [whatsappConnecting, setWhatsappConnecting] = useState(false);
+  const [whatsappPolling, setWhatsappPolling] = useState(false);
+
   const supabase = createClient();
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -154,6 +166,20 @@ export default function SettingsPage() {
         setLinkedinStatus(linkedinData.configured ? "configured" : "not_configured");
         setLinkedinMaskedLiAt(linkedinData.li_at_masked || "");
         setLinkedinMaskedJsessionId(linkedinData.jsessionid_masked || "");
+      }
+    } catch {
+      // Non-blocking
+    }
+
+    // Load WhatsApp status
+    try {
+      const waRes = await fetch("/api/settings/whatsapp");
+      if (waRes.ok) {
+        const waData = await waRes.json();
+        setWhatsappStatus(waData.status || "disconnected");
+        setWhatsappPhone(waData.phoneNumber || "");
+        setWhatsappQrCode(waData.qrCodeDataUrl || null);
+        setWhatsappLastError(waData.lastError || "");
       }
     } catch {
       // Non-blocking
@@ -406,6 +432,76 @@ export default function SettingsPage() {
     setTestingLinkedin(false);
   }
 
+  async function connectWhatsApp() {
+    setWhatsappConnecting(true);
+    setWhatsappLastError("");
+    try {
+      const res = await fetch("/api/settings/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initialize" }),
+      });
+      const data = await res.json();
+      if (data.status) {
+        setWhatsappStatus(data.status);
+        setWhatsappQrCode(data.qrCode || null);
+        setWhatsappPhone(data.phoneNumber || "");
+      }
+      // Start polling for QR code / status updates
+      setWhatsappPolling(true);
+    } catch {
+      toast.error("Erreur lors de la connexion WhatsApp");
+    }
+    setWhatsappConnecting(false);
+  }
+
+  async function disconnectWhatsApp() {
+    try {
+      await fetch("/api/settings/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect" }),
+      });
+      setWhatsappStatus("disconnected");
+      setWhatsappPhone("");
+      setWhatsappQrCode(null);
+      setWhatsappPolling(false);
+      toast.success("WhatsApp deconnecte");
+    } catch {
+      toast.error("Erreur lors de la deconnexion");
+    }
+  }
+
+  // Polling WhatsApp status
+  useEffect(() => {
+    if (!whatsappPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/settings/whatsapp");
+        if (res.ok) {
+          const data = await res.json();
+          setWhatsappStatus(data.status || "disconnected");
+          setWhatsappPhone(data.phoneNumber || "");
+          setWhatsappQrCode(data.qrCodeDataUrl || null);
+          setWhatsappLastError(data.lastError || "");
+
+          if (data.status === "ready") {
+            setWhatsappPolling(false);
+            toast.success("WhatsApp connecte !");
+          } else if (data.status === "error" || data.status === "disconnected") {
+            setWhatsappPolling(false);
+            if (data.lastError) {
+              toast.error(data.lastError);
+            }
+          }
+        }
+      } catch {
+        // Silencieux
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [whatsappPolling]);
+
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold">Parametres</h1>
@@ -427,6 +523,10 @@ export default function SettingsPage() {
           <TabsTrigger value="linkedin">
             <Linkedin className="mr-2 h-4 w-4" />
             LinkedIn
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp">
+            <Phone className="mr-2 h-4 w-4" />
+            WhatsApp
           </TabsTrigger>
         </TabsList>
 
@@ -1025,6 +1125,171 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
                   <p className="text-xs text-muted-foreground">Messages / jour</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="whatsapp" className="space-y-4">
+          {/* How it works */}
+          <Card className="border-green-200 bg-green-50/50">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Info className="h-4 w-4 text-green-600" />
+                Comment fonctionne la connexion WhatsApp
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ul className="text-sm text-green-900 space-y-2 list-disc list-inside">
+                <li>
+                  L&apos;outil se connecte a <strong>votre compte WhatsApp personnel</strong> en scannant un QR code (comme WhatsApp Web).
+                </li>
+                <li>
+                  Les messages sont envoyes depuis votre numero. WhatsApp ne fournit pas d&apos;API gratuite pour ca.
+                </li>
+                <li>
+                  La session reste active sur le serveur. Si elle expire, vous devrez re-scanner le QR code.
+                </li>
+                <li>
+                  Pour eviter les restrictions, l&apos;outil envoie <strong>maximum ~20 messages/jour</strong> et respecte des delais entre chaque envoi.
+                </li>
+              </ul>
+              <Separator className="bg-green-200" />
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Attention</p>
+                  <p className="text-xs mt-1">
+                    L&apos;envoi massif de messages non sollicites peut entrainer un ban de votre compte WhatsApp.
+                    Utilisez cette fonctionnalite avec moderation et uniquement pour des prospects pertinents.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Connection status */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Connexion WhatsApp</CardTitle>
+                {whatsappStatus === "ready" && (
+                  <Badge className="bg-green-100 text-green-800 gap-1">
+                    <Wifi className="h-3 w-3" />
+                    Connecte
+                  </Badge>
+                )}
+                {whatsappStatus === "qr_pending" && (
+                  <Badge className="bg-yellow-100 text-yellow-800 gap-1">
+                    <QrCode className="h-3 w-3" />
+                    En attente du scan
+                  </Badge>
+                )}
+                {whatsappStatus === "authenticating" && (
+                  <Badge className="bg-blue-100 text-blue-800 gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Authentification...
+                  </Badge>
+                )}
+                {whatsappStatus === "disconnected" && (
+                  <Badge className="bg-gray-100 text-gray-600 gap-1">
+                    <WifiOff className="h-3 w-3" />
+                    Deconnecte
+                  </Badge>
+                )}
+                {whatsappStatus === "error" && (
+                  <Badge className="bg-red-100 text-red-800 gap-1">
+                    <XCircle className="h-3 w-3" />
+                    Erreur
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                {whatsappStatus === "ready"
+                  ? `Connecte avec le numero ${whatsappPhone || "inconnu"}`
+                  : whatsappStatus === "qr_pending"
+                    ? "Scannez le QR code ci-dessous avec votre application WhatsApp"
+                    : "Connectez votre compte WhatsApp pour envoyer des messages automatiquement."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* QR Code display */}
+              {whatsappStatus === "qr_pending" && whatsappQrCode && (
+                <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
+                  <img
+                    src={whatsappQrCode}
+                    alt="QR Code WhatsApp"
+                    className="w-64 h-64"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Ouvrez WhatsApp sur votre telephone &gt; Menu &gt; Appareils connectes &gt; Connecter un appareil
+                  </p>
+                </div>
+              )}
+
+              {/* Connected info */}
+              {whatsappStatus === "ready" && whatsappPhone && (
+                <div className="rounded-lg border bg-green-50 p-3 flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Numero connecte</p>
+                    <p className="text-sm font-mono text-green-700">+{whatsappPhone}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error display */}
+              {whatsappLastError && whatsappStatus === "error" && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-700">{whatsappLastError}</p>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                {whatsappStatus === "disconnected" || whatsappStatus === "error" ? (
+                  <Button
+                    onClick={connectWhatsApp}
+                    disabled={whatsappConnecting}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {whatsappConnecting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    )}
+                    Connecter WhatsApp
+                  </Button>
+                ) : whatsappStatus === "ready" ? (
+                  <Button variant="outline" onClick={disconnectWhatsApp}>
+                    <WifiOff className="mr-2 h-4 w-4" />
+                    Deconnecter
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Daily limits */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Limites quotidiennes WhatsApp</CardTitle>
+              <CardDescription>
+                Pour proteger votre compte, l&apos;outil applique des limites strictes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">~20</p>
+                  <p className="text-xs text-muted-foreground">Messages / jour</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">3-8s</p>
+                  <p className="text-xs text-muted-foreground">Delai entre messages</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Ces limites sont volontairement basses en phase de demarrage. Elles pourront etre augmentees progressivement une fois votre compte &quot;chauffe&quot;.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

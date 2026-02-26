@@ -32,16 +32,17 @@ export function CampaignDetailTabs({
   steps,
 }: CampaignDetailTabsProps) {
   // Convert DB sequence steps to StepData for the SequenceEditor
-  const editorSteps: StepData[] = steps.map((s) => ({
+  const editorSteps: StepData[] = (steps as (typeof steps[number] & Record<string, unknown>)[]).map((s) => ({
     id: s.id,
     step_order: s.step_order,
-    step_type: s.step_type,
+    step_type: s.step_type as StepData["step_type"],
     delay_days: s.delay_days,
     delay_hours: s.delay_hours,
     subject: s.subject,
     body_html: s.body_html,
     body_text: s.body_text,
     linkedin_message: s.linkedin_message,
+    whatsapp_message: (s.whatsapp_message as string) ?? null,
     ab_enabled: s.ab_enabled,
   }));
 
