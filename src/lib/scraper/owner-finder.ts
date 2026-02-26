@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 import { SYSTEM_PROMPT_OWNER_FINDER } from '@/lib/ai/prompts';
+import { getLinkedInClient, LinkedInError } from '@/lib/linkedin';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ export interface OwnerFinderResult {
   ownerRole: string | null;
   confidence: number;
   evidence: string | null;
+  linkedinUrl: string | null;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -84,6 +86,7 @@ export async function findOwner(
     ownerRole: null,
     confidence: 0,
     evidence: null,
+    linkedinUrl: null,
   };
 
   if (!websiteUrl) return defaultResult;
@@ -159,12 +162,61 @@ export async function findOwner(
 
     const parsed = JSON.parse(responseText);
 
+    const ownerFirstName: string | null = parsed.owner_first_name || null;
+    const ownerLastName: string | null = parsed.owner_last_name || null;
+    const ownerRole: string | null = parsed.owner_role || null;
+    const confidence: number = parsed.confidence || 0;
+    const evidence: string | null = parsed.evidence || null;
+
+    // Step 2: Search LinkedIn for the owner profile
+    let linkedinUrl: string | null = null;
+
+    if (ownerFirstName && ownerLastName) {
+      try {
+        console.log(`[OwnerFinder] Searching LinkedIn for ${ownerFirstName} ${ownerLastName} ${businessName}...`);
+        const linkedinClient = getLinkedInClient();
+        const searchResponse = await linkedinClient.searchPeople({
+          keywords: `${ownerFirstName} ${ownerLastName} ${businessName}`,
+          count: 5,
+        });
+
+        if (searchResponse.results.length > 0) {
+          // Find the best match: check if first name and last name match (case-insensitive)
+          const normalizedFirst = ownerFirstName.toLowerCase().trim();
+          const normalizedLast = ownerLastName.toLowerCase().trim();
+
+          const bestMatch = searchResponse.results.find((r) => {
+            const rFirst = r.firstName.toLowerCase().trim();
+            const rLast = r.lastName.toLowerCase().trim();
+            return rFirst === normalizedFirst && rLast === normalizedLast;
+          });
+
+          if (bestMatch) {
+            linkedinUrl = bestMatch.profileUrl;
+            console.log(`[OwnerFinder] LinkedIn match found: ${linkedinUrl}`);
+          } else {
+            console.log('[OwnerFinder] No confident LinkedIn match (name mismatch)');
+          }
+        } else {
+          console.log('[OwnerFinder] No LinkedIn results found');
+        }
+      } catch (err) {
+        // Don't fail the whole enrichment if LinkedIn search fails
+        if (err instanceof LinkedInError) {
+          console.warn(`[OwnerFinder] LinkedIn search failed: ${err.message}`);
+        } else {
+          console.warn('[OwnerFinder] LinkedIn search error:', err);
+        }
+      }
+    }
+
     return {
-      ownerFirstName: parsed.owner_first_name || null,
-      ownerLastName: parsed.owner_last_name || null,
-      ownerRole: parsed.owner_role || null,
-      confidence: parsed.confidence || 0,
-      evidence: parsed.evidence || null,
+      ownerFirstName,
+      ownerLastName,
+      ownerRole,
+      confidence,
+      evidence,
+      linkedinUrl,
     };
   } catch (err) {
     console.error('[OwnerFinder] Error:', err);

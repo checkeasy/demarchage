@@ -12,6 +12,7 @@ interface IncomingProspect {
   ownerFirstName?: string;
   ownerLastName?: string;
   ownerRole?: string;
+  ownerLinkedInUrl?: string;
   phone?: string;
   website?: string;
   address?: string;
@@ -75,7 +76,7 @@ function toProspectRow(workspaceId: string, b: IncomingProspect): ProspectRow {
     company: b.businessName || '',
     job_title: b.ownerRole || 'Gerant',
     phone: b.phone || null,
-    linkedin_url: null,
+    linkedin_url: b.ownerLinkedInUrl || null,
     website: b.website || null,
     location: b.address || null,
     source: 'google_maps' as const,

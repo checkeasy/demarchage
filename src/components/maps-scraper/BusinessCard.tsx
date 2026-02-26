@@ -15,6 +15,7 @@ import {
   UserPlus,
   ExternalLink,
   User,
+  Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ export interface BusinessEnrichmentData {
   ownerFirstName?: string | null;
   ownerLastName?: string | null;
   ownerRole?: string | null;
+  ownerLinkedInUrl?: string | null;
   loading?: boolean;
 }
 
@@ -197,6 +199,22 @@ export function BusinessCard({
                       >
                         {enrichment.ownerRole}
                       </Badge>
+                    )}
+                    {enrichment.ownerLinkedInUrl && (
+                      <a
+                        href={enrichment.ownerLinkedInUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1"
+                      >
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 text-blue-600 border-blue-200 hover:bg-blue-50 cursor-pointer"
+                        >
+                          <Linkedin className="size-2.5 mr-0.5" />
+                          LinkedIn
+                        </Badge>
+                      </a>
                     )}
                   </div>
                 )}

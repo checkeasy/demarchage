@@ -183,6 +183,7 @@ export interface ProspectContext {
   linkedin_url: string | null;
   website: string | null;
   location: string | null;
+  notes: string | null;
   custom_fields: Record<string, unknown>;
   enrichments: Record<string, unknown>[];
 }

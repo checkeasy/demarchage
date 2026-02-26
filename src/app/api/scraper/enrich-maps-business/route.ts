@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         ownerLastName: ownerResult?.ownerLastName || null,
         ownerRole: ownerResult?.ownerRole || null,
         ownerConfidence: ownerResult?.confidence || 0,
+        ownerLinkedInUrl: ownerResult?.linkedinUrl || null,
         enrichedAt: new Date().toISOString(),
       },
     });

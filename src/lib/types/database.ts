@@ -197,6 +197,7 @@ export interface Database {
           linkedin_url: string | null;
           website: string | null;
           location: string | null;
+          notes: string | null;
           custom_fields: Json;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps";
@@ -216,6 +217,7 @@ export interface Database {
           linkedin_url?: string | null;
           website?: string | null;
           location?: string | null;
+          notes?: string | null;
           custom_fields?: Json;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
           source?: "manual" | "csv_import" | "api" | "linkedin";
@@ -235,6 +237,7 @@ export interface Database {
           linkedin_url?: string | null;
           website?: string | null;
           location?: string | null;
+          notes?: string | null;
           custom_fields?: Json;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
           source?: "manual" | "csv_import" | "api" | "linkedin";

@@ -983,6 +983,7 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       linkedin_url: prospect.linkedin_url,
       website: prospect.website,
       location: prospect.location,
+      notes: prospect.notes || null,
       custom_fields: (prospect.custom_fields as Record<string, unknown>) || {},
       enrichments: enrichments?.map((e) => e.data as Record<string, unknown>) || [],
     };

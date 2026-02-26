@@ -26,6 +26,8 @@ import {
   UserPlus,
   MessageSquare,
   Eye,
+  FileText,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +38,7 @@ import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -134,6 +137,76 @@ export function ProspectDetail({
   const [enrolling, setEnrolling] = useState(false);
 
   const hasConflict = campaigns.length > 0 && automations.length > 0;
+
+  // Notes state
+  const [noteText, setNoteText] = useState(prospect.notes || '');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // CRM custom fields editing state
+  const [isEditingCrm, setIsEditingCrm] = useState(false);
+  const [isSavingCrm, setIsSavingCrm] = useState(false);
+  const [crmFormData, setCrmFormData] = useState({
+    type_biens: cf.type_biens || '',
+    type_conciergerie: cf.type_conciergerie || '',
+    standing: cf.standing || '',
+    vision_conciergerie: cf.vision_conciergerie || '',
+    nb_properties: cf.nb_properties ?? '',
+    source_lead_original: cf.source_lead_original || '',
+  });
+
+  async function handleSaveNote() {
+    setIsSavingNote(true);
+    const { error } = await supabase
+      .from('prospects')
+      .update({ notes: noteText || null })
+      .eq('id', prospect.id);
+    setIsSavingNote(false);
+
+    if (error) {
+      toast.error("Erreur lors de la sauvegarde des notes");
+      return;
+    }
+    toast.success("Notes sauvegardees");
+    router.refresh();
+  }
+
+  function cancelCrmEdit() {
+    setIsEditingCrm(false);
+    setCrmFormData({
+      type_biens: cf.type_biens || '',
+      type_conciergerie: cf.type_conciergerie || '',
+      standing: cf.standing || '',
+      vision_conciergerie: cf.vision_conciergerie || '',
+      nb_properties: cf.nb_properties ?? '',
+      source_lead_original: cf.source_lead_original || '',
+    });
+  }
+
+  async function handleSaveCrm() {
+    setIsSavingCrm(true);
+    const updatedFields = {
+      ...prospect.custom_fields as Record<string, unknown>,
+      type_biens: crmFormData.type_biens || undefined,
+      type_conciergerie: crmFormData.type_conciergerie || undefined,
+      standing: crmFormData.standing || undefined,
+      vision_conciergerie: crmFormData.vision_conciergerie || undefined,
+      nb_properties: crmFormData.nb_properties !== '' ? Number(crmFormData.nb_properties) : undefined,
+      source_lead_original: crmFormData.source_lead_original || undefined,
+    };
+    const { error } = await supabase
+      .from('prospects')
+      .update({ custom_fields: updatedFields })
+      .eq('id', prospect.id);
+    setIsSavingCrm(false);
+
+    if (error) {
+      toast.error("Erreur lors de la sauvegarde des donnees CRM");
+      return;
+    }
+    toast.success("Donnees CRM mises a jour");
+    setIsEditingCrm(false);
+    router.refresh();
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -456,80 +529,193 @@ export function ProspectDetail({
       )}
 
       {/* CRM Data Card */}
-      {(cf.country || cf.nb_properties || cf.type_biens || cf.type_conciergerie || cf.standing || cf.vision_conciergerie || cf.source_lead_original) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Donnees CRM</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            {cf.country && (
-              <div className="flex items-center gap-2">
-                <Flag className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Pays</p>
-                  <p className="text-sm">
-                    {countryConfig ? `${countryConfig.flag} ${countryConfig.label}` : cf.country}
-                  </p>
-                </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Donnees CRM</CardTitle>
+          {!isEditingCrm ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingCrm(true)}
+              className="h-7 text-xs"
+            >
+              <Pencil className="size-3 mr-1" />
+              Modifier
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cancelCrmEdit}
+                disabled={isSavingCrm}
+                className="h-7 text-xs"
+              >
+                <X className="size-3 mr-1" />
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveCrm}
+                disabled={isSavingCrm}
+                className="h-7 text-xs"
+              >
+                <Save className="size-3 mr-1" />
+                Sauvegarder
+              </Button>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4">
+          {cf.country && (
+            <div className="flex items-center gap-2">
+              <Flag className="size-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Pays</p>
+                <p className="text-sm">
+                  {countryConfig ? `${countryConfig.flag} ${countryConfig.label}` : cf.country}
+                </p>
               </div>
-            )}
-            {cf.nb_properties && (
-              <div className="flex items-center gap-2">
-                <Hash className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Nombre de biens</p>
-                  <p className="text-sm">{cf.nb_properties}</p>
-                </div>
-              </div>
-            )}
-            {cf.type_biens && (
-              <div className="flex items-center gap-2">
-                <Building2 className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Type de biens</p>
-                  <p className="text-sm">{cf.type_biens}</p>
-                </div>
-              </div>
-            )}
-            {cf.type_conciergerie && (
-              <div className="flex items-center gap-2">
-                <Briefcase className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Type de conciergerie</p>
-                  <p className="text-sm">{cf.type_conciergerie}</p>
-                </div>
-              </div>
-            )}
-            {cf.standing && (
-              <div className="flex items-center gap-2">
-                <TrendingUp className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Standing</p>
-                  <p className="text-sm">{cf.standing}</p>
-                </div>
-              </div>
-            )}
-            {cf.vision_conciergerie && (
-              <div className="flex items-center gap-2">
-                <Globe className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Vision</p>
-                  <p className="text-sm">{cf.vision_conciergerie}</p>
-                </div>
-              </div>
-            )}
-            {cf.source_lead_original && (
-              <div className="flex items-center gap-2">
-                <Send className="size-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Source du lead</p>
-                  <p className="text-sm">{cf.source_lead_original}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Hash className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Nombre de biens</p>
+              {isEditingCrm ? (
+                <Input
+                  type="number"
+                  value={crmFormData.nb_properties}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, nb_properties: e.target.value === '' ? '' : Number(e.target.value) }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: 3"
+                />
+              ) : (
+                <p className="text-sm">{cf.nb_properties || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Building2 className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Type de biens</p>
+              {isEditingCrm ? (
+                <Input
+                  value={crmFormData.type_biens}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, type_biens: e.target.value }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: Appartement, Villa..."
+                />
+              ) : (
+                <p className="text-sm">{cf.type_biens || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Briefcase className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Type de conciergerie</p>
+              {isEditingCrm ? (
+                <Input
+                  value={crmFormData.type_conciergerie}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, type_conciergerie: e.target.value }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: Airbnb, Booking..."
+                />
+              ) : (
+                <p className="text-sm">{cf.type_conciergerie || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Standing</p>
+              {isEditingCrm ? (
+                <Input
+                  value={crmFormData.standing}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, standing: e.target.value }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: Standard, Premium..."
+                />
+              ) : (
+                <p className="text-sm">{cf.standing || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Vision</p>
+              {isEditingCrm ? (
+                <Input
+                  value={crmFormData.vision_conciergerie}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, vision_conciergerie: e.target.value }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: Developpement, Maintien..."
+                />
+              ) : (
+                <p className="text-sm">{cf.vision_conciergerie || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Send className="size-4 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Source du lead</p>
+              {isEditingCrm ? (
+                <Input
+                  value={crmFormData.source_lead_original}
+                  onChange={(e) => setCrmFormData(prev => ({ ...prev, source_lead_original: e.target.value }))}
+                  disabled={isSavingCrm}
+                  className="h-7 text-sm mt-1"
+                  placeholder="Ex: Google Maps, LinkedIn..."
+                />
+              ) : (
+                <p className="text-sm">{cf.source_lead_original || <span className="text-muted-foreground">-</span>}</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notes & Comments Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="size-4" />
+            Notes & Commentaires
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Ajoutez des notes sur ce prospect..."
+            className="min-h-[120px] text-sm resize-y"
+            disabled={isSavingNote}
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {noteText.length} caractere{noteText.length !== 1 ? 's' : ''}
+            </p>
+            <Button
+              size="sm"
+              onClick={handleSaveNote}
+              disabled={isSavingNote || noteText === (prospect.notes || '')}
+              className="h-7 text-xs"
+            >
+              <Save className="size-3 mr-1" />
+              {isSavingNote ? 'Sauvegarde...' : 'Sauvegarder'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Info fields */}
       <Card>
