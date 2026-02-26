@@ -26,12 +26,30 @@ export default async function ProspectsPage() {
     redirect("/onboarding");
   }
 
-  // Fetch prospects for this workspace
-  const { data: prospects } = await supabase
-    .from("prospects")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .order("created_at", { ascending: false });
+  // Fetch ALL prospects (Supabase default limit = 1000, we need all)
+  const allProspects: any[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data } = await supabase
+      .from("prospects")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (data && data.length > 0) {
+      allProspects.push(...data);
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  const prospects = allProspects;
 
   return (
     <div className="space-y-6">

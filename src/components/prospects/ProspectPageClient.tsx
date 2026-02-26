@@ -64,13 +64,9 @@ type PipelineStage = keyof typeof PIPELINE_STAGES;
 
 interface CustomFields {
   crm_status?: string;
-  pipeline_stage?: string;
-  country?: string;
-  organization?: string;
-  nb_properties?: number;
-  loss_reason?: string;
   needs_email?: boolean;
   deal_title?: string;
+  enriched_from_directory?: boolean;
   [key: string]: unknown;
 }
 
@@ -102,8 +98,7 @@ export function ProspectPageClient({
   const availableCountries = useMemo(() => {
     const countries = new Set<string>();
     for (const p of prospects) {
-      const cf = (p.custom_fields || {}) as CustomFields;
-      if (cf.country) countries.add(cf.country);
+      if (p.country) countries.add(p.country);
     }
     return Array.from(countries).sort();
   }, [prospects]);
@@ -121,8 +116,7 @@ export function ProspectPageClient({
           (p.last_name && p.last_name.toLowerCase().includes(term)) ||
           p.email.toLowerCase().includes(term) ||
           (p.company && p.company.toLowerCase().includes(term)) ||
-          (((p.custom_fields || {}) as CustomFields).organization &&
-            ((p.custom_fields || {}) as CustomFields).organization!.toLowerCase().includes(term))
+          (p.organization && p.organization.toLowerCase().includes(term))
       );
     }
 
@@ -141,18 +135,12 @@ export function ProspectPageClient({
 
     // Filter by pipeline stage
     if (pipelineFilter !== "all") {
-      result = result.filter((p) => {
-        const cf = (p.custom_fields || {}) as CustomFields;
-        return cf.pipeline_stage === pipelineFilter;
-      });
+      result = result.filter((p) => p.pipeline_stage === pipelineFilter);
     }
 
     // Filter by country
     if (countryFilter !== "all") {
-      result = result.filter((p) => {
-        const cf = (p.custom_fields || {}) as CustomFields;
-        return cf.country === countryFilter;
-      });
+      result = result.filter((p) => p.country === countryFilter);
     }
 
     // Filter by source
@@ -178,10 +166,11 @@ export function ProspectPageClient({
     const s = { total: prospects.length, active: 0, lost: 0, converted: 0, withEmail: 0 };
     for (const p of prospects) {
       const cf = (p.custom_fields || {}) as CustomFields;
-      if (cf.crm_status === 'lost') s.lost++;
-      else if (cf.crm_status === 'converted') s.converted++;
+      const crmStatus = cf.crm_status;
+      if (crmStatus === 'lost') s.lost++;
+      else if (crmStatus === 'converted') s.converted++;
       else s.active++;
-      if (!cf.needs_email) s.withEmail++;
+      if (!cf.needs_email && !p.email.endsWith('@crm-import.local') && !p.email.endsWith('@directory-import.local')) s.withEmail++;
     }
     return s;
   }, [prospects]);
@@ -282,8 +271,7 @@ export function ProspectPageClient({
   }
 
   function getPipelineBadge(prospect: Prospect) {
-    const cf = (prospect.custom_fields || {}) as CustomFields;
-    const stage = cf.pipeline_stage as PipelineStage;
+    const stage = prospect.pipeline_stage as PipelineStage;
     const config = stage ? PIPELINE_STAGES[stage] : null;
     if (!config) return <span className="text-muted-foreground text-xs">-</span>;
 
@@ -296,8 +284,7 @@ export function ProspectPageClient({
   }
 
   function getCountryDisplay(prospect: Prospect) {
-    const cf = (prospect.custom_fields || {}) as CustomFields;
-    const country = cf.country;
+    const country = prospect.country;
     if (!country) return "-";
     const config = COUNTRIES[country as keyof typeof COUNTRIES];
     if (config) return `${config.flag} ${config.label}`;
@@ -323,7 +310,7 @@ export function ProspectPageClient({
   }
 
   function isPlaceholderEmail(email: string) {
-    return email.endsWith('@crm-import.local') || email.endsWith('@linkedin-prospect.local');
+    return email.endsWith('@crm-import.local') || email.endsWith('@directory-import.local') || email.endsWith('@linkedin-prospect.local');
   }
 
   function SortableHeader({
@@ -596,7 +583,7 @@ export function ProspectPageClient({
             ) : (
               paginatedProspects.map((prospect) => {
                 const cf = (prospect.custom_fields || {}) as CustomFields;
-                const hasLossReason = cf.crm_status === 'lost' && cf.loss_reason;
+                const hasLossReason = cf.crm_status === 'lost' && prospect.loss_reason;
 
                 return (
                   <TableRow key={prospect.id} className={cf.crm_status === 'lost' ? 'bg-red-50/30' : cf.crm_status === 'converted' ? 'bg-green-50/30' : ''}>
@@ -616,16 +603,11 @@ export function ProspectPageClient({
                           .filter(Boolean)
                           .join(" ") || "-"}
                       </Link>
-                      {cf.nb_properties && (
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({cf.nb_properties} biens)
-                        </span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center">
-                        {cf.organization || prospect.company || "-"}
-                        {(prospect.custom_fields as any)?.enriched_from_directory && (
+                        {prospect.organization || prospect.company || "-"}
+                        {cf.enriched_from_directory && (
                           <span className="inline-flex items-center ml-1.5" title="Enrichi (annuaire)">
                             <span className="size-2 rounded-full bg-teal-500" />
                           </span>
@@ -633,7 +615,7 @@ export function ProspectPageClient({
                       </span>
                     </TableCell>
                     <TableCell className="text-right text-sm tabular-nums">
-                      {cf.nb_properties ?? "-"}
+                      {prospect.nb_properties ?? "-"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {getCountryDisplay(prospect)}
@@ -648,7 +630,7 @@ export function ProspectPageClient({
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p className="text-xs max-w-[200px]">Raison : {cf.loss_reason}</p>
+                            <p className="text-xs max-w-[200px]">Raison : {prospect.loss_reason}</p>
                           </TooltipContent>
                         </Tooltip>
                       ) : (

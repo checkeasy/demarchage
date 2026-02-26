@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
 import { mergeTemplate as mergeEmailTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
+import {
+  getWhatsAppClient,
+  formatPhoneNumber,
+} from "@/lib/whatsapp/client";
+import {
+  canPerformAction as canWhatsApp,
+  recordAction as recordWhatsApp,
+  logWhatsAppAction,
+} from "@/lib/whatsapp/rate-limiter";
+import { WhatsAppActionType } from "@/lib/whatsapp/types";
 
 const BATCH_SIZE = 5;
 
@@ -49,12 +59,13 @@ export async function POST() {
       try {
         const actionType = item.step_action_type as string;
         const isEmailAction = actionType === "email";
+        const isWhatsAppAction = actionType === "whatsapp";
 
         // Load LinkedIn cookies from workspace settings in DB
         let liAt = "";
         let jsessionId = "";
 
-        if (!isEmailAction) {
+        if (!isEmailAction && !isWhatsAppAction) {
           const { data: seqForCookies } = await supabase
             .from("automation_sequences")
             .select("workspace_id")
@@ -324,6 +335,113 @@ export async function POST() {
               logMessage = `Email envoye a ${item.first_name} ${item.last_name} (${prospectEmail})`;
             } else {
               logMessage = `Erreur envoi email: ${emailResult.error}`;
+            }
+            break;
+          }
+
+          case "whatsapp": {
+            // Get workspace ID for the sequence
+            const { data: seqForWa } = await supabase
+              .from("automation_sequences")
+              .select("workspace_id")
+              .eq("id", item.sequence_id)
+              .single();
+
+            if (!seqForWa) {
+              logMessage = "Sequence introuvable pour envoi WhatsApp";
+              break;
+            }
+
+            const waWorkspaceId = seqForWa.workspace_id;
+
+            // Get prospect phone
+            const prospectPhone = item.phone as string;
+            if (!prospectPhone) {
+              logMessage = `Pas de numero de telephone pour ${item.first_name} ${item.last_name}`;
+              await logWhatsAppAction({
+                workspaceId: waWorkspaceId,
+                prospectId: item.prospect_id as string,
+                phoneNumber: null,
+                messageText: null,
+                status: "invalid_number",
+                errorMessage: "Pas de numero de telephone",
+              });
+              break;
+            }
+
+            // Check rate limit
+            const waAllowed = await canWhatsApp(waWorkspaceId, WhatsAppActionType.MESSAGE);
+            if (!waAllowed) {
+              logMessage = `Limite WhatsApp quotidienne atteinte`;
+              await logWhatsAppAction({
+                workspaceId: waWorkspaceId,
+                prospectId: item.prospect_id as string,
+                phoneNumber: prospectPhone,
+                messageText: null,
+                status: "rate_limited",
+                errorMessage: "Limite quotidienne atteinte",
+              });
+              break;
+            }
+
+            // Get client
+            let waClient;
+            try {
+              waClient = await getWhatsAppClient(waWorkspaceId);
+            } catch {
+              logMessage = "Client WhatsApp non connecte";
+              await logWhatsAppAction({
+                workspaceId: waWorkspaceId,
+                prospectId: item.prospect_id as string,
+                phoneNumber: prospectPhone,
+                messageText: null,
+                status: "failed",
+                errorMessage: "Client WhatsApp non connecte",
+              });
+              break;
+            }
+
+            // Merge template
+            let waMessage = (item.message_template as string) || "";
+            waMessage = mergeTemplate(waMessage, item);
+
+            if (!waMessage.trim()) {
+              logMessage = "Message WhatsApp vide";
+              break;
+            }
+
+            try {
+              const formattedPhone = formatPhoneNumber(prospectPhone);
+              const waResult = await waClient.sendMessage(formattedPhone, waMessage);
+
+              await recordWhatsApp(waWorkspaceId, WhatsAppActionType.MESSAGE);
+
+              await logWhatsAppAction({
+                workspaceId: waWorkspaceId,
+                prospectId: item.prospect_id as string,
+                phoneNumber: prospectPhone,
+                messageText: waMessage,
+                status: "success",
+                waMessageId: (waResult as any)?.id?.id || waResult?.messageId || null,
+              });
+
+              await supabase
+                .from("prospects")
+                .update({ last_contacted_at: new Date().toISOString() })
+                .eq("id", item.prospect_id);
+
+              actionSuccess = true;
+              logMessage = `WhatsApp envoye a ${item.first_name} ${item.last_name} (${prospectPhone})`;
+            } catch (waErr) {
+              logMessage = `Erreur WhatsApp: ${waErr instanceof Error ? waErr.message : "Inconnue"}`;
+              await logWhatsAppAction({
+                workspaceId: waWorkspaceId,
+                prospectId: item.prospect_id as string,
+                phoneNumber: prospectPhone,
+                messageText: waMessage,
+                status: "failed",
+                errorMessage: waErr instanceof Error ? waErr.message : "Erreur inconnue",
+              });
             }
             break;
           }
