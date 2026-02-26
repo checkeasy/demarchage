@@ -15,6 +15,9 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  FileText,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,6 +101,24 @@ export function AgentsPageClient({
   const [isInitializing, setIsInitializing] = useState(false);
   const [performance, setPerformance] = useState<PerformanceData | null>(null);
   const [isLoadingPerformance, setIsLoadingPerformance] = useState(false);
+
+  // Prompt editor state
+  interface AgentPromptFile {
+    agentType: string;
+    dirName: string;
+    exists: boolean;
+    name: string;
+    description: string;
+    model: string;
+    tools: string;
+    body: string;
+    lineCount: number;
+  }
+  const [promptFiles, setPromptFiles] = useState<AgentPromptFile[]>([]);
+  const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<AgentPromptFile | null>(null);
+  const [editingBody, setEditingBody] = useState("");
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
 
   // Initialize agent configs if none exist
   const initializeConfigs = useCallback(async () => {
@@ -235,6 +256,49 @@ export function AgentsPageClient({
     setContextDialogOpen(true);
   }
 
+  // Load prompt files
+  const loadPromptFiles = useCallback(async () => {
+    setIsLoadingPrompts(true);
+    try {
+      const res = await fetch("/api/agents/prompts");
+      if (res.ok) {
+        const data = await res.json();
+        setPromptFiles(data.agents || []);
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setIsLoadingPrompts(false);
+    }
+  }, []);
+
+  // Save prompt
+  async function handleSavePrompt() {
+    if (!editingPrompt) return;
+    setIsSavingPrompt(true);
+    try {
+      const res = await fetch("/api/agents/prompts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentType: editingPrompt.agentType,
+          body: editingBody,
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Prompt "${editingPrompt.name}" sauvegarde`);
+        setEditingPrompt(null);
+        loadPromptFiles();
+      } else {
+        toast.error("Erreur lors de la sauvegarde");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setIsSavingPrompt(false);
+    }
+  }
+
   // Load performance when switching to performance tab
   useEffect(() => {
     if (configs.length === 0) return;
@@ -331,6 +395,14 @@ export function AgentsPageClient({
             <span>Generation</span>
           </TabsTrigger>
           <TabsTrigger
+            value="prompts"
+            className="data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4"
+            onClick={() => { if (promptFiles.length === 0) loadPromptFiles(); }}
+          >
+            <FileText className="size-4" />
+            <span>Prompts .md</span>
+          </TabsTrigger>
+          <TabsTrigger
             value="performance"
             className="data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4"
           >
@@ -406,7 +478,167 @@ export function AgentsPageClient({
           <GenerationPanel workspaceId={workspaceId} />
         </TabsContent>
 
-        {/* Tab 3: Performance */}
+        {/* Tab 3: Prompts .md */}
+        <TabsContent value="prompts" className="space-y-6">
+          {editingPrompt ? (
+            /* ─── Prompt Editor ─── */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingPrompt(null)}
+                  >
+                    <ChevronRight className="size-4 rotate-180" />
+                    Retour
+                  </Button>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {editingPrompt.name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      .claude/agents/{editingPrompt.dirName}/AGENT.md
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    {editingPrompt.model}
+                  </Badge>
+                  <Button
+                    onClick={handleSavePrompt}
+                    disabled={isSavingPrompt || editingBody === editingPrompt.body}
+                    size="sm"
+                  >
+                    {isSavingPrompt ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Sauvegarder
+                  </Button>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground flex items-center gap-4">
+                <span>{editingBody.split("\n").length} lignes</span>
+                <span>{editingBody.length} caracteres</span>
+                <span>Outils : {editingPrompt.tools || "aucun"}</span>
+              </div>
+
+              <Textarea
+                value={editingBody}
+                onChange={(e) => setEditingBody(e.target.value)}
+                className="min-h-[500px] font-mono text-xs leading-relaxed"
+                placeholder="Contenu du prompt..."
+              />
+            </div>
+          ) : (
+            /* ─── Prompt List ─── */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Fichiers prompts agents
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Editez les instructions de chaque agent IA directement. Les modifications sont appliquees immediatement.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadPromptFiles}
+                  disabled={isLoadingPrompts}
+                >
+                  {isLoadingPrompts ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3.5" />
+                  )}
+                  Rafraichir
+                </Button>
+              </div>
+
+              {isLoadingPrompts ? (
+                <div className="flex flex-col items-center py-16">
+                  <Loader2 className="size-8 animate-spin text-slate-300 mb-3" />
+                  <p className="text-sm text-muted-foreground">Chargement...</p>
+                </div>
+              ) : promptFiles.length === 0 ? (
+                <Card className="border-dashed border-2">
+                  <CardContent className="py-16 text-center">
+                    <FileText className="size-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground">
+                      Aucun fichier prompt trouve. Cliquez sur Rafraichir.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {promptFiles.map((file) => (
+                    <Card
+                      key={file.agentType}
+                      className="border-slate-200/80 hover:border-slate-300 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setEditingPrompt(file);
+                        setEditingBody(file.body);
+                      }}
+                    >
+                      <CardContent className="py-4 px-5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-center size-10 rounded-xl bg-slate-100">
+                              <FileText className="size-5 text-slate-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {agentTypeNames[file.agentType] || file.name}
+                                </p>
+                                {file.exists ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  >
+                                    <Check className="size-2.5 mr-0.5" />
+                                    .md
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] text-red-600 border-red-300"
+                                  >
+                                    Manquant
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[10px]">
+                                  {file.model}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-lg">
+                                {file.description || "Pas de description"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {file.lineCount} lignes
+                            </span>
+                            <ChevronRight className="size-4 text-slate-400" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Tab 4: Performance */}
         <TabsContent value="performance" className="space-y-6">
           {/* Stat cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
