@@ -191,7 +191,7 @@ export async function POST() {
     // Cities
     const cities: string[] = [];
     for (let c = 1; c <= 5; c++) {
-      const city = (row[`City ${c}`] || (c <= 3 ? row[`city${c}`] : '')).trim();
+      const city = (row[`City ${c}`] || row[`city${c}`] || '').trim();
       if (city) cities.push(city);
     }
 
