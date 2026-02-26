@@ -59,6 +59,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProspectTimeline, type TimelineEvent } from "./ProspectTimeline";
+import { AIResearchCard } from "./AIResearchCard";
+import { AISuggestedReplyCard } from "./AISuggestedReplyCard";
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
 type CrmStatus = keyof typeof CRM_STATUSES;
@@ -813,6 +815,35 @@ export function ProspectDetail({
               )}
             </CardContent>
           </Card>
+        );
+      })()}
+
+      {/* AI Research Card */}
+      <AIResearchCard prospect={prospect} />
+
+      {/* AI Reply Analysis (only if there's a reply in timeline) */}
+      {(() => {
+        const lastReply = timelineEvents.find(
+          (e) => e.type === 'email_replied'
+        );
+        if (!lastReply) return null;
+        const replyText = lastReply.detail || lastReply.description || '';
+        if (!replyText) return null;
+        const prevInteractions = timelineEvents
+          .filter((e) =>
+            ['email_sent', 'email_replied', 'linkedin_message'].includes(e.type)
+          )
+          .map((e) => ({
+            role: e.type === 'email_replied' ? 'prospect' : 'assistant',
+            content: e.detail || e.description || '',
+            sent_at: e.date,
+          }));
+        return (
+          <AISuggestedReplyCard
+            prospect={prospect}
+            lastReplyText={replyText}
+            previousInteractions={prevInteractions}
+          />
         );
       })()}
 

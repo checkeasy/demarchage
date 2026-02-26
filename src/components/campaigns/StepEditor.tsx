@@ -17,7 +17,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailComposer } from "./EmailComposer";
 import { STEP_TYPES } from "@/lib/constants";
-import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle } from "lucide-react";
+import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
+import { useAIGeneration } from "@/hooks/useAIGeneration";
+import { toast } from "sonner";
 import type { StepData } from "./types";
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -126,6 +128,20 @@ function EmailStepEditor({
   const [subject, setSubject] = useState(step.subject ?? "");
   const [body, setBody] = useState(step.body_html ?? "");
   const [abEnabled, setAbEnabled] = useState(step.ab_enabled ?? false);
+  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+
+  const handleAIGenerate = async () => {
+    const result = await generateOutreach({
+      channel: "email",
+      stepNumber: step.step_order,
+    });
+    if (result?.content) {
+      const content = result.content as { subject?: string; body_html?: string };
+      if (content.subject) setSubject(content.subject);
+      if (content.body_html) setBody(content.body_html);
+      toast.success("Email genere par l'IA");
+    }
+  };
 
   const handleSave = () => {
     onSave({
@@ -139,6 +155,23 @@ function EmailStepEditor({
 
   return (
     <div className="space-y-5">
+      {/* AI Generation Button */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+        onClick={handleAIGenerate}
+        disabled={aiLoading}
+      >
+        {aiLoading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Sparkles className="size-4" />
+        )}
+        {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
+      </Button>
+
       <EmailComposer
         subject={subject}
         body={body}
@@ -252,6 +285,20 @@ function LinkedInConnectEditor({
 }) {
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const maxChars = 300;
+  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+
+  const handleAIGenerate = async () => {
+    const result = await generateOutreach({
+      channel: "linkedin",
+      stepNumber: step.step_order,
+      linkedinMessageType: "connection",
+    });
+    if (result?.content) {
+      const content = result.content as { message?: string };
+      if (content.message) setMessage(content.message.slice(0, maxChars));
+      toast.success("Note de connexion generee par l'IA");
+    }
+  };
 
   const handleSave = () => {
     onSave({ ...step, linkedin_message: message });
@@ -259,6 +306,23 @@ function LinkedInConnectEditor({
 
   return (
     <div className="space-y-5">
+      {/* AI Generation Button */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+        onClick={handleAIGenerate}
+        disabled={aiLoading}
+      >
+        {aiLoading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Sparkles className="size-4" />
+        )}
+        {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
+      </Button>
+
       <div className="space-y-2">
         <Label htmlFor="connect-message">Note de connexion</Label>
         <Textarea
@@ -301,6 +365,20 @@ function LinkedInMessageEditor({
 }) {
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+
+  const handleAIGenerate = async () => {
+    const result = await generateOutreach({
+      channel: "linkedin",
+      stepNumber: step.step_order,
+      linkedinMessageType: "followup",
+    });
+    if (result?.content) {
+      const content = result.content as { message?: string };
+      if (content.message) setMessage(content.message);
+      toast.success("Message LinkedIn genere par l'IA");
+    }
+  };
 
   const insertVariable = (variable: string) => {
     if (textareaRef.current) {
@@ -324,6 +402,23 @@ function LinkedInMessageEditor({
 
   return (
     <div className="space-y-5">
+      {/* AI Generation Button */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+        onClick={handleAIGenerate}
+        disabled={aiLoading}
+      >
+        {aiLoading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Sparkles className="size-4" />
+        )}
+        {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
+      </Button>
+
       {/* Variable buttons */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">
@@ -376,6 +471,19 @@ function WhatsAppMessageEditor({
 }) {
   const [message, setMessage] = useState(step.whatsapp_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+
+  const handleAIGenerate = async () => {
+    const result = await generateOutreach({
+      channel: "email",
+      stepNumber: step.step_order,
+    });
+    if (result?.content) {
+      const content = result.content as { body_text?: string };
+      if (content.body_text) setMessage(content.body_text);
+      toast.success("Message WhatsApp genere par l'IA");
+    }
+  };
 
   const insertVariable = (variable: string) => {
     if (textareaRef.current) {
@@ -399,6 +507,23 @@ function WhatsAppMessageEditor({
 
   return (
     <div className="space-y-5">
+      {/* AI Generation Button */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+        onClick={handleAIGenerate}
+        disabled={aiLoading}
+      >
+        {aiLoading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Sparkles className="size-4" />
+        )}
+        {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
+      </Button>
+
       {/* Variable buttons */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">

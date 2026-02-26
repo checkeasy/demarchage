@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
 import { mergeTemplate as mergeEmailTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
+import { getOrchestrator } from "@/lib/agents/orchestrator";
 import {
   getWhatsAppClient,
   formatPhoneNumber,
@@ -302,10 +303,39 @@ export async function POST() {
               job_title: item.job_title as string | null,
             });
 
-            const subjectTpl = (item.subject_template as string) || "Message de suivi";
-            const bodyTpl = (item.message_template as string) || "";
-            const mergedSubject = mergeEmailTemplate(subjectTpl, tplData);
-            let mergedBody = mergeEmailTemplate(bodyTpl, tplData);
+            const stepMetadata = (item.step_metadata || item.metadata) as Record<string, unknown> | null;
+            const useAI = stepMetadata?.use_ai_generation === true;
+
+            let mergedSubject: string;
+            let mergedBody: string;
+
+            if (useAI) {
+              // Try AI generation for personalized content
+              try {
+                const orchestrator = getOrchestrator();
+                const aiResult = await orchestrator.generateOutreach({
+                  workspaceId: seqForEmail.workspace_id,
+                  prospectId: item.prospect_id as string,
+                  campaignId: (item.sequence_id as string) || 'automation',
+                  channel: 'email',
+                  stepNumber: (item.step_order as number) || 1,
+                });
+                const aiContent = aiResult.content as { subject?: string; body_html?: string };
+                mergedSubject = aiContent.subject || "Message de suivi";
+                mergedBody = aiContent.body_html || "";
+              } catch (aiErr) {
+                console.warn("[Automation Execute] AI generation failed, falling back to template:", aiErr);
+                const subjectTpl = (item.subject_template as string) || "Message de suivi";
+                const bodyTpl = (item.message_template as string) || "";
+                mergedSubject = mergeEmailTemplate(subjectTpl, tplData);
+                mergedBody = mergeEmailTemplate(bodyTpl, tplData);
+              }
+            } else {
+              const subjectTpl = (item.subject_template as string) || "Message de suivi";
+              const bodyTpl = (item.message_template as string) || "";
+              mergedSubject = mergeEmailTemplate(subjectTpl, tplData);
+              mergedBody = mergeEmailTemplate(bodyTpl, tplData);
+            }
 
             if (!mergedBody.includes("<")) {
               mergedBody = mergedBody.replace(/\n/g, "<br/>");

@@ -15,6 +15,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +56,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AddProspectDialog } from "@/components/prospects/AddProspectDialog";
+import { SmartCampaignDialog } from "@/components/campaigns/SmartCampaignDialog";
 
 const ITEMS_PER_PAGE = 25;
 
@@ -93,6 +95,7 @@ export function ProspectPageClient({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [smartCampaignOpen, setSmartCampaignOpen] = useState(false);
 
   // Extract unique countries from data
   const availableCountries = useMemo(() => {
@@ -534,6 +537,15 @@ export function ProspectPageClient({
             {selectedIds.size} prospect(s) selectionne(s)
           </span>
           <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50"
+            onClick={() => setSmartCampaignOpen(true)}
+          >
+            <Sparkles className="size-4" />
+            Creer campagne IA
+          </Button>
+          <Button
             variant="destructive"
             size="sm"
             onClick={handleDeleteSelected}
@@ -543,6 +555,13 @@ export function ProspectPageClient({
           </Button>
         </div>
       )}
+
+      {/* Smart Campaign Dialog */}
+      <SmartCampaignDialog
+        open={smartCampaignOpen}
+        onOpenChange={setSmartCampaignOpen}
+        selectedProspects={prospects.filter((p) => selectedIds.has(p.id))}
+      />
 
       {/* Table */}
       <div className="border rounded-lg bg-white overflow-x-auto">

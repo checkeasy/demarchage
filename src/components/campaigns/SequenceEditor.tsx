@@ -29,10 +29,14 @@ import {
   GripVertical,
   Plus,
   Trash2,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { STEP_TYPES } from "@/lib/constants";
 import { StepEditor } from "./StepEditor";
 import { cn } from "@/lib/utils";
+import { useAIGeneration } from "@/hooks/useAIGeneration";
+import { toast } from "sonner";
 import type { StepData } from "./types";
 
 export type { StepData };
@@ -149,6 +153,73 @@ export function SequenceEditor({
   const [editingStep, setEditingStep] = useState<StepData | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addMenuIndex, setAddMenuIndex] = useState<number | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const { generateOutreach } = useAIGeneration();
+
+  const handleGenerateSequence = useCallback(async () => {
+    setAiGenerating(true);
+    try {
+      // Generate a 4-step email sequence: Email → Delay → Email → Delay → LinkedIn → Delay → Email
+      const sequenceTemplate: Array<{
+        type: StepData["step_type"];
+        delayDays?: number;
+        channel?: "email" | "linkedin";
+        step?: number;
+        linkedinType?: "connection" | "followup";
+      }> = [
+        { type: "email", channel: "email", step: 1 },
+        { type: "delay", delayDays: 3 },
+        { type: "email", channel: "email", step: 2 },
+        { type: "delay", delayDays: 4 },
+        { type: "linkedin_connect", channel: "linkedin", step: 3, linkedinType: "connection" },
+        { type: "delay", delayDays: 7 },
+        { type: "email", channel: "email", step: 4 },
+      ];
+
+      const newSteps: StepData[] = [];
+      let order = 1;
+
+      for (const tmpl of sequenceTemplate) {
+        if (tmpl.type === "delay") {
+          newSteps.push(createDefaultStep("delay", order));
+          newSteps[newSteps.length - 1].delay_days = tmpl.delayDays ?? 1;
+          order++;
+          continue;
+        }
+
+        const step = createDefaultStep(tmpl.type, order);
+
+        if (tmpl.channel) {
+          const result = await generateOutreach({
+            channel: tmpl.channel,
+            stepNumber: tmpl.step ?? order,
+            linkedinMessageType: tmpl.linkedinType,
+          });
+
+          if (result?.content) {
+            const content = result.content as Record<string, string>;
+            if (tmpl.type === "email") {
+              step.subject = content.subject || "";
+              step.body_html = content.body_html || "";
+              step.body_text = content.body_text || "";
+            } else if (tmpl.type === "linkedin_connect" || tmpl.type === "linkedin_message") {
+              step.linkedin_message = content.message || "";
+            }
+          }
+        }
+
+        newSteps.push(step);
+        order++;
+      }
+
+      onChange(newSteps);
+      toast.success(`Sequence de ${newSteps.length} etapes generee par l'IA`);
+    } catch {
+      toast.error("Erreur lors de la generation de la sequence");
+    } finally {
+      setAiGenerating(false);
+    }
+  }, [generateOutreach, onChange]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -224,6 +295,27 @@ export function SequenceEditor({
 
   return (
     <div className="space-y-1">
+      {/* AI Sequence Generation Button */}
+      {!readOnly && (
+        <div className="flex justify-end mb-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+            onClick={handleGenerateSequence}
+            disabled={aiGenerating}
+          >
+            {aiGenerating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
+            {aiGenerating ? "Generation en cours..." : "Generer sequence IA"}
+          </Button>
+        </div>
+      )}
+
       {steps.length === 0 && !readOnly && (
         <div className="text-center py-8 space-y-4">
           <p className="text-sm text-muted-foreground">
