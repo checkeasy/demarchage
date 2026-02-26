@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { sanitizeHtml } from "@/lib/utils";
 import {
   Mail,
   Search,
@@ -385,7 +386,7 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
                     <div
                       className="prose prose-sm max-w-none"
                       dangerouslySetInnerHTML={{
-                        __html: previewEmail.body_html,
+                        __html: sanitizeHtml(previewEmail.body_html),
                       }}
                     />
                   ) : (

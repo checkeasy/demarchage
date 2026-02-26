@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Eye,
   UserPlus,
@@ -125,7 +124,7 @@ const DEFAULT_STEPS: SequenceStep[] = [
     delayDays: 0,
     label: "Message de presentation",
     message:
-      "Merci d'avoir accepte ma demande, {prenom}. Je me permets de vous contacter car CheckEasy pourrait vous aider a simplifier vos processus. Seriez-vous disponible pour un echange rapide ?",
+      "Merci d'avoir accepte ma demande, {prenom}. Je me permets de vous contacter car nous pourrions vous aider a simplifier vos processus. Seriez-vous disponible pour un echange rapide ?",
     expanded: false,
   },
   {
@@ -143,7 +142,7 @@ const DEFAULT_STEPS: SequenceStep[] = [
     delayDays: 7,
     label: "Email si adresse disponible",
     message:
-      "Bonjour {prenom},\n\nJe me permets de vous contacter par email suite a notre echange sur LinkedIn.\n\nCheckEasy aide les entreprises comme {entreprise} a simplifier leurs processus de verification.\n\nSeriez-vous disponible pour un appel de 15 minutes cette semaine ?\n\nCordialement",
+      "Bonjour {prenom},\n\nJe me permets de vous contacter par email suite a notre echange sur LinkedIn.\n\nNous aidons les entreprises comme {entreprise} a optimiser leurs processus.\n\nSeriez-vous disponible pour un appel de 15 minutes cette semaine ?\n\nCordialement",
     expanded: false,
   },
 ];

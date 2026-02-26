@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Zap,
   LayoutDashboard,
   Users,
   Search,
@@ -12,6 +11,7 @@ import {
   Mail,
   Bot,
   Linkedin,
+  Brain,
   Settings,
   LogOut,
   ChevronLeft,
@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 interface SidebarProps {
   user?: {
@@ -86,6 +87,11 @@ const navItems: {
     icon: Linkedin,
   },
   {
+    label: "Agents IA",
+    href: "/agents",
+    icon: Brain,
+  },
+  {
     label: "Parametres",
     href: "/settings",
     icon: Settings,
@@ -119,15 +125,8 @@ export function Sidebar({ user }: SidebarProps) {
           collapsed ? "w-16" : "w-64"
         }`}
       >
-        {/* Logo / App Name */}
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-slate-700/50">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 shrink-0">
-            <Zap className="size-5 text-white" />
-          </div>
-          {!collapsed && (
-            <span className="text-lg font-bold tracking-tight">ColdReach</span>
-          )}
-        </div>
+        {/* Workspace Switcher */}
+        <WorkspaceSwitcher collapsed={collapsed} />
 
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">

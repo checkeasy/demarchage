@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/resend-client";
+import { mergeTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
 
 const BATCH_SIZE = 5; // Process 5 prospects per run (conservative for LinkedIn)
 
@@ -42,27 +44,33 @@ export async function POST(request: NextRequest) {
           .eq("id", item.linkedin_account_id)
           .single();
 
-        if (!account || !account.is_active || !account.session_valid) {
-          await logAction(supabase, item, "skipped", "Compte LinkedIn inactif ou session expiree");
-          continue;
-        }
+        const isEmailStep = (item.step_action_type as string) === "email";
 
-        // Check rate limits
-        const canProceed = await checkRateLimit(supabase, account, item.step_action_type);
-        if (!canProceed) {
-          await logAction(supabase, item, "rate_limited", "Limite quotidienne atteinte");
-          continue;
+        if (!isEmailStep) {
+          if (!account || !account.is_active || !account.session_valid) {
+            await logAction(supabase, item, "skipped", "Compte LinkedIn inactif ou session expiree");
+            continue;
+          }
+
+          // Check rate limits (only for LinkedIn actions)
+          const canProceed = await checkRateLimit(supabase, account, item.step_action_type);
+          if (!canProceed) {
+            await logAction(supabase, item, "rate_limited", "Limite quotidienne atteinte");
+            continue;
+          }
         }
 
         // Execute the action
         const result = await executeAction(supabase, account, item);
 
         if (result.success) {
-          // Increment usage
-          await supabase.rpc("increment_linkedin_usage", {
-            p_account_id: account.id,
-            p_action_type: item.step_action_type,
-          });
+          // Increment LinkedIn usage (only for LinkedIn actions)
+          if (!isEmailStep) {
+            await supabase.rpc("increment_linkedin_usage", {
+              p_account_id: account.id,
+              p_action_type: item.step_action_type,
+            });
+          }
 
           // Log success
           await logAction(supabase, item, "success", null, result.message);
@@ -299,6 +307,87 @@ async function executeAction(
         };
       }
       return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    case "email": {
+      // Send email via Resend from automation sequence
+      const sequenceId = item.sequence_id as string;
+      const { data: seq } = await supabase
+        .from("automation_sequences")
+        .select("workspace_id")
+        .eq("id", sequenceId)
+        .single();
+
+      if (!seq) {
+        return { success: false, error: "Sequence introuvable" };
+      }
+
+      // Get the first active email account for this workspace
+      const { data: emailAccount } = await supabase
+        .from("email_accounts")
+        .select("*")
+        .eq("workspace_id", seq.workspace_id)
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+
+      if (!emailAccount) {
+        return { success: false, error: "Aucun compte email actif configure" };
+      }
+
+      const prospectEmail = item.prospect_email as string;
+      if (!prospectEmail) {
+        return { success: false, error: "Pas d'email pour ce prospect" };
+      }
+
+      // Merge template variables
+      const templateData = prospectToTemplateData({
+        email: prospectEmail,
+        first_name: item.first_name as string | null,
+        last_name: item.last_name as string | null,
+        company: item.company as string | null,
+        job_title: item.job_title as string | null,
+      });
+
+      const subjectTemplate = (item.subject_template as string) || "Message de suivi";
+      const bodyTemplate = (item.message_template as string) || "";
+      const mergedSubject = mergeTemplate(subjectTemplate, templateData);
+      let mergedBody = mergeTemplate(bodyTemplate, templateData);
+
+      // Convert plain text to basic HTML if needed
+      if (!mergedBody.includes("<")) {
+        mergedBody = mergedBody.replace(/\n/g, "<br/>");
+      }
+
+      // Append signature if available
+      if (emailAccount.signature_html) {
+        mergedBody += `<br/><br/>${emailAccount.signature_html}`;
+      }
+
+      const fromEmail = emailAccount.display_name
+        ? `${emailAccount.display_name} <${emailAccount.email_address}>`
+        : emailAccount.email_address;
+
+      const result = await sendEmail({
+        from: fromEmail,
+        to: prospectEmail,
+        subject: mergedSubject,
+        html: mergedBody,
+      });
+
+      if (result.success) {
+        // Update prospect last_contacted_at
+        await supabase
+          .from("prospects")
+          .update({ last_contacted_at: new Date().toISOString() })
+          .eq("id", item.prospect_id as string);
+
+        return {
+          success: true,
+          message: `Email envoye a ${item.first_name} ${item.last_name} (${prospectEmail})`,
+        };
+      }
+      return { success: false, error: `Erreur envoi email: ${result.error}` };
     }
 
     default:

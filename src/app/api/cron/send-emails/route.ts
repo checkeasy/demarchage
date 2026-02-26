@@ -117,12 +117,12 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Merge template variables
+        // Merge template variables (use view column aliases)
         const templateData = prospectToTemplateData({
           email: item.prospect_email,
-          first_name: item.first_name,
-          last_name: item.last_name,
-          company: item.company,
+          first_name: item.prospect_first_name,
+          last_name: item.prospect_last_name,
+          company: item.prospect_company,
           custom_fields: item.custom_fields,
         });
 
@@ -154,9 +154,9 @@ export async function POST(request: NextRequest) {
             step_id: step.id,
             ab_variant_id: variantId,
             email_account_id: item.email_account_id,
-            from_email: item.from_name
-              ? `${item.from_name} <${item.from_email}>`
-              : item.from_email,
+            from_email: item.from_display_name
+              ? `${item.from_display_name} <${item.from_email_address}>`
+              : item.from_email_address,
             to_email: item.prospect_email,
             subject: mergedSubject,
             body_html: processedBody,
@@ -258,7 +258,7 @@ async function advanceToNextStep(
     .from("sequence_steps")
     .select("*")
     .eq("campaign_id", item.campaign_id as string)
-    .gt("step_order", (item as Record<string, unknown>).current_step_order || 0)
+    .gt("step_order", (item.current_step_order as number) || 0)
     .eq("is_active", true)
     .order("step_order", { ascending: true })
     .limit(1)

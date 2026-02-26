@@ -436,3 +436,150 @@ export type Prospect = Database["public"]["Tables"]["prospects"]["Row"];
 export type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
 export type SequenceStep = Database["public"]["Tables"]["sequence_steps"]["Row"];
 export type EmailSent = Database["public"]["Tables"]["emails_sent"]["Row"];
+
+// ─── Agent System Types ──────────────────────────────────────────────────────
+
+export type AgentType = "ceo" | "email_writer" | "linkedin_writer" | "response_handler" | "prospect_researcher";
+
+export interface AgentConfig {
+  id: string;
+  workspace_id: string;
+  agent_type: AgentType;
+  name: string;
+  description: string | null;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  active_prompt_version_id: string | null;
+  settings: Json;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentPromptVersion {
+  id: string;
+  agent_config_id: string;
+  version: number;
+  system_prompt: string;
+  prompt_metadata: Json;
+  total_generations: number;
+  avg_personalization_score: number;
+  avg_open_rate: number | null;
+  avg_reply_rate: number | null;
+  avg_click_rate: number | null;
+  created_by: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AgentStrategy {
+  id: string;
+  workspace_id: string;
+  segment_key: string;
+  segment_filters: Json;
+  strategy: Json;
+  based_on_sample_size: number;
+  performance_snapshot: Json;
+  expires_at: string;
+  is_active: boolean;
+  generated_by_agent_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentMemory {
+  id: string;
+  workspace_id: string;
+  prospect_id: string;
+  memory_type: "enrichment" | "interaction" | "reply_analysis" | "strategy_note" | "personalization" | "narrative_thread";
+  content: Json;
+  sequence_order: number;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface AgentPerformanceMetric {
+  id: string;
+  workspace_id: string;
+  agent_type: string;
+  metric_period: "daily" | "weekly" | "monthly" | "all_time";
+  period_start: string;
+  period_end: string;
+  segment_key: string | null;
+  total_generations: number;
+  total_tokens_input: number;
+  total_tokens_output: number;
+  total_cost_usd: number;
+  avg_personalization_score: number | null;
+  total_sent: number;
+  total_opened: number;
+  total_clicked: number;
+  total_replied: number;
+  total_converted: number;
+  total_bounced: number;
+  open_rate: number | null;
+  click_rate: number | null;
+  reply_rate: number | null;
+  conversion_rate: number | null;
+  bounce_rate: number | null;
+  winning_patterns: Json;
+  losing_patterns: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentGenerationLog {
+  id: string;
+  workspace_id: string;
+  agent_type: string;
+  agent_config_id: string | null;
+  prompt_version_id: string | null;
+  prospect_id: string | null;
+  campaign_id: string | null;
+  segment_key: string | null;
+  strategy_id: string | null;
+  model: string;
+  temperature: number | null;
+  input_messages: Json;
+  output_content: Json;
+  raw_output: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  cache_hit: boolean;
+  personalization_score: number | null;
+  validation_passed: boolean;
+  validation_errors: Json;
+  was_used: boolean;
+  was_edited: boolean;
+  user_satisfaction: "good" | "bad" | "edited" | null;
+  outcome_open: boolean | null;
+  outcome_click: boolean | null;
+  outcome_reply: boolean | null;
+  outcome_conversion: boolean | null;
+  generation_duration_ms: number | null;
+  created_at: string;
+}
+
+export interface AgentAbTest {
+  id: string;
+  workspace_id: string;
+  campaign_id: string | null;
+  name: string;
+  description: string | null;
+  test_type: string;
+  variants: Json;
+  traffic_split: Json;
+  primary_metric: string;
+  min_sample_size: number;
+  confidence_threshold: number;
+  status: "draft" | "running" | "completed" | "cancelled";
+  winner_variant: string | null;
+  results: Json;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

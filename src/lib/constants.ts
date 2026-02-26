@@ -16,12 +16,49 @@ export const STEP_TYPES = {
   condition: { label: "Condition", icon: "GitBranch" },
 } as const;
 
+// DB status field (CHECK constraint)
 export const PROSPECT_STATUSES = {
   active: { label: "Actif", color: "bg-green-500" },
   bounced: { label: "Bounce", color: "bg-red-500" },
   unsubscribed: { label: "Desabonne", color: "bg-gray-500" },
   replied: { label: "Repondu", color: "bg-blue-500" },
   converted: { label: "Converti", color: "bg-purple-500" },
+} as const;
+
+// CRM status (stored in custom_fields.crm_status)
+export const CRM_STATUSES = {
+  active: { label: "En cours", color: "bg-blue-500", emoji: "🔵" },
+  lost: { label: "Perdu", color: "bg-red-500", emoji: "🔴" },
+  converted: { label: "Client", color: "bg-green-500", emoji: "🟢" },
+} as const;
+
+// Pipeline stages (stored in custom_fields.pipeline_stage)
+export const PIPELINE_STAGES = {
+  to_contact: { label: "A contacter", color: "bg-cyan-500", order: 1 },
+  contacted: { label: "Contacte", color: "bg-blue-400", order: 2 },
+  negotiation: { label: "En nego", color: "bg-indigo-500", order: 3 },
+  demo_scheduled: { label: "Demo planifiee", color: "bg-violet-500", order: 4 },
+  demo_done: { label: "Demo faite", color: "bg-purple-500", order: 5 },
+  trial: { label: "Essai", color: "bg-amber-500", order: 6 },
+  client: { label: "Client", color: "bg-green-500", order: 7 },
+  standby: { label: "Stand-by", color: "bg-yellow-500", order: 8 },
+  lost_recontact: { label: "Perdu - A relancer", color: "bg-orange-500", order: 9 },
+  lost: { label: "Perdu", color: "bg-red-500", order: 10 },
+} as const;
+
+// Countries for targeting
+export const COUNTRIES = {
+  France: { label: "France", flag: "🇫🇷" },
+  Espagne: { label: "Espagne", flag: "🇪🇸" },
+  Portugal: { label: "Portugal", flag: "🇵🇹" },
+  Italie: { label: "Italie", flag: "🇮🇹" },
+  Suisse: { label: "Suisse", flag: "🇨🇭" },
+  "Royaume-Uni": { label: "Royaume-Uni", flag: "🇬🇧" },
+  Allemagne: { label: "Allemagne", flag: "🇩🇪" },
+  "Pays-Bas": { label: "Pays-Bas", flag: "🇳🇱" },
+  Grece: { label: "Grece", flag: "🇬🇷" },
+  Croatie: { label: "Croatie", flag: "🇭🇷" },
+  "Etats-Unis": { label: "Etats-Unis", flag: "🇺🇸" },
 } as const;
 
 export const CAMPAIGN_STATUSES = {

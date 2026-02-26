@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bot,
   Search,
@@ -83,6 +84,7 @@ const LOG_TYPE_CONFIG = {
 };
 
 export default function AutomationPage() {
+  const searchParams = useSearchParams();
   const [sequences, setSequences] = useState<AutomationSequenceData[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
   const [isLoadingSequences, setIsLoadingSequences] = useState(true);
@@ -94,6 +96,7 @@ export default function AutomationPage() {
   const [sequenceName, setSequenceName] = useState("");
   const [isLaunching, setIsLaunching] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [preselectedProspectIds, setPreselectedProspectIds] = useState<string[]>([]);
 
   // Configuration state
   const [config, setConfig] = useState({
@@ -106,6 +109,19 @@ export default function AutomationPage() {
     delayMax: 8,
     prospectSource: "existing" as "existing" | "search",
   });
+
+  // Auto-open wizard if prospects are passed from scraper
+  useEffect(() => {
+    const prospectsParam = searchParams.get("prospects");
+    if (prospectsParam) {
+      const ids = prospectsParam.split(",").filter(Boolean);
+      if (ids.length > 0) {
+        setPreselectedProspectIds(ids);
+        setShowWizard(true);
+        toast.info(`${ids.length} prospect(s) pre-selectionne(s) depuis le scraper`);
+      }
+    }
+  }, [searchParams]);
 
   // Load sequences from API
   const loadSequences = useCallback(async () => {
@@ -317,6 +333,7 @@ export default function AutomationPage() {
           name: sequenceName,
           steps,
           config,
+          prospectIds: preselectedProspectIds.length > 0 ? preselectedProspectIds : undefined,
         }),
       });
 
@@ -487,11 +504,18 @@ export default function AutomationPage() {
                     <CardContent className="py-8">
                       <div className="flex flex-col items-center text-center">
                         <Users className="size-10 text-slate-300 mb-3" />
-                        <p className="text-sm text-muted-foreground">
-                          Les prospects de votre base seront utilises. Allez
-                          dans la page Prospects pour les ajouter a la
-                          sequence une fois creee.
-                        </p>
+                        {preselectedProspectIds.length > 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-semibold text-blue-600">{preselectedProspectIds.length} prospect(s)</span> pre-selectionne(s)
+                            depuis le scraper seront ajoutes a cette sequence.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Les prospects de votre base seront utilises. Allez
+                            dans la page Prospects pour les ajouter a la
+                            sequence une fois creee.
+                          </p>
+                        )}
                         <Button variant="outline" className="mt-3" asChild>
                           <Link href="/prospects">
                             Voir les prospects

@@ -2,9 +2,6 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronLeft,
-  Play,
-  Pause,
-  Edit,
   Mail,
   Eye,
   Reply,
@@ -17,13 +14,10 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge";
 import { CampaignDetailTabs } from "@/components/campaigns/CampaignDetailTabs";
+import { CampaignActions } from "@/components/campaigns/CampaignActions";
 import type { Campaign, SequenceStep } from "@/lib/types/database";
 
 interface CampaignDetailPageProps {
@@ -166,34 +160,7 @@ export default async function CampaignDetailPage({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 shrink-0">
-          {typedCampaign.status === "draft" && (
-            <>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/campaigns/${id}/edit`}>
-                  <Edit className="size-4" />
-                  Modifier
-                </Link>
-              </Button>
-              <Button size="sm">
-                <Play className="size-4" />
-                Lancer
-              </Button>
-            </>
-          )}
-          {typedCampaign.status === "active" && (
-            <Button variant="outline" size="sm">
-              <Pause className="size-4" />
-              Pause
-            </Button>
-          )}
-          {typedCampaign.status === "paused" && (
-            <Button size="sm">
-              <Play className="size-4" />
-              Reprendre
-            </Button>
-          )}
-        </div>
+        <CampaignActions campaignId={id} status={typedCampaign.status} />
       </div>
 
       {/* Stats Grid */}

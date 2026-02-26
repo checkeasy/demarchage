@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { sanitizeHtml } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -175,7 +176,7 @@ export function EmailComposer({
               <p
                 className="text-sm font-medium"
                 dangerouslySetInnerHTML={{
-                  __html: renderPreview(subject) || "<em class='text-muted-foreground'>Aucun objet</em>",
+                  __html: sanitizeHtml(renderPreview(subject) || "<em class='text-muted-foreground'>Aucun objet</em>"),
                 }}
               />
             </div>
@@ -186,9 +187,10 @@ export function EmailComposer({
               <div
                 className="text-sm whitespace-pre-wrap leading-relaxed"
                 dangerouslySetInnerHTML={{
-                  __html:
+                  __html: sanitizeHtml(
                     renderPreview(body) ||
-                    "<em class='text-muted-foreground'>Aucun contenu</em>",
+                    "<em class='text-muted-foreground'>Aucun contenu</em>"
+                  ),
                 }}
               />
             </div>

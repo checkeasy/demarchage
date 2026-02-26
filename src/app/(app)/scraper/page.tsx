@@ -10,7 +10,6 @@ import {
   Zap,
   Brain,
   Loader2,
-  ChevronDown,
   Globe,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -331,24 +330,40 @@ export default function ScraperPage() {
     setIsAnalyzing(true);
     toast.info(`Analyse de ${selectedIds.size} profil(s) en cours...`);
 
-    try {
-      const selectedProfiles = profiles.filter((p) => selectedIds.has(p.id));
-      const res = await fetch("/api/ai/analyze-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profiles: selectedProfiles }),
-      });
+    const selectedProfiles = profiles.filter((p) => selectedIds.has(p.id));
+    let analyzed = 0;
 
-      if (res.ok) {
-        toast.success("Analyse terminee");
-      } else {
-        toast.error("Erreur lors de l'analyse");
+    for (const profile of selectedProfiles) {
+      try {
+        const res = await fetch("/api/ai/analyze-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setProfiles((prev) =>
+            prev.map((p) =>
+              p.id === profile.id
+                ? { ...p, relevanceScore: data.score || p.relevanceScore }
+                : p
+            )
+          );
+          analyzed++;
+        }
+      } catch {
+        // Continue with next profile
       }
-    } catch {
-      toast.error("Erreur lors de l'analyse");
-    } finally {
-      setIsAnalyzing(false);
+
+      // Small delay between API calls
+      if (analyzed < selectedProfiles.length) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
+
+    toast.success(`Analyse terminee : ${analyzed}/${selectedProfiles.length} profil(s)`);
+    setIsAnalyzing(false);
   }
 
   async function handleConnect(profile: LinkedInProfile) {
@@ -601,15 +616,11 @@ export default function ScraperPage() {
                 ))}
               </div>
 
-              {/* Load more */}
+              {/* Results count */}
               <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => toast.info("Chargement de plus de resultats...")}
-                >
-                  <ChevronDown className="size-4" />
-                  Charger plus de resultats
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {profiles.length} profil(s) affiche(s)
+                </p>
               </div>
             </>
           )}

@@ -11,6 +11,8 @@ import {
   Layers,
   Calendar,
   CheckCircle,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -80,6 +83,10 @@ export default function NewCampaignPage() {
 
   // Step 4: Schedule
   const [schedule, setSchedule] = useState<ScheduleData>(getDefaultSchedule());
+
+  // Test email
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
 
   // Workspace ID
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -169,6 +176,56 @@ export default function NewCampaignPage() {
         return true;
     }
   };
+
+  function replaceVariables(text: string, prospect?: Prospect | null): string {
+    if (!prospect || !text) return text;
+    return text
+      .replace(/\{firstName\}/g, prospect.first_name || 'Jean')
+      .replace(/\{lastName\}/g, prospect.last_name || 'Dupont')
+      .replace(/\{company\}/g, prospect.company || 'Entreprise')
+      .replace(/\{jobTitle\}/g, prospect.job_title || 'Gerant')
+      .replace(/\{email\}/g, prospect.email || 'contact@example.com');
+  }
+
+  async function handleSendTestEmail() {
+    if (!testEmail) return;
+
+    const firstEmailStep = steps.find(s => s.step_type === 'email');
+    if (!firstEmailStep) {
+      toast.error("Aucun email dans la sequence");
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const sampleProspect = prospects.find(p => selectedProspectIds.has(p.id));
+      const subject = replaceVariables(firstEmailStep.subject || 'Test ColdReach', sampleProspect);
+      const body = replaceVariables(firstEmailStep.body_text || firstEmailStep.body_html || '', sampleProspect);
+
+      const response = await fetch('/api/email/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: testEmail,
+          subject: `[TEST] ${subject}`,
+          body_text: body,
+          body_html: `<p>${body.replace(/\n/g, '</p><p>')}</p>`,
+          email_account_id: formData.email_account_id || null,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(`Email test envoye a ${testEmail}`);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Erreur lors de l'envoi du test");
+      }
+    } catch {
+      toast.error("Erreur lors de l'envoi du test");
+    } finally {
+      setSendingTest(false);
+    }
+  }
 
   const handleSave = async () => {
     if (!workspaceId) {
@@ -594,6 +651,92 @@ export default function NewCampaignPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <Separator />
+
+              {/* Email Preview */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Apercu email
+                </h4>
+
+                {steps.filter(s => s.step_type === 'email').length > 0 ? (
+                  <div className="space-y-4">
+                    {steps.filter(s => s.step_type === 'email').map((step, idx) => {
+                      const sampleProspect = prospects.find(p => selectedProspectIds.has(p.id));
+                      const previewSubject = replaceVariables(step.subject || '', sampleProspect);
+                      const previewBody = replaceVariables(step.body_text || step.body_html || '', sampleProspect);
+
+                      return (
+                        <Card key={step.id} className="border-dashed">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">Email {idx + 1}</CardTitle>
+                              {step.delay_days > 0 && (
+                                <Badge variant="outline">J+{step.delay_days}</Badge>
+                              )}
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Objet :</p>
+                              <p className="text-sm font-medium">{previewSubject || 'Aucun objet'}</p>
+                            </div>
+                            <Separator />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Corps :</p>
+                              <p className="text-sm whitespace-pre-wrap">{previewBody || 'Aucun contenu'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Aucun email dans la sequence</p>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Test Email */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Email test
+                </h4>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Label htmlFor="test-email">Envoyer un email test a</Label>
+                    <Input
+                      id="test-email"
+                      type="email"
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      placeholder="votre-email@exemple.com"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleSendTestEmail}
+                    disabled={sendingTest || !testEmail || steps.filter(s => s.step_type === 'email').length === 0}
+                  >
+                    {sendingTest ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Envoi...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="size-4" />
+                        Envoyer le test
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Le premier email de la sequence sera envoye avec des donnees d&apos;exemple.
+                </p>
               </div>
 
               <Separator />

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Mail,
   Building2,
@@ -15,12 +16,22 @@ import {
   X,
   Clock,
   Send,
+  AlertTriangle,
+  AlertCircle,
+  Flag,
+  Hash,
+  TrendingUp,
+  Plus,
+  Check,
+  UserPlus,
+  MessageSquare,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
-import { PROSPECT_STATUSES } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -34,19 +45,174 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ProspectTimeline, type TimelineEvent } from "./ProspectTimeline";
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
+type CrmStatus = keyof typeof CRM_STATUSES;
+type PipelineStage = keyof typeof PIPELINE_STAGES;
+
+interface CustomFields {
+  crm_status?: string;
+  pipeline_stage?: string;
+  country?: string;
+  organization?: string;
+  nb_properties?: number;
+  loss_reason?: string;
+  needs_email?: boolean;
+  deal_title?: string;
+  source_lead_original?: string;
+  standing?: string;
+  type_biens?: string;
+  type_conciergerie?: string;
+  vision_conciergerie?: string;
+  [key: string]: unknown;
+}
+
+interface CampaignEnrollment {
+  id: string;
+  name: string;
+  campaignStatus: string;
+  enrollmentStatus: string;
+  hasOpened: boolean;
+  hasClicked: boolean;
+  hasReplied: boolean;
+  enrolledAt: string;
+}
+
+interface AutomationEnrollment {
+  id: string;
+  name: string;
+  sequenceStatus: string;
+  enrollmentStatus: string;
+  profileViewed: boolean;
+  connectionSent: boolean;
+  connectionAccepted: boolean;
+  messageSentCount: number;
+  hasReplied: boolean;
+  enrolledAt: string;
+}
 
 interface ProspectDetailProps {
   prospect: Prospect;
+  campaigns?: CampaignEnrollment[];
+  automations?: AutomationEnrollment[];
+  timelineEvents?: TimelineEvent[];
 }
 
-export function ProspectDetail({ prospect }: ProspectDetailProps) {
+export function ProspectDetail({
+  prospect,
+  campaigns = [],
+  automations = [],
+  timelineEvents = [],
+}: ProspectDetailProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  const cf = (prospect.custom_fields || {}) as CustomFields;
+  const crmStatus = cf.crm_status as CrmStatus;
+  const pipelineStage = cf.pipeline_stage as PipelineStage;
+  const crmConfig = crmStatus ? CRM_STATUSES[crmStatus] : null;
+  const pipelineConfig = pipelineStage ? PIPELINE_STAGES[pipelineStage] : null;
+  const countryConfig = cf.country ? COUNTRIES[cf.country as keyof typeof COUNTRIES] : null;
+  const isPlaceholderEmail = prospect.email.endsWith('@crm-import.local') || prospect.email.endsWith('@linkedin-prospect.local');
+
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Enrollment state
+  const [availableCampaigns, setAvailableCampaigns] = useState<{ id: string; name: string }[]>([]);
+  const [availableAutomations, setAvailableAutomations] = useState<{ id: string; name: string }[]>([]);
+  const [showCampaignSelect, setShowCampaignSelect] = useState(false);
+  const [showAutomationSelect, setShowAutomationSelect] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+
+  const hasConflict = campaigns.length > 0 && automations.length > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOptions() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
+      if (!profile?.current_workspace_id || cancelled) return;
+
+      const { data: camps } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .eq("workspace_id", profile.current_workspace_id)
+        .in("status", ["draft", "active", "paused"]);
+
+      const { data: autos } = await supabase
+        .from("automation_sequences")
+        .select("id, name")
+        .eq("workspace_id", profile.current_workspace_id)
+        .in("status", ["draft", "active", "paused"]);
+
+      if (!cancelled) {
+        setAvailableCampaigns(camps || []);
+        setAvailableAutomations(autos || []);
+      }
+    }
+    loadOptions();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  async function enrollInCampaign(campaignId: string) {
+    setEnrolling(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectIds: [prospect.id] }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Prospect ajoute a la campagne (${data.enrolled} inscrit)`);
+        setShowCampaignSelect(false);
+        router.refresh();
+      } else {
+        toast.error(data.error || "Erreur lors de l'inscription");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  async function enrollInAutomation(sequenceId: string) {
+    setEnrolling(true);
+    try {
+      const res = await fetch(`/api/automation/sequences/${sequenceId}/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectIds: [prospect.id] }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Prospect ajoute a la sequence (${data.enrolled} inscrit)`);
+        setShowAutomationSelect(false);
+        router.refresh();
+      } else {
+        toast.error(data.error || "Erreur lors de l'inscription");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setEnrolling(false);
+    }
+  }
   const [formData, setFormData] = useState<ProspectFormData>({
     email: prospect.email,
     first_name: prospect.first_name ?? "",
@@ -221,16 +387,31 @@ export function ProspectDetail({ prospect }: ProspectDetailProps) {
             )}
           </h3>
           {!isEditing && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {prospect.email}
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isPlaceholderEmail ? (
+                  <span className="text-orange-500 italic">Email manquant</span>
+                ) : (
+                  prospect.email
+                )}
+              </p>
+              {cf.deal_title && (
+                <p className="text-xs text-muted-foreground mt-0.5">{cf.deal_title}</p>
+              )}
+            </>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {statusConfig && (
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {crmConfig && (
             <Badge variant="secondary" className="gap-1.5">
-              <span className={`size-1.5 rounded-full ${statusConfig.color}`} />
-              {statusConfig.label}
+              <span className={`size-1.5 rounded-full ${crmConfig.color}`} />
+              {crmConfig.label}
+            </Badge>
+          )}
+          {pipelineConfig && (
+            <Badge variant="outline" className="gap-1.5">
+              <span className={`size-1.5 rounded-full ${pipelineConfig.color}`} />
+              {pipelineConfig.label}
             </Badge>
           )}
           {isEditing ? (
@@ -262,6 +443,93 @@ export function ProspectDetail({ prospect }: ProspectDetailProps) {
       </div>
 
       <Separator />
+
+      {/* Loss reason alert */}
+      {cf.crm_status === 'lost' && cf.loss_reason && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+          <AlertCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-800">Raison de la perte</p>
+            <p className="text-sm text-red-700">{cf.loss_reason}</p>
+          </div>
+        </div>
+      )}
+
+      {/* CRM Data Card */}
+      {(cf.country || cf.nb_properties || cf.type_biens || cf.type_conciergerie || cf.standing || cf.vision_conciergerie || cf.source_lead_original) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Donnees CRM</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            {cf.country && (
+              <div className="flex items-center gap-2">
+                <Flag className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Pays</p>
+                  <p className="text-sm">
+                    {countryConfig ? `${countryConfig.flag} ${countryConfig.label}` : cf.country}
+                  </p>
+                </div>
+              </div>
+            )}
+            {cf.nb_properties && (
+              <div className="flex items-center gap-2">
+                <Hash className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Nombre de biens</p>
+                  <p className="text-sm">{cf.nb_properties}</p>
+                </div>
+              </div>
+            )}
+            {cf.type_biens && (
+              <div className="flex items-center gap-2">
+                <Building2 className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Type de biens</p>
+                  <p className="text-sm">{cf.type_biens}</p>
+                </div>
+              </div>
+            )}
+            {cf.type_conciergerie && (
+              <div className="flex items-center gap-2">
+                <Briefcase className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Type de conciergerie</p>
+                  <p className="text-sm">{cf.type_conciergerie}</p>
+                </div>
+              </div>
+            )}
+            {cf.standing && (
+              <div className="flex items-center gap-2">
+                <TrendingUp className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Standing</p>
+                  <p className="text-sm">{cf.standing}</p>
+                </div>
+              </div>
+            )}
+            {cf.vision_conciergerie && (
+              <div className="flex items-center gap-2">
+                <Globe className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Vision</p>
+                  <p className="text-sm">{cf.vision_conciergerie}</p>
+                </div>
+              </div>
+            )}
+            {cf.source_lead_original && (
+              <div className="flex items-center gap-2">
+                <Send className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Source du lead</p>
+                  <p className="text-sm">{cf.source_lead_original}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Info fields */}
       <Card>
@@ -364,34 +632,202 @@ export function ProspectDetail({ prospect }: ProspectDetailProps) {
         </CardContent>
       </Card>
 
-      {/* Activity timeline placeholder */}
+      {/* Conflict warning */}
+      {hasConflict && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="flex items-center gap-3 py-3">
+            <AlertTriangle className="size-5 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800">
+              Ce prospect est actif dans {campaigns.length} campagne(s) email ET{" "}
+              {automations.length} sequence(s) LinkedIn simultanement.
+              Verifiez qu&apos;il ne recoit pas trop de messages.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campaign enrollments */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Campagnes Email</CardTitle>
+          {!showCampaignSelect ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCampaignSelect(true)}
+              className="h-7 text-xs"
+            >
+              <Plus className="size-3 mr-1" />
+              Ajouter
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Select onValueChange={(val) => enrollInCampaign(val)} disabled={enrolling}>
+                <SelectTrigger className="h-7 w-48 text-xs">
+                  <SelectValue placeholder="Choisir une campagne" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCampaigns.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setShowCampaignSelect(false)}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {campaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Aucune campagne email active.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {campaigns.map((c) => (
+                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <Mail className="size-4 text-blue-600" />
+                    <div>
+                      <Link href={`/campaigns/${c.id}`} className="text-sm font-medium hover:underline">
+                        {c.name}
+                      </Link>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="secondary" className="text-[10px] h-4">
+                          {c.enrollmentStatus}
+                        </Badge>
+                        {c.hasOpened && (
+                          <span className="text-[10px] text-green-600 flex items-center gap-0.5">
+                            <Eye className="size-2.5" /> Ouvert
+                          </span>
+                        )}
+                        {c.hasClicked && (
+                          <span className="text-[10px] text-purple-600 flex items-center gap-0.5">
+                            <Check className="size-2.5" /> Clique
+                          </span>
+                        )}
+                        {c.hasReplied && (
+                          <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                            <MessageSquare className="size-2.5" /> Repondu
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(c.enrolledAt).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Automation enrollments */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Sequences LinkedIn</CardTitle>
+          {!showAutomationSelect ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAutomationSelect(true)}
+              className="h-7 text-xs"
+            >
+              <Plus className="size-3 mr-1" />
+              Ajouter
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Select onValueChange={(val) => enrollInAutomation(val)} disabled={enrolling}>
+                <SelectTrigger className="h-7 w-48 text-xs">
+                  <SelectValue placeholder="Choisir une sequence" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAutomations.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setShowAutomationSelect(false)}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {automations.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Aucune sequence LinkedIn active.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {automations.map((a) => (
+                <div key={a.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <Linkedin className="size-4 text-blue-700" />
+                    <div>
+                      <p className="text-sm font-medium">{a.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="secondary" className="text-[10px] h-4">
+                          {a.enrollmentStatus}
+                        </Badge>
+                        {a.connectionSent && (
+                          <span className="text-[10px] text-blue-600 flex items-center gap-0.5">
+                            <UserPlus className="size-2.5" /> Connexion envoyee
+                          </span>
+                        )}
+                        {a.connectionAccepted && (
+                          <span className="text-[10px] text-green-600 flex items-center gap-0.5">
+                            <Check className="size-2.5" /> Acceptee
+                          </span>
+                        )}
+                        {a.messageSentCount > 0 && (
+                          <span className="text-[10px] text-purple-600 flex items-center gap-0.5">
+                            <MessageSquare className="size-2.5" /> {a.messageSentCount} msg
+                          </span>
+                        )}
+                        {a.hasReplied && (
+                          <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                            <MessageSquare className="size-2.5" /> Repondu
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(a.enrolledAt).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Unified activity timeline */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Activite</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Clock className="size-8 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              L&apos;historique d&apos;activite apparaitra ici une fois que des
-              emails auront ete envoyes.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Campaign enrollment placeholder */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Campagnes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Send className="size-8 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Ce prospect n&apos;est inscrit dans aucune campagne pour le moment.
-            </p>
-          </div>
+          <ProspectTimeline events={timelineEvents} />
         </CardContent>
       </Card>
     </div>

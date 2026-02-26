@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/resend-client";
+import { mergeTemplate as mergeEmailTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
 
 const BATCH_SIZE = 5;
 
@@ -45,11 +47,14 @@ export async function POST() {
 
     for (const item of queue) {
       try {
+        const actionType = item.step_action_type as string;
+        const isEmailAction = actionType === "email";
+
         // Get LinkedIn cookies from env (simpler than DB for single-user)
         const liAt = process.env.LINKEDIN_SESSION_COOKIE;
         const jsessionId = process.env.LINKEDIN_JSESSIONID;
 
-        if (!liAt || !jsessionId) {
+        if (!isEmailAction && (!liAt || !jsessionId)) {
           logs.push(`Skipped: No LinkedIn cookies configured`);
           continue;
         }
@@ -58,13 +63,12 @@ export async function POST() {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "application/vnd.linkedin.normalized+json+2.1",
-          "csrf-token": jsessionId,
-          Cookie: `li_at=${liAt}; JSESSIONID="${jsessionId}"`,
+          "csrf-token": jsessionId || "",
+          Cookie: `li_at=${liAt || ""}; JSESSIONID="${jsessionId || ""}"`,
           "x-restli-protocol-version": "2.0.0",
           "x-li-lang": "fr_FR",
         };
 
-        const actionType = item.step_action_type as string;
         const publicId = item.linkedin_public_id as string;
         let actionSuccess = false;
         let logMessage = "";
@@ -223,6 +227,83 @@ export async function POST() {
                 : `${item.first_name} ${item.last_name} n'a pas encore accepte`;
             } else {
               logMessage = `Erreur check connexion: HTTP ${checkRes.status}`;
+            }
+            break;
+          }
+
+          case "email": {
+            // Send email from automation sequence via Resend
+            const { data: seqForEmail } = await supabase
+              .from("automation_sequences")
+              .select("workspace_id")
+              .eq("id", item.sequence_id)
+              .single();
+
+            if (!seqForEmail) {
+              logMessage = "Sequence introuvable pour envoi email";
+              break;
+            }
+
+            const { data: emailAccount } = await supabase
+              .from("email_accounts")
+              .select("*")
+              .eq("workspace_id", seqForEmail.workspace_id)
+              .eq("is_active", true)
+              .limit(1)
+              .single();
+
+            if (!emailAccount) {
+              logMessage = "Aucun compte email actif configure";
+              break;
+            }
+
+            const prospectEmail = item.prospect_email as string;
+            if (!prospectEmail) {
+              logMessage = "Pas d'email pour ce prospect";
+              break;
+            }
+
+            const tplData = prospectToTemplateData({
+              email: prospectEmail,
+              first_name: item.first_name as string | null,
+              last_name: item.last_name as string | null,
+              company: item.company as string | null,
+              job_title: item.job_title as string | null,
+            });
+
+            const subjectTpl = (item.subject_template as string) || "Message de suivi";
+            const bodyTpl = (item.message_template as string) || "";
+            const mergedSubject = mergeEmailTemplate(subjectTpl, tplData);
+            let mergedBody = mergeEmailTemplate(bodyTpl, tplData);
+
+            if (!mergedBody.includes("<")) {
+              mergedBody = mergedBody.replace(/\n/g, "<br/>");
+            }
+
+            if (emailAccount.signature_html) {
+              mergedBody += `<br/><br/>${emailAccount.signature_html}`;
+            }
+
+            const fromEmail = emailAccount.display_name
+              ? `${emailAccount.display_name} <${emailAccount.email_address}>`
+              : emailAccount.email_address;
+
+            const emailResult = await sendEmail({
+              from: fromEmail,
+              to: prospectEmail,
+              subject: mergedSubject,
+              html: mergedBody,
+            });
+
+            if (emailResult.success) {
+              await supabase
+                .from("prospects")
+                .update({ last_contacted_at: new Date().toISOString() })
+                .eq("id", item.prospect_id);
+              actionSuccess = true;
+              logMessage = `Email envoye a ${item.first_name} ${item.last_name} (${prospectEmail})`;
+            } else {
+              logMessage = `Erreur envoi email: ${emailResult.error}`;
             }
             break;
           }

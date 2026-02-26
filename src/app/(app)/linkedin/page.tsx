@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,11 +61,10 @@ export default function LinkedInPage() {
   const [tasks, setTasks] = useState<LinkedInTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const supabase = createClient();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const loadTasks = useCallback(async () => {
+  async function loadTasks() {
     setLoading(true);
+    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -88,13 +87,44 @@ export default function LinkedInPage() {
 
     setTasks((data as LinkedInTask[]) || []);
     setLoading(false);
-  }, []);
+  }
 
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    let cancelled = false;
+    async function init() {
+      setLoading(true);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.current_workspace_id || cancelled) return;
+
+      const { data } = await supabase
+        .from("linkedin_tasks")
+        .select("*, prospects(first_name, last_name, email, company, linkedin_url)")
+        .eq("workspace_id", profile.current_workspace_id)
+        .order("priority", { ascending: false })
+        .order("due_at", { ascending: true });
+
+      if (!cancelled) {
+        setTasks((data as LinkedInTask[]) || []);
+        setLoading(false);
+      }
+    }
+    init();
+    return () => { cancelled = true; };
+  }, []);
 
   async function markAsDone(taskId: string) {
+    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -113,6 +143,7 @@ export default function LinkedInPage() {
   }
 
   async function skipTask(taskId: string) {
+    const supabase = createClient();
     await supabase
       .from("linkedin_tasks")
       .update({ status: "skipped" })

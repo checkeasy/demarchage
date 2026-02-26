@@ -16,6 +16,7 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import { sanitizeHtml } from "@/lib/utils";
 
 interface Thread {
   id: string;
@@ -258,7 +259,7 @@ export default function InboxPage() {
                       ) : msg.body_html ? (
                         <div
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: msg.body_html }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.body_html) }}
                         />
                       ) : null}
                     </div>

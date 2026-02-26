@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { findExistingProspect, mergeProspectData } from '@/lib/utils/prospect-matcher';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,45 +22,74 @@ export async function POST(request: NextRequest) {
     }
 
     function generateEmail(firstName: string, lastName: string, linkedinUrl: string): string {
-      // Extract public ID from LinkedIn URL as unique identifier
       const match = linkedinUrl?.match(/\/in\/([^/?]+)/);
       const slug = match ? match[1] : `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, '');
       return `${slug}@linkedin-prospect.local`;
     }
 
-    // Bulk add
+    // Bulk add with upsert
     if (body.bulk && Array.isArray(body.bulk)) {
-      const inserts = body.bulk.map((p: Record<string, string | number>) => ({
-        email: generateEmail(String(p.first_name || ''), String(p.last_name || ''), String(p.linkedin_url || '')),
-        first_name: p.first_name || '',
-        last_name: p.last_name || '',
-        company: p.company || '',
-        job_title: p.job_title || '',
-        linkedin_url: p.linkedin_url || '',
-        location: p.location || '',
-        source: 'linkedin',
-        status: 'active',
-        workspace_id: workspace.id,
-        custom_fields: {
-          headline: p.headline || '',
-          relevance_score: p.relevance_score || 0,
-          industry: p.industry || '',
-          company_size: p.company_size || '',
-        },
-      }));
+      let inserted = 0;
+      let updated = 0;
+      let errors = 0;
 
-      const { error } = await supabase.from('prospects').insert(inserts);
+      for (const p of body.bulk) {
+        const prospectData: Record<string, unknown> = {
+          email: generateEmail(String(p.first_name || ''), String(p.last_name || ''), String(p.linkedin_url || '')),
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          company: p.company || '',
+          job_title: p.job_title || '',
+          linkedin_url: p.linkedin_url || '',
+          location: p.location || '',
+          source: 'linkedin',
+          status: 'active',
+          workspace_id: workspace.id,
+          custom_fields: {
+            headline: p.headline || '',
+            relevance_score: p.relevance_score || 0,
+            industry: p.industry || '',
+            company_size: p.company_size || '',
+          },
+        };
 
-      if (error) {
-        console.error('[API Prospects Add] Bulk error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        // Try to find existing prospect
+        const existingId = await findExistingProspect(supabase, workspace.id, {
+          email: prospectData.email as string,
+          linkedin_url: p.linkedin_url || '',
+          organization: p.company || '',
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+        });
+
+        if (existingId) {
+          // Fetch existing and merge
+          const { data: existing } = await supabase
+            .from('prospects')
+            .select('*')
+            .eq('id', existingId)
+            .single();
+
+          if (existing) {
+            const merged = mergeProspectData(existing, prospectData);
+            const { error } = await supabase
+              .from('prospects')
+              .update(merged)
+              .eq('id', existingId);
+
+            if (error) { errors++; } else { updated++; }
+          }
+        } else {
+          const { error } = await supabase.from('prospects').insert(prospectData);
+          if (error) { errors++; } else { inserted++; }
+        }
       }
 
-      return NextResponse.json({ success: true, count: inserts.length });
+      return NextResponse.json({ success: true, inserted, updated, errors });
     }
 
-    // Single add
-    const { error } = await supabase.from('prospects').insert({
+    // Single add with upsert
+    const prospectData: Record<string, unknown> = {
       email: generateEmail(body.first_name || '', body.last_name || '', body.linkedin_url || ''),
       first_name: body.first_name || '',
       last_name: body.last_name || '',
@@ -76,14 +106,43 @@ export async function POST(request: NextRequest) {
         industry: body.industry || '',
         company_size: body.company_size || '',
       },
+    };
+
+    const existingId = await findExistingProspect(supabase, workspace.id, {
+      email: prospectData.email as string,
+      linkedin_url: body.linkedin_url || '',
+      organization: body.company || '',
+      first_name: body.first_name || '',
+      last_name: body.last_name || '',
     });
 
+    if (existingId) {
+      const { data: existing } = await supabase
+        .from('prospects')
+        .select('*')
+        .eq('id', existingId)
+        .single();
+
+      if (existing) {
+        const merged = mergeProspectData(existing, prospectData);
+        const { error } = await supabase
+          .from('prospects')
+          .update(merged)
+          .eq('id', existingId);
+
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        return NextResponse.json({ success: true, action: 'updated', id: existingId });
+      }
+    }
+
+    const { error } = await supabase.from('prospects').insert(prospectData);
     if (error) {
-      console.error('[API Prospects Add] Error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action: 'inserted' });
   } catch (err) {
     console.error('[API Prospects Add] Error:', err);
     return NextResponse.json(
