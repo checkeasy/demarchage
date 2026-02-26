@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  Power,
+  Cpu,
+  Thermometer,
+  Hash,
+  FileText,
+  Brain,
+  Mail,
+  Linkedin,
+  MessageSquare,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -50,6 +64,22 @@ const AVAILABLE_MODELS = [
   },
 ];
 
+const AGENT_ICONS: Record<AgentType, React.ElementType> = {
+  ceo: Brain,
+  email_writer: Mail,
+  linkedin_writer: Linkedin,
+  response_handler: MessageSquare,
+  prospect_researcher: Search,
+};
+
+const AGENT_ICON_COLORS: Record<AgentType, { bg: string; text: string }> = {
+  ceo: { bg: "bg-purple-100", text: "text-purple-600" },
+  email_writer: { bg: "bg-blue-100", text: "text-blue-600" },
+  linkedin_writer: { bg: "bg-sky-100", text: "text-sky-600" },
+  response_handler: { bg: "bg-emerald-100", text: "text-emerald-600" },
+  prospect_researcher: { bg: "bg-amber-100", text: "text-amber-600" },
+};
+
 export function AgentConfigDialog({
   config,
   open,
@@ -61,6 +91,11 @@ export function AgentConfigDialog({
     name: config.agent_type,
     description: "",
   };
+  const Icon = AGENT_ICONS[agentType] || Brain;
+  const iconColors = AGENT_ICON_COLORS[agentType] || {
+    bg: "bg-slate-100",
+    text: "text-slate-600",
+  };
 
   const [model, setModel] = useState(config.model);
   const [temperature, setTemperature] = useState(config.temperature);
@@ -69,6 +104,15 @@ export function AgentConfigDialog({
   const [systemPrompt, setSystemPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingPrompt, setIsFetchingPrompt] = useState(false);
+
+  // Temperature label
+  function getTemperatureLabel(t: number): string {
+    if (t <= 0.2) return "Tres precis";
+    if (t <= 0.4) return "Precis";
+    if (t <= 0.6) return "Equilibre";
+    if (t <= 0.8) return "Creatif";
+    return "Tres creatif";
+  }
 
   // Fetch the current system prompt for this agent
   const fetchPrompt = useCallback(async () => {
@@ -132,27 +176,56 @@ export function AgentConfigDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Configurer: {display.name}</DialogTitle>
-          <DialogDescription>{display.description}</DialogDescription>
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center justify-center size-10 rounded-xl ${iconColors.bg}`}
+            >
+              <Icon className={`size-5 ${iconColors.text}`} />
+            </div>
+            <div>
+              <DialogTitle className="text-lg">{display.name}</DialogTitle>
+              <DialogDescription className="text-sm">
+                {display.description}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Active toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Agent actif</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Activer ou desactiver cet agent
-              </p>
+          {/* Section: Status */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50/80 border border-slate-100">
+            <div className="flex items-center gap-3">
+              <Power className="size-4 text-muted-foreground" />
+              <div>
+                <Label className="text-sm font-medium">Agent actif</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Activer ou desactiver cet agent dans le pipeline
+                </p>
+              </div>
             </div>
-            <Switch checked={isActive} onCheckedChange={setIsActive} />
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${
+                  isActive
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-slate-50 text-slate-500 border-slate-200"
+                }`}
+              >
+                {isActive ? "Actif" : "Inactif"}
+              </Badge>
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
+            </div>
           </div>
 
           <Separator />
 
-          {/* Model selector */}
-          <div className="space-y-2">
-            <Label>Modele IA</Label>
+          {/* Section: Model */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="size-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Modele IA</Label>
+            </div>
             <Select value={model} onValueChange={setModel}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Choisir un modele" />
@@ -161,7 +234,7 @@ export function AgentConfigDialog({
                 {AVAILABLE_MODELS.map((m) => (
                   <SelectItem key={m.value} value={m.value}>
                     <span className="flex items-center gap-2">
-                      <span>{m.label}</span>
+                      <span className="font-medium">{m.label}</span>
                       <span className="text-xs text-muted-foreground">
                         - {m.description}
                       </span>
@@ -172,29 +245,46 @@ export function AgentConfigDialog({
             </Select>
           </div>
 
-          {/* Temperature */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Temperature</Label>
-              <span className="text-sm font-mono text-muted-foreground">
-                {temperature.toFixed(1)}
-              </span>
+          <Separator />
+
+          {/* Section: Temperature */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Thermometer className="size-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Temperature</Label>
             </div>
-            <Slider
-              value={[temperature]}
-              onValueChange={([val]) => setTemperature(val)}
-              min={0}
-              max={1}
-              step={0.1}
-            />
-            <p className="text-xs text-muted-foreground">
-              0 = deterministe et precis, 1 = creatif et varie
-            </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {getTemperatureLabel(temperature)}
+                </span>
+                <span className="text-sm font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                  {temperature.toFixed(1)}
+                </span>
+              </div>
+              <Slider
+                value={[temperature]}
+                onValueChange={([val]) => setTemperature(val)}
+                min={0}
+                max={1}
+                step={0.1}
+              />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Precis</span>
+                <span>Equilibre</span>
+                <span>Creatif</span>
+              </div>
+            </div>
           </div>
 
-          {/* Max tokens */}
-          <div className="space-y-2">
-            <Label>Tokens maximum</Label>
+          <Separator />
+
+          {/* Section: Max tokens */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Hash className="size-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Tokens maximum</Label>
+            </div>
             <Input
               type="number"
               min={256}
@@ -210,11 +300,19 @@ export function AgentConfigDialog({
 
           <Separator />
 
-          {/* System prompt */}
-          <div className="space-y-2">
-            <Label>Prompt systeme</Label>
+          {/* Section: System prompt */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Prompt systeme</Label>
+              </div>
+              <Badge variant="outline" className="text-[10px]">
+                Versionne
+              </Badge>
+            </div>
             {isFetchingPrompt ? (
-              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground rounded-lg bg-slate-50 border border-slate-100">
                 <Loader2 className="size-4 animate-spin" />
                 Chargement du prompt...
               </div>
@@ -223,7 +321,7 @@ export function AgentConfigDialog({
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 placeholder="Instructions systeme pour cet agent..."
-                className="min-h-[200px] font-mono text-sm"
+                className="min-h-[200px] text-sm leading-relaxed"
               />
             )}
             <p className="text-xs text-muted-foreground">
@@ -232,7 +330,7 @@ export function AgentConfigDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

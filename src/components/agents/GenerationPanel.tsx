@@ -10,6 +10,14 @@ import {
   Copy,
   Check,
   Send,
+  User,
+  Megaphone,
+  Hash,
+  Wand2,
+  Clock,
+  Cpu,
+  Target,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -214,22 +222,31 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
   const selectedProspect = prospects.find((p) => p.id === selectedProspectId);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Configuration panel */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="size-4" />
-            Generation rapide
-          </CardTitle>
-          <CardDescription>
-            Generez un message de prospection pour un prospect specifique
-          </CardDescription>
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* Configuration panel -- 2 of 5 columns */}
+      <Card className="lg:col-span-2 border-slate-200/80">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center size-9 rounded-lg bg-violet-50">
+              <Wand2 className="size-4 text-violet-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Generation rapide</CardTitle>
+              <CardDescription className="text-xs">
+                Generez un message personnalise
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Prospect search */}
-          <div className="space-y-2">
-            <Label>Prospect</Label>
+        <CardContent className="space-y-5">
+          {/* Section: Prospect */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <User className="size-3.5 text-muted-foreground" />
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Prospect
+              </Label>
+            </div>
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -237,7 +254,7 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
                   placeholder="Rechercher un prospect..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 h-9 text-sm"
                 />
               </div>
               {isLoadingProspects ? (
@@ -250,7 +267,7 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
                   value={selectedProspectId}
                   onValueChange={setSelectedProspectId}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full h-9 text-sm">
                     <SelectValue placeholder="Selectionner un prospect" />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,8 +300,8 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
 
             {/* Selected prospect preview */}
             {selectedProspect && (
-              <div className="p-2 bg-slate-50 rounded-md text-xs space-y-0.5">
-                <p className="font-medium">
+              <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 text-xs space-y-1">
+                <p className="font-medium text-slate-900">
                   {selectedProspect.first_name} {selectedProspect.last_name}
                 </p>
                 {selectedProspect.job_title && (
@@ -306,9 +323,14 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
 
           <Separator />
 
-          {/* Campaign selector */}
-          <div className="space-y-2">
-            <Label>Campagne</Label>
+          {/* Section: Campaign */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Megaphone className="size-3.5 text-muted-foreground" />
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Campagne
+              </Label>
+            </div>
             {isLoadingCampaigns ? (
               <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
@@ -319,7 +341,7 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
                 value={selectedCampaignId}
                 onValueChange={setSelectedCampaignId}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm">
                   <SelectValue placeholder="Selectionner une campagne" />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,44 +361,57 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
             )}
           </div>
 
-          {/* Channel */}
-          <div className="space-y-2">
-            <Label>Canal</Label>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={channel === "email" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setChannel("email")}
-                className="flex-1"
-              >
-                <Mail className="size-4" />
-                Email
-              </Button>
-              <Button
-                variant={channel === "linkedin" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setChannel("linkedin")}
-                className="flex-1"
-              >
-                <Linkedin className="size-4" />
-                LinkedIn
-              </Button>
-            </div>
-          </div>
+          <Separator />
 
-          {/* Step number */}
-          <div className="space-y-2">
-            <Label>Etape de la sequence</Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={stepNumber}
-              onChange={(e) => setStepNumber(parseInt(e.target.value) || 1)}
-            />
-            <p className="text-xs text-muted-foreground">
-              1 = premier contact, 2+ = relance
-            </p>
+          {/* Section: Options */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Hash className="size-3.5 text-muted-foreground" />
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Options
+              </Label>
+            </div>
+
+            {/* Channel */}
+            <div className="space-y-2">
+              <Label className="text-sm">Canal</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={channel === "email" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setChannel("email")}
+                  className="flex-1 h-9"
+                >
+                  <Mail className="size-4" />
+                  Email
+                </Button>
+                <Button
+                  variant={channel === "linkedin" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setChannel("linkedin")}
+                  className="flex-1 h-9"
+                >
+                  <Linkedin className="size-4" />
+                  LinkedIn
+                </Button>
+              </div>
+            </div>
+
+            {/* Step number */}
+            <div className="space-y-2">
+              <Label className="text-sm">Etape de la sequence</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={stepNumber}
+                onChange={(e) => setStepNumber(parseInt(e.target.value) || 1)}
+                className="h-9 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                1 = premier contact, 2+ = relance
+              </p>
+            </div>
           </div>
 
           <Separator />
@@ -387,7 +422,8 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
             disabled={
               isGenerating || !selectedProspectId || !selectedCampaignId
             }
-            className="w-full"
+            className="w-full h-10"
+            size="lg"
           >
             {isGenerating ? (
               <Loader2 className="size-4 animate-spin" />
@@ -399,35 +435,66 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
         </CardContent>
       </Card>
 
-      {/* Result panel */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            {channel === "email" ? (
-              <Mail className="size-4" />
-            ) : (
-              <Linkedin className="size-4" />
-            )}
-            Resultat
-          </CardTitle>
+      {/* Result panel -- 3 of 5 columns */}
+      <Card className="lg:col-span-3 border-slate-200/80">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex items-center justify-center size-9 rounded-lg ${
+                  channel === "email" ? "bg-blue-50" : "bg-sky-50"
+                }`}
+              >
+                {channel === "email" ? (
+                  <Mail className="size-4 text-blue-600" />
+                ) : (
+                  <Linkedin className="size-4 text-sky-600" />
+                )}
+              </div>
+              <div>
+                <CardTitle className="text-base">Resultat</CardTitle>
+                <CardDescription className="text-xs">
+                  {channel === "email"
+                    ? "Email de prospection genere"
+                    : "Message LinkedIn genere"}
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+
+          {/* Metadata badges */}
           {result?.metadata && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary" className="text-[10px]">
+            <div className="flex items-center gap-2 flex-wrap mt-3">
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${
+                  result.metadata.model.includes("sonnet")
+                    ? "bg-violet-50 text-violet-700 border-violet-200"
+                    : "bg-sky-50 text-sky-700 border-sky-200"
+                }`}
+              >
+                <Cpu className="size-2.5 mr-1" />
                 {result.metadata.model.includes("haiku")
                   ? "Haiku"
                   : "Sonnet"}
               </Badge>
-              <Badge variant="outline" className="text-[10px]">
-                Score: {Math.round(result.metadata.personalizationScore)}%
+              <Badge
+                variant="outline"
+                className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200"
+              >
+                <Target className="size-2.5 mr-1" />
+                {Math.round(result.metadata.personalizationScore)}%
               </Badge>
               <Badge variant="outline" className="text-[10px]">
                 {result.metadata.inputTokens + result.metadata.outputTokens}{" "}
                 tokens
               </Badge>
               <Badge variant="outline" className="text-[10px]">
-                ${result.metadata.costUsd.toFixed(4)}
+                <DollarSign className="size-2.5 mr-1" />
+                {result.metadata.costUsd.toFixed(4)}
               </Badge>
               <Badge variant="outline" className="text-[10px]">
+                <Clock className="size-2.5 mr-1" />
                 {result.metadata.generationDurationMs}ms
               </Badge>
             </div>
@@ -435,54 +502,67 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
         </CardHeader>
         <CardContent>
           {isGenerating ? (
-            <div className="flex flex-col items-center py-12">
-              <Loader2 className="size-8 animate-spin text-blue-500 mb-3" />
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col items-center py-16">
+              <div className="relative">
+                <div className="absolute inset-0 animate-ping rounded-full bg-blue-100 size-16" />
+                <div className="relative flex items-center justify-center size-16 rounded-full bg-blue-50">
+                  <Loader2 className="size-7 animate-spin text-blue-600" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-slate-700 mt-6">
                 Les agents travaillent...
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1.5">
                 Recherche, strategie et redaction en cours
               </p>
             </div>
           ) : result ? (
-            <div className="space-y-4">
-              {channel === "email" && typeof result.content.subject === "string" ? (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
+            <div className="space-y-5">
+              {/* Email subject */}
+              {channel === "email" &&
+              typeof result.content.subject === "string" ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                     Objet
                   </Label>
-                  <div className="p-2 bg-slate-50 rounded-md text-sm font-medium">
+                  <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 text-sm font-medium text-slate-900">
                     {String(result.content.subject)}
                   </div>
                 </div>
               ) : null}
 
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
+              {/* Message body */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                   {channel === "email" ? "Corps du message" : "Message"}
                 </Label>
-                <ScrollArea className="max-h-[300px]">
-                  <div className="p-3 bg-slate-50 rounded-md text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                <ScrollArea className="max-h-[320px]">
+                  <div className="p-4 bg-slate-50/80 rounded-lg border border-slate-100 text-sm whitespace-pre-wrap leading-relaxed text-slate-800">
                     {channel === "email"
-                      ? String(result.content.body_text || result.content.body_html || "")
+                      ? String(
+                          result.content.body_text ||
+                            result.content.body_html ||
+                            ""
+                        )
                       : String(result.content.message || "")}
                   </div>
                 </ScrollArea>
               </div>
 
+              {/* Personalization hooks */}
               {Array.isArray(result.content.personalization_hooks) &&
               (result.content.personalization_hooks as string[]).length > 0 ? (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                     Hooks de personnalisation
                   </Label>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {(result.content.personalization_hooks as string[]).map(
                       (hook, i) => (
                         <Badge
                           key={i}
                           variant="secondary"
-                          className="text-[10px]"
+                          className="text-xs bg-violet-50 text-violet-700"
                         >
                           {hook}
                         </Badge>
@@ -492,10 +572,13 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
                 </div>
               ) : null}
 
+              {/* Tone */}
               {typeof result.content.tone === "string" ? (
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Ton:</Label>
-                  <Badge variant="outline" className="text-[10px]">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Ton:
+                  </Label>
+                  <Badge variant="outline" className="text-xs">
                     {result.content.tone}
                   </Badge>
                 </div>
@@ -504,35 +587,37 @@ export function GenerationPanel({ workspaceId }: GenerationPanelProps) {
               <Separator />
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCopy}
-                  className="flex-1"
+                  className="flex-1 h-9"
                 >
                   {copied ? (
-                    <Check className="size-4 text-green-600" />
+                    <Check className="size-4 text-emerald-600" />
                   ) : (
                     <Copy className="size-4" />
                   )}
                   {copied ? "Copie !" : "Copier"}
                 </Button>
-                <Button size="sm" className="flex-1">
+                <Button size="sm" className="flex-1 h-9">
                   <Send className="size-4" />
                   Utiliser
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center py-12 text-center">
-              <Sparkles className="size-10 text-slate-300 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                Configurez les parametres et cliquez sur &quot;Generer&quot;
+            <div className="flex flex-col items-center py-16 text-center">
+              <div className="flex items-center justify-center size-16 rounded-2xl bg-slate-100 mb-5">
+                <Sparkles className="size-7 text-slate-400" />
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                Pret a generer
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Les agents IA analyseront le prospect et genereront un message
-                personnalise
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-xs">
+                Configurez les parametres a gauche et cliquez sur
+                &quot;Generer&quot; pour lancer les agents IA
               </p>
             </div>
           )}

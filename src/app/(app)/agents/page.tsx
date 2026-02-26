@@ -33,9 +33,9 @@ export default async function AgentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Agents IA</h1>
-        <p className="text-muted-foreground">
-          Configurez vos agents intelligents pour automatiser la prospection
+        <h2 className="text-2xl font-bold text-slate-900">Agents IA</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configurez et pilotez vos agents intelligents de prospection
         </p>
       </div>
       <AgentsPageClient
