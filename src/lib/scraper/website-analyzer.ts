@@ -72,11 +72,15 @@ export interface EnrichedProspect {
   enrichmentSource: string[];
 }
 
-// ─── OpenAI Client ──────────────────────────────────────────────────────────
+// ─── OpenAI Client (lazy to avoid crash during next build) ──────────────────
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 const OPENAI_MODEL = 'gpt-5-mini-2025-08-07';
 
@@ -383,7 +387,7 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
   const contentSummary = buildContentSummary(scrapedData);
 
   // Step 3: Call GPT for analysis
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {

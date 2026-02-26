@@ -106,11 +106,15 @@ export interface WebsiteDataForIcebreaker {
   products?: string[];
 }
 
-// ─── OpenAI Client ──────────────────────────────────────────────────────────
+// ─── OpenAI Client (lazy to avoid crash during next build) ──────────────────
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 const OPENAI_MODEL = 'gpt-5-mini-2025-08-07';
 
@@ -195,7 +199,7 @@ export async function generateConnectionMessage(
   const profileDesc = buildProfileDescription(profile);
   const contextDesc = buildContextDescription(context);
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {
@@ -259,7 +263,7 @@ export async function generateFollowUpMessage(
     (msg) => msg.role === 'assistant'
   ).length + 1;
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {
@@ -308,7 +312,7 @@ export async function generateEmailSequence(
   // Clamp numSteps between 2 and 7
   const steps = Math.max(2, Math.min(7, numSteps));
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {
@@ -374,7 +378,7 @@ export async function generateIcebreaker(
     websiteInfo = `\n\nDONNEES DU SITE WEB DU PROSPECT :\n${wParts.join('\n')}`;
   }
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {
@@ -410,7 +414,7 @@ export async function analyzeProfileForOutreach(
 ): Promise<ProfileAnalysisResult> {
   const profileDesc = buildProfileDescription(profile);
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: OPENAI_MODEL,
     input: [
       {

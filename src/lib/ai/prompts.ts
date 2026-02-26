@@ -1,9 +1,9 @@
 // Central file with all AI prompts for cold outreach message generation
-// Product: CheckEasy - SaaS for businesses
 // Language: French (formal)
 // Model: gpt-5-mini-2025-08-07
 
-export const CHECKEASY_PRODUCT_CONTEXT = `
+// Fallback if no company context is configured in workspace settings
+const DEFAULT_PRODUCT_CONTEXT = `
 CheckEasy est un SaaS innovant concu pour simplifier la gestion de conformite et les processus de verification pour les entreprises.
 Il permet aux entreprises de digitaliser, automatiser et centraliser leurs processus de controle, audits et verifications reglementaires.
 
@@ -22,6 +22,19 @@ Cas d'usage typiques :
 - Suivi documentaire et traçabilite
 - Onboarding et formation des collaborateurs
 `.trim();
+
+/**
+ * Build product context from workspace settings or use default
+ */
+export function buildProductContext(workspaceContext?: string | null): string {
+  if (workspaceContext && workspaceContext.trim().length > 0) {
+    return workspaceContext.trim();
+  }
+  return DEFAULT_PRODUCT_CONTEXT;
+}
+
+// Keep backward compatibility
+export const CHECKEASY_PRODUCT_CONTEXT = DEFAULT_PRODUCT_CONTEXT;
 
 export const SYSTEM_PROMPT_CONNECTION = `
 Tu es un expert en prospection B2B en France, specialise dans la redaction de messages de connexion LinkedIn.

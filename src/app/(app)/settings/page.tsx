@@ -28,6 +28,7 @@ import {
   Trash2,
   TestTube,
   Loader2,
+  Bot,
 } from "lucide-react";
 
 interface EmailAccountForm {
@@ -49,6 +50,10 @@ interface EmailAccountForm {
 
 export default function SettingsPage() {
   const [workspaceName, setWorkspaceName] = useState("");
+  const [aiCompanyContext, setAiCompanyContext] = useState("");
+  const [aiTone, setAiTone] = useState("semi-formel");
+  const [aiTargetAudience, setAiTargetAudience] = useState("");
+  const [savingAi, setSavingAi] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<
     Array<{
       id: string;
@@ -99,11 +104,19 @@ export default function SettingsPage() {
 
     const { data: workspace } = await supabase
       .from("workspaces")
-      .select("name")
+      .select("name, ai_company_context, settings")
       .eq("id", profile.current_workspace_id)
       .single();
 
-    if (workspace) setWorkspaceName(workspace.name);
+    if (workspace) {
+      setWorkspaceName(workspace.name);
+      setAiCompanyContext(workspace.ai_company_context || "");
+      const wsSettings = workspace.settings as Record<string, unknown> | null;
+      if (wsSettings) {
+        setAiTone((wsSettings.ai_tone as string) || "semi-formel");
+        setAiTargetAudience((wsSettings.ai_target_audience as string) || "");
+      }
+    }
 
     const { data: accounts } = await supabase
       .from("email_accounts")
@@ -145,6 +158,50 @@ export default function SettingsPage() {
       toast.success("Parametres sauvegardes");
     }
     setSaving(false);
+  }
+
+  async function saveAiSettings() {
+    setSavingAi(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("current_workspace_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.current_workspace_id) return;
+
+    // Get current settings to merge
+    const { data: workspace } = await supabase
+      .from("workspaces")
+      .select("settings")
+      .eq("id", profile.current_workspace_id)
+      .single();
+
+    const currentSettings = (workspace?.settings as Record<string, unknown>) || {};
+
+    const { error } = await supabase
+      .from("workspaces")
+      .update({
+        ai_company_context: aiCompanyContext,
+        settings: {
+          ...currentSettings,
+          ai_tone: aiTone,
+          ai_target_audience: aiTargetAudience,
+        },
+      })
+      .eq("id", profile.current_workspace_id);
+
+    if (error) {
+      toast.error("Erreur lors de la sauvegarde");
+    } else {
+      toast.success("Configuration IA sauvegardee");
+    }
+    setSavingAi(false);
   }
 
   async function addEmailAccount() {
@@ -247,6 +304,10 @@ export default function SettingsPage() {
           <TabsTrigger value="email">
             <Mail className="mr-2 h-4 w-4" />
             Comptes email
+          </TabsTrigger>
+          <TabsTrigger value="ai">
+            <Bot className="mr-2 h-4 w-4" />
+            IA & Prospection
           </TabsTrigger>
         </TabsList>
 
@@ -532,6 +593,126 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="ai" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contexte entreprise pour l&apos;IA</CardTitle>
+              <CardDescription>
+                Decrivez precisement votre entreprise, ce que vous vendez et a
+                qui. L&apos;IA utilisera ce texte pour personnaliser chaque
+                email de prospection.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label>
+                  Description de votre entreprise et de votre offre
+                </Label>
+                <Textarea
+                  value={aiCompanyContext}
+                  onChange={(e) => setAiCompanyContext(e.target.value)}
+                  placeholder={`Exemple :
+
+Nous sommes [Nom de l'entreprise], une agence/startup/societe basee a [Ville].
+
+Notre offre :
+Nous proposons [description detaillee de vos produits/services]. Notre solution permet de [benefice principal] pour [type de clients].
+
+Nos clients types :
+- [Segment 1] : ex. TPE du batiment qui ont besoin de...
+- [Segment 2] : ex. PME industrielles qui cherchent...
+
+Ce qui nous differencie :
+- [Avantage 1]
+- [Avantage 2]
+- [Avantage 3]
+
+Resultats concrets :
+- [Chiffre cle 1] : ex. "nos clients gagnent 5h/semaine"
+- [Chiffre cle 2] : ex. "+30% de conformite en 3 mois"
+
+Ce que nous cherchons :
+Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur proposer [offre specifique].`}
+                  rows={18}
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Plus votre description est precise et detaillee, plus l&apos;IA
+                  generera des emails pertinents et personnalises.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Audience cible</Label>
+                  <Textarea
+                    value={aiTargetAudience}
+                    onChange={(e) => setAiTargetAudience(e.target.value)}
+                    placeholder="Ex: Dirigeants de TPE/PME dans le BTP, directeurs qualite dans l'industrie, gerants de cabinets comptables..."
+                    rows={3}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ton des emails</Label>
+                  <Select value={aiTone} onValueChange={setAiTone}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="formel">
+                        Formel - Vouvoiement strict, tres professionnel
+                      </SelectItem>
+                      <SelectItem value="semi-formel">
+                        Semi-formel - Professionnel mais chaleureux
+                      </SelectItem>
+                      <SelectItem value="decontracte">
+                        Decontracte - Direct et naturel
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Le ton influence la facon dont l&apos;IA redige vos emails.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-blue-50 p-4">
+                <h4 className="font-medium text-sm text-blue-900 mb-2">
+                  Comment l&apos;IA utilise ces informations
+                </h4>
+                <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                  <li>
+                    Elle adapte chaque email en fonction de votre offre et du
+                    profil du prospect
+                  </li>
+                  <li>
+                    Elle analyse les performances passees (ouvertures, clics,
+                    reponses) pour ameliorer les futurs emails
+                  </li>
+                  <li>
+                    Elle s&apos;inspire des emails qui ont eu les meilleurs
+                    resultats
+                  </li>
+                  <li>
+                    Si les donnees de l&apos;entreprise du prospect sont
+                    disponibles (via le scraper), elle personnalise encore plus
+                  </li>
+                </ul>
+              </div>
+
+              <Button onClick={saveAiSettings} disabled={savingAi}>
+                {savingAi && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Sauvegarder la configuration IA
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
