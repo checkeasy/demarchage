@@ -200,7 +200,7 @@ export interface Database {
           notes: string | null;
           custom_fields: Json;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
-          source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps";
+          source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at: string | null;
           created_at: string;
           updated_at: string;
@@ -220,7 +220,7 @@ export interface Database {
           notes?: string | null;
           custom_fields?: Json;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
-          source?: "manual" | "csv_import" | "api" | "linkedin";
+          source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -240,7 +240,7 @@ export interface Database {
           notes?: string | null;
           custom_fields?: Json;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted";
-          source?: "manual" | "csv_import" | "api" | "linkedin";
+          source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
           created_at?: string;
           updated_at?: string;

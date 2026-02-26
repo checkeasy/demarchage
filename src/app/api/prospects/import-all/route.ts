@@ -1,0 +1,29 @@
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  const baseUrl = request.url.replace(/\/import-all$/, '');
+
+  // Step 1: Import CRM (Pipedrive)
+  let crmResult;
+  try {
+    const crmRes = await fetch(`${baseUrl}/import-crm`, { method: 'POST' });
+    crmResult = await crmRes.json();
+  } catch (e) {
+    crmResult = { success: false, error: String(e) };
+  }
+
+  // Step 2: Import Directory (Hostinfly)
+  let directoryResult;
+  try {
+    const dirRes = await fetch(`${baseUrl}/import-directory`, { method: 'POST' });
+    directoryResult = await dirRes.json();
+  } catch (e) {
+    directoryResult = { success: false, error: String(e) };
+  }
+
+  return NextResponse.json({
+    success: true,
+    crm: crmResult,
+    directory: directoryResult,
+  });
+}

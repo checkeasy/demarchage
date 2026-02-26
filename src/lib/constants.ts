@@ -14,6 +14,7 @@ export const STEP_TYPES = {
   linkedin_connect: { label: "LinkedIn - Connexion", icon: "UserPlus" },
   linkedin_message: { label: "LinkedIn - Message", icon: "MessageSquare" },
   condition: { label: "Condition", icon: "GitBranch" },
+  whatsapp: { label: "WhatsApp", icon: "Phone" },
 } as const;
 
 // DB status field (CHECK constraint)
@@ -75,3 +76,14 @@ export const DEFAULT_SENDING_WINDOW = {
   days: [1, 2, 3, 4, 5], // Mon-Fri
   timezone: "Europe/Paris",
 };
+
+// Source labels for prospect source badges
+export const SOURCE_LABELS = {
+  manual: { label: "Manuel", className: "bg-slate-100 text-slate-700 border-slate-200" },
+  csv_import: { label: "CSV", className: "bg-gray-100 text-gray-700 border-gray-200" },
+  crm_import: { label: "CRM", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  directory_import: { label: "Annuaire", className: "bg-teal-100 text-teal-700 border-teal-200" },
+  linkedin: { label: "LinkedIn", className: "bg-blue-100 text-blue-700 border-blue-200" },
+  google_maps: { label: "Google Maps", className: "bg-green-100 text-green-700 border-green-200" },
+  api: { label: "API", className: "bg-purple-100 text-purple-700 border-purple-200" },
+} as const;

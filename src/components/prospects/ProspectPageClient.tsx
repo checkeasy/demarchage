@@ -19,7 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -314,23 +314,10 @@ export function ProspectPageClient({
   }
 
   function getSourceBadge(source: string) {
-    const config: Record<string, { label: string; className: string }> = {
-      manual: { label: "Manuel", className: "bg-slate-100 text-slate-700" },
-      csv_import: { label: "CRM", className: "bg-amber-100 text-amber-700" },
-      linkedin: { label: "LinkedIn", className: "bg-blue-100 text-blue-700" },
-      google_maps: {
-        label: "GMaps",
-        className: "bg-green-100 text-green-700",
-      },
-      api: { label: "API", className: "bg-purple-100 text-purple-700" },
-    };
-    const c = config[source] || {
-      label: source,
-      className: "bg-slate-100 text-slate-700",
-    };
+    const sourceInfo = SOURCE_LABELS[source as keyof typeof SOURCE_LABELS];
     return (
-      <Badge variant="secondary" className={c.className}>
-        {c.label}
+      <Badge variant="outline" className={sourceInfo?.className || "bg-slate-100 text-slate-700 border-slate-200"}>
+        {sourceInfo?.label || source}
       </Badge>
     );
   }
@@ -501,7 +488,9 @@ export function ProspectPageClient({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes sources</SelectItem>
-                <SelectItem value="csv_import">CRM Import</SelectItem>
+                <SelectItem value="csv_import">CSV Import</SelectItem>
+                <SelectItem value="crm_import">CRM Pipedrive</SelectItem>
+                <SelectItem value="directory_import">Annuaire Hostinfly</SelectItem>
                 <SelectItem value="linkedin">LinkedIn</SelectItem>
                 <SelectItem value="google_maps">Google Maps</SelectItem>
                 <SelectItem value="manual">Manuel</SelectItem>
@@ -582,6 +571,7 @@ export function ProspectPageClient({
               </TableHead>
               <SortableHeader field="first_name" label="Nom" />
               <SortableHeader field="company" label="Entreprise" />
+              <TableHead className="text-right w-[60px]">Biens</TableHead>
               <TableHead>Pays</TableHead>
               <TableHead>Pipeline</TableHead>
               <TableHead>Statut</TableHead>
@@ -595,7 +585,7 @@ export function ProspectPageClient({
             {paginatedProspects.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={11}
                   className="h-32 text-center text-muted-foreground"
                 >
                   {prospects.length === 0
@@ -633,7 +623,17 @@ export function ProspectPageClient({
                       )}
                     </TableCell>
                     <TableCell>
-                      {cf.organization || prospect.company || "-"}
+                      <span className="inline-flex items-center">
+                        {cf.organization || prospect.company || "-"}
+                        {(prospect.custom_fields as any)?.enriched_from_directory && (
+                          <span className="inline-flex items-center ml-1.5" title="Enrichi (annuaire)">
+                            <span className="size-2 rounded-full bg-teal-500" />
+                          </span>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">
+                      {cf.nb_properties ?? "-"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {getCountryDisplay(prospect)}

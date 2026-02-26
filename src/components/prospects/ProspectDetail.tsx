@@ -28,12 +28,15 @@ import {
   Eye,
   FileText,
   Save,
+  Star,
+  ExternalLink,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -684,6 +687,135 @@ export function ProspectDetail({
         </CardContent>
       </Card>
 
+      {/* Donnees Marche Card */}
+      {(prospect.custom_fields as any)?.enriched_from_directory && (() => {
+        const cfMarket = prospect.custom_fields as any;
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="size-4 text-teal-600" />
+                <CardTitle className="text-base">Donnees Marche</CardTitle>
+                <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-700 border-teal-200">Annuaire</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* OTA Presence */}
+              {cfMarket.ota_listings && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Presence OTA</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { name: 'Airbnb', key: 'airbnb', color: 'text-rose-600' },
+                      { name: 'Booking', key: 'booking', color: 'text-blue-600' },
+                      { name: 'HomeAway', key: 'homeaway', color: 'text-indigo-600' },
+                      { name: 'TripAdvisor', key: 'tripadvisor', color: 'text-green-600' },
+                    ].map(ota => {
+                      const count = cfMarket.ota_listings?.[ota.key];
+                      if (!count) return null;
+                      return (
+                        <div key={ota.key} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                          <span className={`text-xs font-medium ${ota.color}`}>{ota.name}</span>
+                          <span className="text-sm font-semibold">{count.toLocaleString('fr-FR')}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Reviews */}
+              {(cfMarket.review_score || cfMarket.review_count) && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Reputation</p>
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50">
+                    {cfMarket.review_score && (
+                      <div className="flex items-center gap-1">
+                        <Star className="size-4 text-amber-500 fill-amber-500" />
+                        <span className="text-sm font-semibold">{cfMarket.review_score}/5</span>
+                      </div>
+                    )}
+                    {cfMarket.review_count && (
+                      <span className="text-xs text-muted-foreground">
+                        ({cfMarket.review_count.toLocaleString('fr-FR')} avis)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Social Media */}
+              {(cfMarket.social_media || cfMarket.linkedin_company) && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Reseaux sociaux</p>
+                  <div className="flex flex-wrap gap-2">
+                    {cfMarket.linkedin_company && (
+                      <a href={cfMarket.linkedin_company} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs hover:bg-blue-100 transition-colors">
+                        <ExternalLink className="size-3" /> LinkedIn
+                      </a>
+                    )}
+                    {cfMarket.social_media?.twitter && (
+                      <a href={cfMarket.social_media.twitter} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-50 text-sky-700 text-xs hover:bg-sky-100 transition-colors">
+                        <ExternalLink className="size-3" /> Twitter
+                      </a>
+                    )}
+                    {cfMarket.social_media?.facebook && (
+                      <a href={cfMarket.social_media.facebook} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs hover:bg-blue-100 transition-colors">
+                        <ExternalLink className="size-3" /> Facebook
+                      </a>
+                    )}
+                    {cfMarket.social_media?.instagram && (
+                      <a href={cfMarket.social_media.instagram} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-pink-50 text-pink-700 text-xs hover:bg-pink-100 transition-colors">
+                        <ExternalLink className="size-3" /> Instagram
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Operations */}
+              {(cfMarket.pms || cfMarket.website_traffic) && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Operations</p>
+                  <div className="space-y-1.5">
+                    {cfMarket.pms && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">PMS</span>
+                        <span className="font-medium">{cfMarket.pms}</span>
+                      </div>
+                    )}
+                    {cfMarket.website_traffic && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Trafic web</span>
+                        <span className="font-medium">{cfMarket.website_traffic}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Cities */}
+              {cfMarket.cities && cfMarket.cities.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Zones couvertes</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cfMarket.cities.map((city: string) => (
+                      <Badge key={city} variant="outline" className="text-xs">
+                        {city}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Notes & Comments Card */}
       <Card>
         <CardHeader>
@@ -812,7 +944,7 @@ export function ProspectDetail({
             </span>
             <div>
               <p className="text-xs text-muted-foreground">Source</p>
-              <p className="text-sm capitalize">{prospect.source.replace("_", " ")}</p>
+              <p className="text-sm">{SOURCE_LABELS[prospect.source as keyof typeof SOURCE_LABELS]?.label || prospect.source}</p>
             </div>
           </div>
         </CardContent>

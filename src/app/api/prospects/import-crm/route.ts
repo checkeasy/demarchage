@@ -241,13 +241,18 @@ export async function POST() {
       first_name: firstName || null,
       last_name: lastName || null,
       company: orgName || null,
+      organization: orgName || null,
       job_title: null,
       phone: phone || null,
       linkedin_url: null,
       website: null,
       location: location || null,
+      country: parseCountry(pays),
+      pipeline_stage: pipelineStage,
+      nb_properties: nbLogements ? parseInt(nbLogements, 10) || null : null,
+      loss_reason: (crmStatus === 'lost' && raisonPerte) ? raisonPerte : null,
       status: dbStatus,
-      source: 'csv_import',
+      source: 'crm_import',
       custom_fields: customFields,
     });
   }
@@ -313,7 +318,7 @@ export async function POST() {
     .from('prospects')
     .select('status, custom_fields')
     .eq('workspace_id', workspace.id)
-    .eq('source', 'csv_import');
+    .eq('source', 'crm_import');
 
   const crmStatusCounts: Record<string, number> = {};
   const countryCounts: Record<string, number> = {};
@@ -337,7 +342,7 @@ export async function POST() {
     .from('prospects')
     .select('phone')
     .eq('workspace_id', workspace.id)
-    .eq('source', 'csv_import')
+    .eq('source', 'crm_import')
     .not('phone', 'is', null);
   hasPhone = phonedProspects?.length || 0;
 
