@@ -110,9 +110,8 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
 
       if (res.ok) {
         setOpen(false);
+        router.push("/dashboard");
         router.refresh();
-        // Small delay then reload to ensure all server components re-fetch
-        setTimeout(() => window.location.reload(), 200);
       } else {
         toast.error("Erreur lors du changement d'environnement");
       }
@@ -137,8 +136,8 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
         toast.success(`Environnement "${newName.trim()}" cree`);
         setShowCreate(false);
         setNewName("");
-        // Reload page to switch to new workspace
-        window.location.reload();
+        router.push("/dashboard");
+        router.refresh();
       } else {
         const data = await res.json();
         toast.error(data.error || "Erreur lors de la creation");

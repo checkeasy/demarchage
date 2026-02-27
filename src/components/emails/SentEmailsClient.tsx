@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { sanitizeHtml } from "@/lib/utils";
 import {
   Mail,
@@ -56,6 +57,7 @@ export interface SentEmail {
   created_at: string;
   prospect_name: string | null;
   prospect_company: string | null;
+  campaign_id: string | null;
   campaign_name: string | null;
 }
 
@@ -236,9 +238,18 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
                     </p>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <p className="text-sm text-muted-foreground truncate max-w-[150px]">
-                      {email.campaign_name || "-"}
-                    </p>
+                    {email.campaign_id ? (
+                      <Link
+                        href={`/campaigns/${email.campaign_id}`}
+                        className="text-sm text-blue-600 hover:underline truncate max-w-[150px] block"
+                      >
+                        {email.campaign_name || "Campagne"}
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-muted-foreground truncate max-w-[150px]">
+                        {email.campaign_name || "-"}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={config.variant} className="gap-1 text-xs">
@@ -326,7 +337,16 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
                   </div>
                   <div>
                     <span className="font-medium text-foreground">Campagne : </span>
-                    {previewEmail.campaign_name || "-"}
+                    {previewEmail.campaign_id ? (
+                      <Link
+                        href={`/campaigns/${previewEmail.campaign_id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {previewEmail.campaign_name || "Campagne"}
+                      </Link>
+                    ) : (
+                      previewEmail.campaign_name || "-"
+                    )}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">Statut : </span>

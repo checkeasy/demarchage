@@ -73,6 +73,7 @@ export default async function EmailsPage() {
         ? `${prospect.first_name || ""} ${prospect.last_name || ""}`.trim()
         : null,
       prospect_company: (prospect?.company as string) || null,
+      campaign_id: (cp?.campaign_id as string) || null,
       campaign_name: (campaign?.name as string) || null,
     };
   });

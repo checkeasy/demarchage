@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Mail, Menu, User, Settings, LogOut, Shield } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { Mail, Menu, Settings, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -25,9 +25,31 @@ interface HeaderProps {
   onMenuToggle?: () => void;
 }
 
+const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/prospects": "Prospects",
+  "/campaigns": "Campagnes",
+  "/emails": "Emails envoyes",
+  "/deals": "Pipeline",
+  "/inbox": "Inbox",
+  "/linkedin": "LinkedIn",
+  "/agents": "Agents IA",
+  "/settings": "Parametres",
+  "/admin": "Administration",
+};
+
+function getPageTitle(pathname: string): string {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  // Match sub-routes like /campaigns/[id]
+  const base = "/" + pathname.split("/")[1];
+  return PAGE_TITLES[base] || "ColdReach";
+}
+
 export function Header({ title, user, onMenuToggle }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
+  const pageTitle = getPageTitle(pathname);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -58,7 +80,9 @@ export function Header({ title, user, onMenuToggle }: HeaderProps) {
         </Button>
 
         {/* Page title */}
-        <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-slate-900">{pageTitle}</h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
