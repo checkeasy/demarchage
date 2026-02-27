@@ -25,6 +25,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { useAIGeneration } from "@/hooks/useAIGeneration";
 import type { Prospect } from "@/lib/types/database";
 
@@ -82,6 +83,7 @@ export function SmartCampaignDialog({
   onOpenChange,
   selectedProspects,
 }: SmartCampaignDialogProps) {
+  const router = useRouter();
   const [step, setStep] = useState<WizardStep>("segment");
   const [campaignName, setCampaignName] = useState("");
   const [strategy, setStrategy] = useState<AnyRecord | null>(null);
@@ -101,13 +103,22 @@ export function SmartCampaignDialog({
     }
   };
 
+  const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
+
   const handleCreateCampaign = async () => {
     if (!campaignName.trim()) {
       toast.error("Veuillez donner un nom a la campagne");
       return;
     }
 
+    if (selectedProspects.length === 0) {
+      toast.error("Aucun prospect selectionne");
+      return;
+    }
+
     setIsCreating(true);
+    let campaignId: string | null = null;
+
     try {
       // Step 1: Create the campaign
       const createRes = await fetch("/api/campaigns", {
@@ -124,10 +135,13 @@ export function SmartCampaignDialog({
         throw new Error(createData.error || "Erreur creation campagne");
       }
 
-      const campaignId = createData.campaign?.id || createData.id;
+      campaignId = createData.campaign?.id || createData.id;
+      if (!campaignId) {
+        throw new Error("ID de campagne manquant dans la reponse");
+      }
 
       // Step 2: Generate sequence steps with AI
-      const steps = [];
+      const steps: AnyRecord[] = [];
       const sequence = [
         { channel: "email" as const, stepNum: 1 },
         { channel: "email" as const, stepNum: 2 },
@@ -135,57 +149,75 @@ export function SmartCampaignDialog({
       ];
 
       for (const seq of sequence) {
-        const result = await generateOutreach({
-          prospectId: selectedProspects[0]?.id,
-          campaignId,
-          channel: seq.channel,
-          stepNumber: seq.stepNum,
-        });
-        if (result?.content) {
-          const content = result.content as AnyRecord;
-          steps.push({
-            step_type: seq.channel === "email" ? "email" : "linkedin_message",
-            step_order: steps.length + 1,
-            subject: content.subject || null,
-            body_html: content.body_html || null,
-            body_text: content.body_text || null,
-            delay_days: seq.stepNum > 1 ? 3 : 0,
+        try {
+          const result = await generateOutreach({
+            prospectId: selectedProspects[0]?.id,
+            campaignId,
+            channel: seq.channel,
+            stepNumber: seq.stepNum,
           });
-          // Add delay between steps
-          if (seq.stepNum < 3) {
+          if (result?.content) {
+            const content = result.content as AnyRecord;
             steps.push({
-              step_type: "delay",
+              step_type: seq.channel === "email" ? "email" : "linkedin_message",
               step_order: steps.length + 1,
-              delay_days: seq.stepNum === 1 ? 3 : 5,
-              delay_hours: 0,
+              subject: content.subject || null,
+              body_html: content.body_html || null,
+              body_text: content.body_text || null,
+              delay_days: seq.stepNum > 1 ? 3 : 0,
             });
+            if (seq.stepNum < 3) {
+              steps.push({
+                step_type: "delay",
+                step_order: steps.length + 1,
+                delay_days: seq.stepNum === 1 ? 3 : 5,
+                delay_hours: 0,
+              });
+            }
           }
+        } catch (genErr) {
+          console.error(`[SmartCampaign] Step ${seq.stepNum} generation failed:`, genErr);
         }
       }
 
-      // Step 3: Save steps
+      // Step 3: Save steps (even partial - better than nothing)
       if (steps.length > 0) {
-        await fetch(`/api/campaigns/${campaignId}/steps`, {
+        const stepsRes = await fetch(`/api/campaigns/${campaignId}/steps`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ steps }),
         });
+        if (!stepsRes.ok) {
+          console.error("[SmartCampaign] Failed to save steps");
+        }
       }
 
       // Step 4: Enroll prospects
-      await fetch(`/api/campaigns/${campaignId}/enroll`, {
+      const enrollRes = await fetch(`/api/campaigns/${campaignId}/enroll`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prospectIds: selectedProspects.map((p) => p.id),
         }),
       });
+      if (!enrollRes.ok) {
+        console.error("[SmartCampaign] Failed to enroll prospects");
+      }
 
+      setCreatedCampaignId(campaignId);
       setStep("complete");
       toast.success(`Campagne "${campaignName}" creee avec ${selectedProspects.length} prospects`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erreur inconnue";
       toast.error(msg);
+      // If campaign was created but later steps failed, still show it
+      if (campaignId) {
+        setCreatedCampaignId(campaignId);
+        setStep("complete");
+        toast.warning("Campagne creee partiellement - verifiez les etapes");
+      } else {
+        setStep("segment");
+      }
     } finally {
       setIsCreating(false);
     }
@@ -195,7 +227,15 @@ export function SmartCampaignDialog({
     setStep("segment");
     setStrategy(null);
     setCampaignName("");
+    setCreatedCampaignId(null);
     onOpenChange(false);
+  };
+
+  const handleViewCampaign = () => {
+    if (createdCampaignId) {
+      router.push(`/campaigns/${createdCampaignId}`);
+    }
+    handleClose();
   };
 
   return (
@@ -366,10 +406,16 @@ export function SmartCampaignDialog({
                 {selectedProspects.length} prospects inscrits dans &quot;{campaignName}&quot;
               </p>
             </div>
-            <DialogFooter>
-              <Button onClick={handleClose} className="w-full">
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={handleClose}>
                 Fermer
               </Button>
+              {createdCampaignId && (
+                <Button onClick={handleViewCampaign} className="gap-2">
+                  <ArrowRight className="size-4" />
+                  Voir la campagne
+                </Button>
+              )}
             </DialogFooter>
           </div>
         )}

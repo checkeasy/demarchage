@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { findEmailsForDomain } from '@/lib/scraper/email-finder';
 import { findOwner } from '@/lib/scraper/owner-finder';
 import type { GoogleMapsBusinessResult } from '@/lib/scraper/google-maps-scraper';
+import { createClient } from '@/lib/supabase/server';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorise' }, { status: 401 });
+    }
+
     const { business } = (await request.json()) as {
       business: GoogleMapsBusinessResult;
     };

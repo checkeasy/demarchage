@@ -1,16 +1,23 @@
 // =============================================================================
 // POST /api/linkedin/search
-// Recherche de profils LinkedIn avec filtres — outil interne, pas d'auth requise
+// Recherche de profils LinkedIn avec filtres
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
 import type { LinkedInSearchParams } from '@/lib/linkedin/types';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorise' }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       keywords,

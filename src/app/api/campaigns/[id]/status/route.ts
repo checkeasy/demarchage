@@ -54,13 +54,22 @@ export async function PATCH(
     );
   }
 
-  // If launching campaign (draft → active), also activate all campaign_prospects
-  if (campaign.status === "draft" && status === "active") {
+  // When activating campaign, also activate all non-completed campaign_prospects
+  if (status === "active") {
     await supabase
       .from("campaign_prospects")
       .update({ status: "active" })
       .eq("campaign_id", id)
-      .eq("status", "pending");
+      .in("status", ["pending", "paused"]);
+  }
+
+  // When pausing campaign, pause all active campaign_prospects
+  if (status === "paused") {
+    await supabase
+      .from("campaign_prospects")
+      .update({ status: "paused" })
+      .eq("campaign_id", id)
+      .eq("status", "active");
   }
 
   return NextResponse.json({ success: true, status });

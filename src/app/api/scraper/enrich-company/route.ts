@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findCompanyWebsite } from '@/lib/scraper/company-finder';
 import { findEmailsForDomain } from '@/lib/scraper/email-finder';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorise' }, { status: 401 });
+    }
+
     const { companyName, websiteUrl, contactName } = await request.json();
 
     if (!companyName && !websiteUrl) {

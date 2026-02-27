@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendGmail } from '@/lib/email/gmail-sender';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorise' }, { status: 401 });
+    }
+
     const { to, subject, body, from, replyTo } = await request.json();
 
     if (!to || !subject || !body) {

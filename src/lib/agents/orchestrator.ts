@@ -31,7 +31,10 @@ import { DEFAULT_PROMPTS } from './prompts';
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
   if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    _anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+      timeout: 30_000, // 30s timeout per request
+    });
   }
   return _anthropic;
 }

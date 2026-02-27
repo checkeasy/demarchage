@@ -16,6 +16,8 @@ import {
   ArrowDown,
   ArrowUpDown,
   Sparkles,
+  Loader2,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -262,6 +264,42 @@ export function ProspectPageClient({
       newSet.add(id);
     }
     setSelectedIds(newSet);
+  }
+
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  async function handleEnrichSelected() {
+    if (selectedIds.size === 0) return;
+    setIsEnriching(true);
+    try {
+      const ids = Array.from(selectedIds);
+      let totalEnriched = 0;
+      let totalErrors = 0;
+
+      // Process in batches of 50
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        const res = await fetch("/api/prospects/enrich-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prospectIds: batch }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          totalEnriched += data.enriched || 0;
+          totalErrors += data.errors || 0;
+        } else {
+          totalErrors += batch.length;
+        }
+      }
+
+      toast.success(`${totalEnriched} prospect(s) enrichi(s)${totalErrors > 0 ? `, ${totalErrors} erreur(s)` : ""}`);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de l'enrichissement");
+    } finally {
+      setIsEnriching(false);
+    }
   }
 
   async function handleDeleteSelected() {
@@ -690,6 +728,20 @@ export function ProspectPageClient({
           >
             <Sparkles className="size-4" />
             Creer campagne IA
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+            onClick={handleEnrichSelected}
+            disabled={isEnriching}
+          >
+            {isEnriching ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Wand2 className="size-4" />
+            )}
+            {isEnriching ? "Enrichissement..." : "Enrichir avec IA"}
           </Button>
           <Button
             variant="destructive"
