@@ -215,6 +215,8 @@ export interface Database {
           employee_count: string | null;
           tags: string[];
           lead_score: number | null;
+          email_validity_score: number | null;
+          email_verified_at: string | null;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at: string | null;
@@ -245,6 +247,8 @@ export interface Database {
           employee_count?: string | null;
           tags?: string[];
           lead_score?: number | null;
+          email_validity_score?: number | null;
+          email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
@@ -275,6 +279,8 @@ export interface Database {
           employee_count?: string | null;
           tags?: string[];
           lead_score?: number | null;
+          email_validity_score?: number | null;
+          email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;

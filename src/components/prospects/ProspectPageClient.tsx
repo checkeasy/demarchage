@@ -18,6 +18,7 @@ import {
   Sparkles,
   Loader2,
   Wand2,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -299,6 +300,45 @@ export function ProspectPageClient({
       toast.error("Erreur lors de l'enrichissement");
     } finally {
       setIsEnriching(false);
+    }
+  }
+
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  async function handleVerifyEmails() {
+    if (selectedIds.size === 0) return;
+    setIsVerifying(true);
+    try {
+      const ids = Array.from(selectedIds);
+      let totalVerified = 0;
+      let totalErrors = 0;
+      let lastSummary = { avg_score: 0, high_quality: 0, medium: 0, low: 0, invalid: 0 };
+
+      for (let i = 0; i < ids.length; i += 100) {
+        const batch = ids.slice(i, i + 100);
+        const res = await fetch("/api/prospects/verify-emails", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prospectIds: batch }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          totalVerified += data.verified || 0;
+          totalErrors += data.errors || 0;
+          lastSummary = data.summary;
+        } else {
+          totalErrors += batch.length;
+        }
+      }
+
+      toast.success(
+        `${totalVerified} email(s) verifie(s) — Score moyen: ${lastSummary.avg_score}% | Fiables: ${lastSummary.high_quality} | Moyens: ${lastSummary.medium} | Faibles: ${lastSummary.low} | Invalides: ${lastSummary.invalid}`
+      );
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la verification");
+    } finally {
+      setIsVerifying(false);
     }
   }
 
@@ -744,6 +784,20 @@ export function ProspectPageClient({
             {isEnriching ? "Enrichissement..." : "Enrichir avec IA"}
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
+            onClick={handleVerifyEmails}
+            disabled={isVerifying}
+          >
+            {isVerifying ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="size-4" />
+            )}
+            {isVerifying ? "Verification..." : "Verifier emails"}
+          </Button>
+          <Button
             variant="destructive"
             size="sm"
             onClick={handleDeleteSelected}
@@ -781,6 +835,7 @@ export function ProspectPageClient({
               <TableHead>Statut</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Score</TableHead>
+              <TableHead>Email%</TableHead>
               <SortableHeader field="email" label="Email" />
               <SortableHeader field="created_at" label="Date" />
               <TableHead className="w-[50px]" />
@@ -867,6 +922,22 @@ export function ProspectPageClient({
                           }`}
                         >
                           {prospect.lead_score}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {prospect.email_validity_score !== null && prospect.email_validity_score !== undefined ? (
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs text-white ${
+                            prospect.email_validity_score >= 70 ? "bg-green-500" :
+                            prospect.email_validity_score >= 40 ? "bg-yellow-500" :
+                            prospect.email_validity_score > 0 ? "bg-orange-500" : "bg-red-500"
+                          }`}
+                        >
+                          {prospect.email_validity_score}%
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>

@@ -1,6 +1,7 @@
 -- ============================================================================
 -- 012: Fix email_send_queue view
--- Add missing columns: signature_html, custom_fields, current_step_order
+-- Add columns: signature_html, custom_fields, current_step_order,
+-- email_provider, email_validity_score
 -- ============================================================================
 
 DROP VIEW IF EXISTS public.email_send_queue;
@@ -25,10 +26,12 @@ SELECT
     p.last_name         AS prospect_last_name,
     p.company           AS prospect_company,
     p.custom_fields,
+    p.email_validity_score,
     ea.email_address    AS from_email_address,
     ea.display_name     AS from_display_name,
     ea.signature_html,
     ea.daily_limit      AS account_daily_limit,
+    ea.provider         AS email_provider,
     ss.step_order       AS current_step_order
 FROM public.campaign_prospects cp
 JOIN public.campaigns c        ON c.id  = cp.campaign_id

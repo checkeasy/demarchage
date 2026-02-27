@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
+import { sendGmail } from "@/lib/email/gmail-sender";
 import {
   mergeTemplate,
   prospectToTemplateData,
@@ -19,6 +20,7 @@ import {
 import { WhatsAppActionType } from "@/lib/whatsapp/types";
 
 const BATCH_SIZE = 10;
+const MIN_EMAIL_SCORE = 40; // Ne pas envoyer aux emails avec score < 40
 
 export async function POST(request: NextRequest) {
   // Verify cron secret
@@ -51,9 +53,43 @@ export async function POST(request: NextRequest) {
 
     let sentCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
+
+    // Check how many emails were already sent today for each account
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { data: todaySent } = await supabase
+      .from("emails_sent")
+      .select("email_account_id")
+      .gte("sent_at", todayStart.toISOString())
+      .eq("status", "sent");
+
+    const sentTodayByAccount: Record<string, number> = {};
+    if (todaySent) {
+      for (const e of todaySent) {
+        const accId = e.email_account_id as string;
+        sentTodayByAccount[accId] = (sentTodayByAccount[accId] || 0) + 1;
+      }
+    }
 
     for (const item of queue) {
       try {
+        // Check daily limit for this account
+        const accountId = item.email_account_id as string;
+        const dailyLimit = (item.account_daily_limit as number) || 30;
+        const alreadySent = sentTodayByAccount[accountId] || 0;
+        if (alreadySent + sentCount >= dailyLimit) {
+          skippedCount++;
+          continue;
+        }
+
+        // Skip prospects with low email validity score
+        const emailScore = item.email_validity_score as number | null;
+        if (emailScore !== null && emailScore < MIN_EMAIL_SCORE) {
+          skippedCount++;
+          continue;
+        }
+
         // Check sending window
         if (
           !isWithinSendingWindow(
@@ -150,13 +186,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate tracking ID and process for tracking
+        // Skip tracking for Gmail (personal emails should not have tracking pixels)
+        const isGmail = ((item.email_provider as string) || "gmail") === "gmail";
         const trackingId = crypto.randomUUID();
-        const processedBody = processEmailForTracking(
-          mergedBody,
-          trackingId,
-          item.track_opens,
-          item.track_clicks
-        );
+        const processedBody = isGmail
+          ? mergedBody
+          : processEmailForTracking(
+              mergedBody,
+              trackingId,
+              item.track_opens,
+              item.track_clicks
+            );
 
         // Insert emails_sent record with 'sending' status first (prevent duplicates)
         const { data: emailRecord, error: insertError } = await supabase
@@ -184,14 +224,32 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Send via Resend
-        const result = await sendEmail({
-          from: emailRecord.from_email,
-          to: item.prospect_email,
-          subject: mergedSubject,
-          html: processedBody,
-          text: mergedText,
-        });
+        // Send via Gmail SMTP or Resend based on provider
+        const provider = (item.email_provider as string) || "gmail";
+        let result: { success: boolean; messageId?: string; error?: string };
+
+        if (provider === "gmail") {
+          // Delay aleatoire 2-5s entre emails pour simuler envoi humain
+          if (sentCount > 0) {
+            const delay = 2000 + Math.random() * 3000;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+          result = await sendGmail({
+            to: item.prospect_email as string,
+            subject: mergedSubject,
+            html: processedBody,
+            text: mergedText,
+            from: emailRecord.from_email,
+          });
+        } else {
+          result = await sendEmail({
+            from: emailRecord.from_email,
+            to: item.prospect_email as string,
+            subject: mergedSubject,
+            html: processedBody,
+            text: mergedText,
+          });
+        }
 
         if (result.success) {
           // Update email record
@@ -250,6 +308,7 @@ export async function POST(request: NextRequest) {
       message: "Cron completed",
       sent: sentCount,
       errors: errorCount,
+      skipped: skippedCount,
       processed: queue.length,
     });
   } catch (err) {
