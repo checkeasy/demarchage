@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -90,6 +90,10 @@ export function ProspectPageClient({
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [cityFilter, setCityFilter] = useState<string>("all");
+  const [employeeCountFilter, setEmployeeCountFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<string>("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -97,13 +101,37 @@ export function ProspectPageClient({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [smartCampaignOpen, setSmartCampaignOpen] = useState(false);
 
-  // Extract unique countries from data
+  // Extract unique values from data for dynamic filters
   const availableCountries = useMemo(() => {
     const countries = new Set<string>();
     for (const p of prospects) {
       if (p.country) countries.add(p.country);
     }
     return Array.from(countries).sort();
+  }, [prospects]);
+
+  const availableIndustries = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of prospects) {
+      if (p.industry) set.add(p.industry);
+    }
+    return Array.from(set).sort();
+  }, [prospects]);
+
+  const availableCities = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of prospects) {
+      if (p.city) set.add(p.city);
+    }
+    return Array.from(set).sort();
+  }, [prospects]);
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of prospects) {
+      if (p.tags) for (const t of p.tags) set.add(t);
+    }
+    return Array.from(set).sort();
   }, [prospects]);
 
   // Client-side filtering + sorting
@@ -119,7 +147,9 @@ export function ProspectPageClient({
           (p.last_name && p.last_name.toLowerCase().includes(term)) ||
           p.email.toLowerCase().includes(term) ||
           (p.company && p.company.toLowerCase().includes(term)) ||
-          (p.organization && p.organization.toLowerCase().includes(term))
+          (p.organization && p.organization.toLowerCase().includes(term)) ||
+          (p.industry && p.industry.toLowerCase().includes(term)) ||
+          (p.city && p.city.toLowerCase().includes(term))
       );
     }
 
@@ -151,6 +181,26 @@ export function ProspectPageClient({
       result = result.filter((p) => p.source === sourceFilter);
     }
 
+    // Filter by industry
+    if (industryFilter !== "all") {
+      result = result.filter((p) => p.industry === industryFilter);
+    }
+
+    // Filter by city
+    if (cityFilter !== "all") {
+      result = result.filter((p) => p.city === cityFilter);
+    }
+
+    // Filter by employee count
+    if (employeeCountFilter !== "all") {
+      result = result.filter((p) => p.employee_count === employeeCountFilter);
+    }
+
+    // Filter by tag
+    if (tagFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes(tagFilter));
+    }
+
     // Sort
     result = [...result].sort((a, b) => {
       const aVal = (a[sortField as keyof Prospect] ?? "") as string;
@@ -162,7 +212,7 @@ export function ProspectPageClient({
     });
 
     return result;
-  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, sortField, sortDirection]);
+  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, tagFilter, sortField, sortDirection]);
 
   // Stats
   const stats = useMemo(() => {
@@ -185,19 +235,21 @@ export function ProspectPageClient({
     page * ITEMS_PER_PAGE
   );
 
-  // Select all on current page
-  const allOnPageSelected =
-    paginatedProspects.length > 0 &&
-    paginatedProspects.every((p) => selectedIds.has(p.id));
+  // Select all filtered prospects (across all pages)
+  const allFilteredSelected =
+    filteredProspects.length > 0 &&
+    filteredProspects.every((p) => selectedIds.has(p.id));
 
   function toggleSelectAll() {
-    if (allOnPageSelected) {
+    if (allFilteredSelected) {
+      // Deselect all filtered prospects
       const newSet = new Set(selectedIds);
-      paginatedProspects.forEach((p) => newSet.delete(p.id));
+      filteredProspects.forEach((p) => newSet.delete(p.id));
       setSelectedIds(newSet);
     } else {
+      // Select ALL filtered prospects (not just current page)
       const newSet = new Set(selectedIds);
-      paginatedProspects.forEach((p) => newSet.add(p.id));
+      filteredProspects.forEach((p) => newSet.add(p.id));
       setSelectedIds(newSet);
     }
   }
@@ -353,7 +405,7 @@ export function ProspectPageClient({
     );
   }
 
-  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || search.trim() !== "";
+  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || tagFilter !== "all" || search.trim() !== "";
 
   return (
     <TooltipProvider>
@@ -487,6 +539,95 @@ export function ProspectPageClient({
                 <SelectItem value="api">API</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Industry filter */}
+            <Select
+              value={industryFilter}
+              onValueChange={(value) => {
+                setIndustryFilter(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Secteur" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous secteurs</SelectItem>
+                {availableIndustries.map((ind) => {
+                  const config = INDUSTRIES[ind];
+                  return (
+                    <SelectItem key={ind} value={ind}>
+                      {config?.label || ind}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            {/* City filter */}
+            <Select
+              value={cityFilter}
+              onValueChange={(value) => {
+                setCityFilter(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Ville" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes villes</SelectItem>
+                {availableCities.map((city) => (
+                  <SelectItem key={city} value={city}>
+                    {city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Employee count filter */}
+            <Select
+              value={employeeCountFilter}
+              onValueChange={(value) => {
+                setEmployeeCountFilter(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Taille" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes tailles</SelectItem>
+                {Object.entries(EMPLOYEE_COUNTS).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.label} emp.
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Tag filter */}
+            {availableTags.length > 0 && (
+              <Select
+                value={tagFilter}
+                onValueChange={(value) => {
+                  setTagFilter(value);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous tags</SelectItem>
+                  {availableTags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex gap-2 shrink-0">
@@ -521,6 +662,10 @@ export function ProspectPageClient({
                 setPipelineFilter("all");
                 setCountryFilter("all");
                 setSourceFilter("all");
+                setIndustryFilter("all");
+                setCityFilter("all");
+                setEmployeeCountFilter("all");
+                setTagFilter("all");
                 setPage(1);
               }}
             >
@@ -535,6 +680,7 @@ export function ProspectPageClient({
         <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
           <span className="text-sm font-medium">
             {selectedIds.size} prospect(s) selectionne(s)
+            {hasActiveFilters && ` sur ${filteredProspects.length} filtres`}
           </span>
           <Button
             variant="outline"
@@ -570,7 +716,7 @@ export function ProspectPageClient({
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={allOnPageSelected}
+                  checked={allFilteredSelected}
                   onCheckedChange={toggleSelectAll}
                   aria-label="Tout selectionner"
                 />
@@ -582,6 +728,7 @@ export function ProspectPageClient({
               <TableHead>Pipeline</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Source</TableHead>
+              <TableHead>Score</TableHead>
               <SortableHeader field="email" label="Email" />
               <SortableHeader field="created_at" label="Date" />
               <TableHead className="w-[50px]" />
@@ -591,7 +738,7 @@ export function ProspectPageClient({
             {paginatedProspects.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={11}
+                  colSpan={12}
                   className="h-32 text-center text-muted-foreground"
                 >
                   {prospects.length === 0
@@ -657,6 +804,22 @@ export function ProspectPageClient({
                       )}
                     </TableCell>
                     <TableCell>{getSourceBadge(prospect.source)}</TableCell>
+                    <TableCell>
+                      {prospect.lead_score !== null && prospect.lead_score !== undefined ? (
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs text-white ${
+                            prospect.lead_score >= 80 ? "bg-red-500" :
+                            prospect.lead_score >= 50 ? "bg-orange-500" :
+                            prospect.lead_score >= 20 ? "bg-blue-400" : "bg-slate-400"
+                          }`}
+                        >
+                          {prospect.lead_score}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {isPlaceholderEmail(prospect.email) ? (
                         <span className="text-orange-500 text-xs italic">

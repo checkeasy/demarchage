@@ -1,6 +1,8 @@
 -- =============================================================================
 -- Migration: Systeme multi-utilisateurs avec Super Admin
 -- Ajoute role + is_active sur profiles, RLS pour super_admin
+-- IMPORTANT: Les policies utilisent auth.jwt() au lieu de SELECT profiles
+-- pour eviter la recursion infinie RLS sur la table profiles.
 -- =============================================================================
 
 -- 1. Ajouter colonnes role et is_active sur profiles
@@ -31,7 +33,7 @@ WHERE id = (
 );
 
 -- 3. Mettre a jour auth.users app_metadata pour le super_admin
--- (necessaire pour le check JWT rapide dans verifySuperAdmin)
+-- (necessaire pour le check JWT dans les RLS policies)
 UPDATE auth.users
 SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "super_admin"}'::jsonb
 WHERE id = (
@@ -42,65 +44,55 @@ WHERE id = (
 
 -- =============================================================================
 -- RLS POLICIES pour super_admin
+-- On utilise auth.jwt() -> app_metadata ->> 'role' pour eviter la recursion
+-- infinie qui se produit quand une policy sur profiles fait SELECT FROM profiles.
 -- =============================================================================
 
--- 4. super_admin peut voir tous les profiles
+-- 4. super_admin peut voir tous les profiles (via JWT, pas de recursion)
 DROP POLICY IF EXISTS "Super admins can view all profiles" ON public.profiles;
 CREATE POLICY "Super admins can view all profiles"
   ON public.profiles
   FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
--- 5. super_admin peut modifier tous les profiles
+-- 5. super_admin peut modifier tous les profiles (via JWT)
 DROP POLICY IF EXISTS "Super admins can update all profiles" ON public.profiles;
 CREATE POLICY "Super admins can update all profiles"
   ON public.profiles
   FOR UPDATE
   USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
--- 6. super_admin a acces total aux workspace_members (SELECT, INSERT, UPDATE, DELETE)
+-- 6. super_admin a acces total aux workspace_members (via JWT)
 DROP POLICY IF EXISTS "Super admins can view all workspace members" ON public.workspace_members;
 DROP POLICY IF EXISTS "Super admins can manage workspace members" ON public.workspace_members;
 CREATE POLICY "Super admins can manage workspace members"
   ON public.workspace_members
   FOR ALL
   USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
--- 7. super_admin peut voir tous les workspaces
+-- 7. super_admin peut voir tous les workspaces (via JWT)
 DROP POLICY IF EXISTS "Super admins can view all workspaces" ON public.workspaces;
 CREATE POLICY "Super admins can view all workspaces"
   ON public.workspaces
   FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'super_admin'
-    )
+    (auth.jwt() ->> 'role') = 'super_admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );

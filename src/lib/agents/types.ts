@@ -98,17 +98,17 @@ Reponds toujours en JSON structure avec: company_description, industry, pain_poi
 
 // Model config per agent type
 export const AGENT_MODELS = {
-  ceo: 'claude-sonnet-4-5-20250415',
+  ceo: 'claude-sonnet-4-5-20250929',
   email_writer: 'claude-haiku-4-5-20251001',
   linkedin_writer: 'claude-haiku-4-5-20251001',
-  response_handler: 'claude-sonnet-4-5-20250415',
+  response_handler: 'claude-sonnet-4-5-20250929',
   prospect_researcher: 'claude-haiku-4-5-20251001',
 } as const;
 
 // Cost per 1M tokens
 export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
-  'claude-sonnet-4-5-20250415': { input: 3.0, output: 15.0 },
+  'claude-sonnet-4-5-20250929': { input: 3.0, output: 15.0 },
 };
 
 // ─── Database-backed Configs ────────────────────────────────────────────────
@@ -184,6 +184,11 @@ export interface ProspectContext {
   website: string | null;
   location: string | null;
   notes: string | null;
+  industry: string | null;
+  city: string | null;
+  employee_count: string | null;
+  tags: string[];
+  lead_score: number | null;
   custom_fields: Record<string, unknown>;
   enrichments: Record<string, unknown>[];
 }

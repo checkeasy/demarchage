@@ -26,8 +26,9 @@ export async function GET() {
     .eq("user_id", user.id);
 
   if (error) {
+    console.error("Workspaces API error:", error);
     return NextResponse.json(
-      { error: "Erreur lors du chargement" },
+      { error: "Erreur lors du chargement", details: error.message, code: error.code },
       { status: 500 }
     );
   }

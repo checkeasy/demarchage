@@ -210,6 +210,11 @@ export interface Database {
           nb_properties: number | null;
           notes: string | null;
           custom_fields: Json;
+          industry: string | null;
+          city: string | null;
+          employee_count: string | null;
+          tags: string[];
+          lead_score: number | null;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at: string | null;
@@ -235,6 +240,11 @@ export interface Database {
           nb_properties?: number | null;
           notes?: string | null;
           custom_fields?: Json;
+          industry?: string | null;
+          city?: string | null;
+          employee_count?: string | null;
+          tags?: string[];
+          lead_score?: number | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
@@ -260,6 +270,11 @@ export interface Database {
           nb_properties?: number | null;
           notes?: string | null;
           custom_fields?: Json;
+          industry?: string | null;
+          city?: string | null;
+          employee_count?: string | null;
+          tags?: string[];
+          lead_score?: number | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;

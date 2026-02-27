@@ -43,34 +43,35 @@ function computeSegmentStats(prospects: Prospect[]) {
   const cities: Record<string, number> = {};
   const sources: Record<string, number> = {};
   const statuses: Record<string, number> = {};
+  const industries: Record<string, number> = {};
+  const employeeCounts: Record<string, number> = {};
   let totalProperties = 0;
   let propsCount = 0;
+  let totalLeadScore = 0;
+  let scoreCount = 0;
 
   for (const p of prospects) {
-    // Count sources
     sources[p.source || "unknown"] = (sources[p.source || "unknown"] || 0) + 1;
-    // Count statuses
     statuses[p.status || "new"] = (statuses[p.status || "new"] || 0) + 1;
-    // Count properties
-    if (p.nb_properties) {
-      totalProperties += p.nb_properties;
-      propsCount++;
-    }
-    // Count cities from location
-    if (p.location) {
-      cities[p.location] = (cities[p.location] || 0) + 1;
-    }
+    if (p.nb_properties) { totalProperties += p.nb_properties; propsCount++; }
+    const loc = p.city || p.location;
+    if (loc) { cities[loc] = (cities[loc] || 0) + 1; }
+    if (p.industry) { industries[p.industry] = (industries[p.industry] || 0) + 1; }
+    if (p.employee_count) { employeeCounts[p.employee_count] = (employeeCounts[p.employee_count] || 0) + 1; }
+    if (p.lead_score !== null && p.lead_score !== undefined) { totalLeadScore += p.lead_score; scoreCount++; }
   }
 
-  const topCities = Object.entries(cities)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([city]) => city);
+  const topCities = Object.entries(cities).sort(([, a], [, b]) => b - a).slice(0, 5).map(([city]) => city);
+  const topIndustries = Object.entries(industries).sort(([, a], [, b]) => b - a).slice(0, 5).map(([ind]) => ind);
 
   return {
     totalProspects: prospects.length,
     avgProperties: propsCount > 0 ? Math.round(totalProperties / propsCount) : 0,
+    avgLeadScore: scoreCount > 0 ? Math.round(totalLeadScore / scoreCount) : null,
     topCities,
+    topIndustries,
+    industries,
+    employeeCounts,
     sources,
     statuses,
   };
@@ -135,6 +136,7 @@ export function SmartCampaignDialog({
 
       for (const seq of sequence) {
         const result = await generateOutreach({
+          prospectId: selectedProspects[0]?.id,
           campaignId,
           channel: seq.channel,
           stepNumber: seq.stepNum,

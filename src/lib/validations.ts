@@ -14,6 +14,10 @@ export const prospectSchema = z.object({
   linkedin_url: z.string().optional(),
   website: z.string().optional(),
   location: z.string().optional(),
+  industry: z.string().optional(),
+  city: z.string().optional(),
+  employee_count: z.string().optional(),
+  tags: z.string().optional(),
 });
 
 export type ProspectFormData = z.infer<typeof prospectSchema>;
@@ -29,6 +33,9 @@ export const importMappingSchema = z.object({
   linkedin_url: z.string().optional(),
   website: z.string().optional(),
   location: z.string().optional(),
+  industry: z.string().optional(),
+  city: z.string().optional(),
+  employee_count: z.string().optional(),
 });
 
 export type ImportMappingData = z.infer<typeof importMappingSchema>;

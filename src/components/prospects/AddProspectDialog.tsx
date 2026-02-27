@@ -7,10 +7,18 @@ import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
+import { INDUSTRIES, EMPLOYEE_COUNTS } from "@/lib/constants";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +46,10 @@ const emptyForm: ProspectFormData = {
   linkedin_url: "",
   website: "",
   location: "",
+  industry: "",
+  city: "",
+  employee_count: "",
+  tags: "",
 };
 
 export function AddProspectDialog({
@@ -90,9 +102,17 @@ export function AddProspectDialog({
     setIsLoading(true);
 
     // Clean empty strings to null
-    const cleaned: Record<string, string | null> = {};
+    const cleaned: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(result.data)) {
-      cleaned[key] = value && value.trim() !== "" ? value.trim() : null;
+      if (key === "tags") {
+        // Convert comma-separated tags to array
+        const tagsStr = value as string;
+        cleaned[key] = tagsStr
+          ? tagsStr.split(",").map((t: string) => t.trim()).filter(Boolean)
+          : [];
+      } else {
+        cleaned[key] = value && (value as string).trim() !== "" ? (value as string).trim() : null;
+      }
     }
 
     if (isEdit && defaultValues?.id) {
@@ -268,14 +288,86 @@ export function AddProspectDialog({
             />
           </div>
 
-          {/* Location */}
+          {/* Location / City */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="location">Localisation</Label>
+              <Input
+                id="location"
+                name="location"
+                placeholder="Paris, France"
+                value={formData.location ?? ""}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city">Ville</Label>
+              <Input
+                id="city"
+                name="city"
+                placeholder="Paris"
+                value={formData.city ?? ""}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          {/* Industry / Employee count */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Secteur</Label>
+              <Select
+                value={formData.industry || ""}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, industry: value }))
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Secteur d'activite" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(INDUSTRIES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Taille entreprise</Label>
+              <Select
+                value={formData.employee_count || ""}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, employee_count: value }))
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nb employes" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(EMPLOYEE_COUNTS).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label} employes
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Tags */}
           <div className="space-y-2">
-            <Label htmlFor="location">Localisation</Label>
+            <Label htmlFor="tags">Tags (separes par des virgules)</Label>
             <Input
-              id="location"
-              name="location"
-              placeholder="Paris, France"
-              value={formData.location ?? ""}
+              id="tags"
+              name="tags"
+              placeholder="VIP, Hotel, Relance Q2"
+              value={formData.tags ?? ""}
               onChange={handleChange}
               disabled={isLoading}
             />

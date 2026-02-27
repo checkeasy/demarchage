@@ -45,11 +45,12 @@ export async function POST(request: NextRequest) {
           source: 'linkedin',
           status: 'active',
           workspace_id: workspace.id,
+          industry: p.industry || null,
+          employee_count: p.company_size || null,
+          city: p.location ? String(p.location).split(',')[0].trim() : null,
           custom_fields: {
             headline: p.headline || '',
             relevance_score: p.relevance_score || 0,
-            industry: p.industry || '',
-            company_size: p.company_size || '',
           },
         };
 

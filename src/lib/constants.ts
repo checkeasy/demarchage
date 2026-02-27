@@ -88,6 +88,40 @@ export const SOURCE_LABELS = {
   api: { label: "API", className: "bg-purple-100 text-purple-700 border-purple-200" },
 } as const;
 
+// Industries / Secteurs
+export const INDUSTRIES: Record<string, { label: string }> = {
+  immobilier: { label: "Immobilier" },
+  saas: { label: "SaaS / Tech" },
+  construction: { label: "Construction / BTP" },
+  tourisme: { label: "Tourisme / Hotellerie" },
+  restauration: { label: "Restauration" },
+  commerce: { label: "Commerce / Retail" },
+  finance: { label: "Finance / Assurance" },
+  sante: { label: "Sante" },
+  education: { label: "Education" },
+  conseil: { label: "Conseil / Services" },
+  industrie: { label: "Industrie" },
+  transport: { label: "Transport / Logistique" },
+  autre: { label: "Autre" },
+};
+
+// Tailles d'entreprise
+export const EMPLOYEE_COUNTS: Record<string, { label: string }> = {
+  "1-10": { label: "1-10" },
+  "11-50": { label: "11-50" },
+  "51-200": { label: "51-200" },
+  "201-500": { label: "201-500" },
+  "500+": { label: "500+" },
+};
+
+// Score IA
+export const LEAD_SCORE_RANGES = {
+  hot: { label: "Chaud", color: "bg-red-500", min: 80, max: 100 },
+  warm: { label: "Tiede", color: "bg-orange-500", min: 50, max: 79 },
+  cold: { label: "Froid", color: "bg-blue-400", min: 20, max: 49 },
+  ice: { label: "Glacial", color: "bg-slate-400", min: 0, max: 19 },
+} as const;
+
 // CRM Activity types
 export const ACTIVITY_TYPES = {
   call: { label: "Appel", icon: "Phone", color: "text-green-600", bgColor: "bg-green-50" },

@@ -488,19 +488,19 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
   }
 
   private extractIndustry(prospect: ProspectContext): string {
+    if (prospect.industry) return prospect.industry;
     if (
       prospect.custom_fields?.industry &&
       typeof prospect.custom_fields.industry === 'string'
     ) {
       return prospect.custom_fields.industry;
     }
-    if (prospect.company) {
-      return prospect.company;
-    }
+    if (prospect.company) return prospect.company;
     return 'unknown';
   }
 
   private extractCompanySize(prospect: ProspectContext): string {
+    if (prospect.employee_count) return prospect.employee_count;
     if (
       prospect.custom_fields?.company_size &&
       typeof prospect.custom_fields.company_size === 'string'
@@ -984,6 +984,11 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       website: prospect.website,
       location: prospect.location,
       notes: prospect.notes || null,
+      industry: prospect.industry || null,
+      city: prospect.city || null,
+      employee_count: prospect.employee_count || null,
+      tags: (prospect.tags as string[]) || [],
+      lead_score: prospect.lead_score ?? null,
       custom_fields: (prospect.custom_fields as Record<string, unknown>) || {},
       enrichments: enrichments?.map((e) => e.data as Record<string, unknown>) || [],
     };
@@ -995,6 +1000,20 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
   private async fetchCampaignContext(
     campaignId: string
   ): Promise<CampaignContext> {
+    // If campaignId is not a valid UUID, return empty context
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(campaignId)) {
+      return {
+        id: campaignId,
+        name: 'Analyse strategique',
+        description: null,
+        total_prospects: 0,
+        total_sent: 0,
+        total_opened: 0,
+        total_replied: 0,
+      };
+    }
+
     const supabase = createAdminClient();
 
     const { data: campaign, error } = await supabase
@@ -1006,7 +1025,15 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       .single();
 
     if (error || !campaign) {
-      throw new Error(`Campaign not found: ${campaignId}`);
+      return {
+        id: campaignId,
+        name: 'Campagne inconnue',
+        description: null,
+        total_prospects: 0,
+        total_sent: 0,
+        total_opened: 0,
+        total_replied: 0,
+      };
     }
 
     return {
@@ -1029,12 +1056,15 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
   ): Promise<PerformanceContext> {
     const supabase = createAdminClient();
 
-    // Get campaign stats
-    const { data: campaign } = await supabase
-      .from('campaigns')
-      .select('total_sent, total_opened, total_clicked, total_replied')
-      .eq('id', campaignId)
-      .single();
+    // Get campaign stats (skip if campaignId is not a valid UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const { data: campaign } = uuidRegex.test(campaignId)
+      ? await supabase
+          .from('campaigns')
+          .select('total_sent, total_opened, total_clicked, total_replied')
+          .eq('id', campaignId)
+          .single()
+      : { data: null };
 
     const totalSent = campaign?.total_sent || 0;
     const openRate = totalSent > 0 ? (campaign?.total_opened || 0) / totalSent : 0;
