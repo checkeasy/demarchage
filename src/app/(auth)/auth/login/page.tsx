@@ -178,6 +178,29 @@ function LoginForm() {
             )}
           </div>
 
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={async () => {
+                if (!formData.email) {
+                  toast.error("Entrez votre email pour reinitialiser votre mot de passe");
+                  return;
+                }
+                const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                  redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
+                });
+                if (error) {
+                  toast.error("Erreur: " + error.message);
+                } else {
+                  toast.success("Email de reinitialisation envoye");
+                }
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              Mot de passe oublie ?
+            </button>
+          </div>
+
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -509,10 +510,16 @@ export default function NewCampaignPage() {
               <ScrollArea className="h-[400px] rounded-lg border">
                 <div className="p-2 space-y-1">
                   {filteredProspects.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      Aucun prospect trouve. Importez des prospects depuis
-                      la page Prospects.
-                    </p>
+                    <div className="text-center py-8 space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Aucun prospect trouve.
+                      </p>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/prospects/import">
+                          Importer des prospects
+                        </Link>
+                      </Button>
+                    </div>
                   ) : (
                     filteredProspects.map((prospect) => (
                       <label

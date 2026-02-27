@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Play, Pause, Edit, Loader2 } from "lucide-react";
+import { Play, Pause, Edit, Loader2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -69,6 +69,35 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
         <Button size="sm" onClick={() => updateStatus("active")} disabled={loading}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
           Reprendre
+        </Button>
+      )}
+      {status === "completed" && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            setLoading(true);
+            try {
+              const res = await fetch(`/api/campaigns/${campaignId}/duplicate`, {
+                method: "POST",
+              });
+              if (res.ok) {
+                const data = await res.json();
+                toast.success("Campagne dupliquee");
+                router.push(`/campaigns/${data.id}`);
+              } else {
+                toast.error("Erreur lors de la duplication");
+              }
+            } catch {
+              toast.error("Erreur reseau");
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
+          Dupliquer
         </Button>
       )}
     </div>

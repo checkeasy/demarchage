@@ -14,7 +14,7 @@ export default async function AgentsPage() {
     .select("current_workspace_id")
     .eq("id", user.id)
     .single();
-  if (!profile?.current_workspace_id) redirect("/dashboard");
+  if (!profile?.current_workspace_id) redirect("/onboarding");
 
   // Fetch agent configs
   const { data: configs } = await supabase

@@ -207,6 +207,9 @@ export default function LinkedInPage() {
                 <p className="text-muted-foreground">
                   Les actions LinkedIn de vos campagnes apparaitront ici.
                 </p>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/campaigns">Voir les campagnes</a>
+                </Button>
               </CardContent>
             </Card>
           ) : (

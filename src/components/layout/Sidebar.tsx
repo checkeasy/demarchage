@@ -9,6 +9,7 @@ import {
   Search,
   Send,
   Mail,
+  Inbox,
   Bot,
   Linkedin,
   Brain,
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
   // Outreach
   { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
   { label: "Emails", href: "/emails", icon: Mail, group: "outreach" },
+  { label: "Inbox", href: "/inbox", icon: Inbox, group: "outreach" },
   { label: "LinkedIn", href: "/linkedin", icon: Linkedin, group: "outreach" },
   { label: "Automation", href: "/automation", icon: Bot, group: "outreach" },
   // Tools

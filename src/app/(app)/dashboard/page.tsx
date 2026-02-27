@@ -45,6 +45,10 @@ export default async function DashboardPage() {
 
   const workspaceId = profile?.current_workspace_id;
 
+  if (!workspaceId) {
+    redirect("/onboarding");
+  }
+
   // --- Pipeline stats ---
   const { data: openDeals } = await supabase
     .from("deals")

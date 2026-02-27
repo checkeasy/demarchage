@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Menu, User, Settings, LogOut, Shield } from "lucide-react";
+import { Mail, Menu, User, Settings, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -62,12 +62,6 @@ export function Header({ title, user, onMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="size-5 text-slate-500" />
-          <span className="sr-only">Notifications</span>
-        </Button>
-
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -102,9 +96,9 @@ export function Header({ title, user, onMenuToggle }: HeaderProps) {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
-                <User className="size-4" />
-                Mon profil
+              <DropdownMenuItem onClick={() => router.push("/inbox")}>
+                <Mail className="size-4" />
+                Inbox
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/settings")}>
                 <Settings className="size-4" />

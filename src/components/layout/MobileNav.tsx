@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Send,
   Mail,
+  Inbox,
   Linkedin,
   Bot,
   Search,
@@ -37,6 +38,7 @@ const primaryNavItems = [
 const moreNavItems = [
   { label: "Campagnes", href: "/campaigns", icon: Send },
   { label: "Emails", href: "/emails", icon: Mail },
+  { label: "Inbox", href: "/inbox", icon: Inbox },
   { label: "LinkedIn", href: "/linkedin", icon: Linkedin },
   { label: "Automation", href: "/automation", icon: Bot },
   { label: "Scraper", href: "/scraper", icon: Search },

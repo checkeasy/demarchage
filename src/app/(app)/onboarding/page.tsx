@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, ArrowRight, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Building2, ArrowRight, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,21 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
+  const [hasExistingWorkspace, setHasExistingWorkspace] = useState(false);
+
+  useEffect(() => {
+    async function checkExistingWorkspaces() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .limit(1);
+      setHasExistingWorkspace(!!(data && data.length > 0));
+    }
+    checkExistingWorkspaces();
+  }, []);
 
   async function handleCreateWorkspace() {
     if (!companyName.trim()) {
@@ -138,6 +154,20 @@ export default function OnboardingPage() {
             )}
             {loading ? "Creation en cours..." : "Creer mon workspace"}
           </Button>
+
+          {hasExistingWorkspace && (
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full"
+              disabled={loading}
+            >
+              <Link href="/dashboard">
+                <ArrowLeft className="size-4" />
+                Retour au dashboard
+              </Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
