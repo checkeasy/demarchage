@@ -47,5 +47,5 @@ supabase/.temp/
 # WhatsApp session data
 .whatsapp_auth/
 
-# Test scripts
-scripts/
+# Logs
+logs/
