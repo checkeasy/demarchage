@@ -88,6 +88,12 @@ export function mergeProspectData(
         }
       }
       merged.custom_fields = mergedCf;
+    } else if (key === 'tags') {
+      // Merge tags arrays (union, no duplicates)
+      const existingTags = (existing.tags || []) as string[];
+      const incomingTags = (value || []) as string[];
+      const mergedTags = [...new Set([...existingTags, ...incomingTags])];
+      if (mergedTags.length > 0) merged.tags = mergedTags;
     } else if (value !== null && value !== undefined && value !== '') {
       // Only overwrite if incoming value is non-empty
       merged[key] = value;

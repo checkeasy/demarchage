@@ -257,7 +257,7 @@ PROFIL DU PROSPECT :
 - Nom : ${prospect.first_name || ''} ${prospect.last_name || ''}
 - Poste : ${prospect.job_title || 'Non renseigne'}
 - Entreprise : ${prospect.company || 'Non renseignee'}
-- Secteur : ${(prospect.custom_fields?.industry as string) || 'Non renseigne'}
+- Secteur : ${prospect.industry || (prospect.custom_fields?.industry as string) || 'Non renseigne'}
 
 HISTORIQUE DES INTERACTIONS :
 ${interactionHistory || 'Aucune interaction precedente.'}

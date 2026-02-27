@@ -12,6 +12,9 @@ interface ProspectRow {
   linkedin_url?: string;
   website?: string;
   location?: string;
+  industry?: string;
+  city?: string;
+  employee_count?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -84,6 +87,9 @@ export async function POST(request: NextRequest) {
         linkedin_url: string | null;
         website: string | null;
         location: string | null;
+        industry: string | null;
+        city: string | null;
+        employee_count: string | null;
         source: "csv_import";
       }[] = [];
 
@@ -111,6 +117,9 @@ export async function POST(request: NextRequest) {
           linkedin_url: cleaned.linkedin_url ?? null,
           website: cleaned.website ?? null,
           location: cleaned.location ?? null,
+          industry: cleaned.industry ?? null,
+          city: cleaned.city ?? null,
+          employee_count: cleaned.employee_count ?? null,
           source: "csv_import" as const,
         });
       }

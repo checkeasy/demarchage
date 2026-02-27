@@ -101,11 +101,12 @@ export async function POST(request: NextRequest) {
       source: 'linkedin',
       status: 'active',
       workspace_id: workspace.id,
+      industry: body.industry || null,
+      employee_count: body.company_size || null,
+      city: body.location ? String(body.location).split(',')[0].trim() : null,
       custom_fields: {
         headline: body.headline || '',
         relevance_score: body.relevance_score || 0,
-        industry: body.industry || '',
-        company_size: body.company_size || '',
       },
     };
 
