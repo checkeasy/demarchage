@@ -44,7 +44,7 @@ export async function PATCH(
   }
 
   const { data: stage, error } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .update(updates)
     .eq("id", id)
     .eq("workspace_id", workspaceId)
@@ -110,7 +110,7 @@ export async function DELETE(
   }
 
   const { error } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .delete()
     .eq("id", id)
     .eq("workspace_id", workspaceId);

@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
       `
       *,
       prospect:prospects(id, first_name, last_name, email, company),
-      stage:pipeline_stages(id, name, color, slug),
-      owner:profiles!deals_owner_id_fkey(id, full_name)
+      stage:pipeline_stages_config(id, name, color, slug)
     `
     )
     .eq("workspace_id", workspaceId)
@@ -117,8 +116,7 @@ export async function POST(request: NextRequest) {
       `
       *,
       prospect:prospects(id, first_name, last_name, email, company),
-      stage:pipeline_stages(id, name, color, slug),
-      owner:profiles!deals_owner_id_fkey(id, full_name)
+      stage:pipeline_stages_config(id, name, color, slug)
     `
     )
     .single();

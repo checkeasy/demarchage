@@ -38,7 +38,7 @@ export async function PATCH(
 
   // Verify the target stage belongs to the workspace
   const { data: stage, error: stageError } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .select("id, is_won, is_lost")
     .eq("id", stage_id)
     .eq("workspace_id", workspaceId)
@@ -74,8 +74,7 @@ export async function PATCH(
       `
       *,
       prospect:prospects(id, first_name, last_name, email, company),
-      stage:pipeline_stages(id, name, color, slug),
-      owner:profiles!deals_owner_id_fkey(id, full_name)
+      stage:pipeline_stages_config(id, name, color, slug)
     `
     )
     .single();

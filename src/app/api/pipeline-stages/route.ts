@@ -24,7 +24,7 @@ export async function GET() {
   }
 
   const { data: stages, error } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .select("*")
     .eq("workspace_id", workspaceId)
     .order("display_order", { ascending: true });
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: stage, error } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .insert({
       workspace_id: workspaceId,
       name: name.trim(),

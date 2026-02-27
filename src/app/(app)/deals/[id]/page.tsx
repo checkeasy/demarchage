@@ -38,8 +38,7 @@ export default async function DealPage({ params }: DealPageProps) {
       `
       *,
       prospect:prospects(id, first_name, last_name, email, company),
-      stage:pipeline_stages(id, name, color, slug),
-      owner:profiles!deals_owner_id_fkey(id, full_name)
+      stage:pipeline_stages_config(id, name, color, slug)
     `
     )
     .eq("id", id)
@@ -52,7 +51,7 @@ export default async function DealPage({ params }: DealPageProps) {
 
   // Fetch pipeline stages for the stage selector
   const { data: stages } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .select("*")
     .eq("workspace_id", workspaceId)
     .order("display_order", { ascending: true });

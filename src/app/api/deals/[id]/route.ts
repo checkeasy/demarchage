@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 const DEAL_SELECT = `
   *,
   prospect:prospects(id, first_name, last_name, email, company),
-  stage:pipeline_stages(id, name, color, slug),
-  owner:profiles!deals_owner_id_fkey(id, full_name)
+  stage:pipeline_stages_config(id, name, color, slug)
 `;
 
 // GET /api/deals/[id] — Single deal with all joins

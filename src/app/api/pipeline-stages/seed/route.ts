@@ -26,7 +26,7 @@ export async function POST() {
   // Call the RPC function to seed default stages
   const { data, error: rpcError } = await supabase.rpc(
     "seed_default_pipeline_stages",
-    { p_workspace_id: workspaceId }
+    { ws_id: workspaceId }
   );
 
   if (rpcError) {
@@ -38,7 +38,7 @@ export async function POST() {
 
   // Fetch the seeded stages to return them
   const { data: stages, error: fetchError } = await supabase
-    .from("pipeline_stages")
+    .from("pipeline_stages_config")
     .select("*")
     .eq("workspace_id", workspaceId)
     .order("display_order", { ascending: true });
