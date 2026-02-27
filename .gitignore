@@ -43,3 +43,9 @@ next-env.d.ts
 # core dumps
 core.*
 supabase/.temp/
+
+# WhatsApp session data
+.whatsapp_auth/
+
+# Test scripts
+scripts/
