@@ -87,3 +87,26 @@ export const SOURCE_LABELS = {
   google_maps: { label: "Google Maps", className: "bg-green-100 text-green-700 border-green-200" },
   api: { label: "API", className: "bg-purple-100 text-purple-700 border-purple-200" },
 } as const;
+
+// CRM Activity types
+export const ACTIVITY_TYPES = {
+  call: { label: "Appel", icon: "Phone", color: "text-green-600", bgColor: "bg-green-50" },
+  meeting: { label: "Reunion", icon: "Calendar", color: "text-blue-600", bgColor: "bg-blue-50" },
+  email: { label: "Email", icon: "Mail", color: "text-purple-600", bgColor: "bg-purple-50" },
+  task: { label: "Tache", icon: "CheckSquare", color: "text-amber-600", bgColor: "bg-amber-50" },
+  follow_up: { label: "Relance", icon: "RefreshCw", color: "text-orange-600", bgColor: "bg-orange-50" },
+  demo: { label: "Demo", icon: "Monitor", color: "text-indigo-600", bgColor: "bg-indigo-50" },
+} as const;
+
+export const DEAL_STATUSES = {
+  open: { label: "En cours", color: "bg-blue-500" },
+  won: { label: "Gagne", color: "bg-green-500" },
+  lost: { label: "Perdu", color: "bg-red-500" },
+} as const;
+
+export const ACTIVITY_PRIORITIES = {
+  low: { label: "Basse", color: "text-slate-500" },
+  normal: { label: "Normale", color: "text-blue-500" },
+  high: { label: "Haute", color: "text-orange-500" },
+  urgent: { label: "Urgente", color: "text-red-500" },
+} as const;

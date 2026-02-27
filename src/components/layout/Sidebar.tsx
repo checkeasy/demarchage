@@ -17,6 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
+  Shield,
+  Kanban,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,67 +39,48 @@ interface SidebarProps {
     email?: string;
     full_name?: string;
     avatar_url?: string;
+    role?: "super_admin" | "user";
   };
 }
 
-const navItems: {
+type NavGroup = "crm" | "outreach" | "tools" | "settings" | "admin";
+
+interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  group: NavGroup;
   badgeCount?: number;
   badgeVariant?: "default" | "secondary" | "destructive" | "outline";
-}[] = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Prospects",
-    href: "/prospects",
-    icon: Users,
-  },
-  {
-    label: "Scraper",
-    href: "/scraper",
-    icon: Search,
-  },
-  {
-    label: "Google Maps",
-    href: "/maps-scraper",
-    icon: MapPin,
-  },
-  {
-    label: "Campagnes",
-    href: "/campaigns",
-    icon: Send,
-  },
-  {
-    label: "Emails envoyes",
-    href: "/emails",
-    icon: Mail,
-  },
-  {
-    label: "Automation",
-    href: "/automation",
-    icon: Bot,
-  },
-  {
-    label: "LinkedIn",
-    href: "/linkedin",
-    icon: Linkedin,
-  },
-  {
-    label: "Agents IA",
-    href: "/agents",
-    icon: Brain,
-  },
-  {
-    label: "Parametres",
-    href: "/settings",
-    icon: Settings,
-  },
+}
+
+const navItems: NavItem[] = [
+  // CRM
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "crm" },
+  { label: "Pipeline", href: "/deals", icon: Kanban, group: "crm" },
+  { label: "Activites", href: "/activities", icon: CheckSquare, group: "crm" },
+  { label: "Prospects", href: "/prospects", icon: Users, group: "crm" },
+  // Outreach
+  { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
+  { label: "Emails", href: "/emails", icon: Mail, group: "outreach" },
+  { label: "LinkedIn", href: "/linkedin", icon: Linkedin, group: "outreach" },
+  { label: "Automation", href: "/automation", icon: Bot, group: "outreach" },
+  // Tools
+  { label: "Scraper", href: "/scraper", icon: Search, group: "tools" },
+  { label: "Google Maps", href: "/maps-scraper", icon: MapPin, group: "tools" },
+  { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
+  // Settings
+  { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
 ];
+
+const adminItem: NavItem = {
+  label: "Administration",
+  href: "/admin",
+  icon: Shield,
+  group: "admin",
+};
+
+const groupOrder: NavGroup[] = ["crm", "outreach", "tools", "settings", "admin"];
 
 export function Sidebar({ user }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -118,6 +102,19 @@ export function Sidebar({ user }: SidebarProps) {
         .slice(0, 2)
     : user?.email?.charAt(0).toUpperCase() ?? "U";
 
+  const allItems = [
+    ...navItems,
+    ...(user?.role === "super_admin" ? [adminItem] : []),
+  ];
+
+  // Group items
+  const groupedItems = groupOrder
+    .map((group) => ({
+      group,
+      items: allItems.filter((item) => item.group === group),
+    }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <TooltipProvider>
       <aside
@@ -129,59 +126,71 @@ export function Sidebar({ user }: SidebarProps) {
         <WorkspaceSwitcher collapsed={collapsed} />
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
-            const Icon = item.icon;
+        <nav className="flex-1 py-4 px-2 overflow-y-auto">
+          {groupedItems.map((group, groupIndex) => (
+            <div key={group.group}>
+              {groupIndex > 0 && (
+                <Separator className="bg-slate-700/50 my-2 mx-1" />
+              )}
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+                  const Icon = item.icon;
 
-            const linkContent = (
-              <Link
-                href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-blue-600/20 text-blue-400"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                } ${collapsed ? "justify-center" : ""}`}
-              >
-                <Icon className="size-5 shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1">{item.label}</span>
-                    {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                      <Badge
-                        variant={item.badgeVariant ?? "default"}
-                        className="h-5 min-w-5 text-[10px] px-1.5"
-                      >
-                        {item.badgeCount}
-                      </Badge>
-                    )}
-                  </>
-                )}
-              </Link>
-            );
+                  const linkContent = (
+                    <Link
+                      href={item.href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-blue-600/20 text-blue-400"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      } ${collapsed ? "justify-center" : ""}`}
+                    >
+                      <Icon className="size-5 shrink-0" />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1">{item.label}</span>
+                          {item.badgeCount !== undefined &&
+                            item.badgeCount > 0 && (
+                              <Badge
+                                variant={item.badgeVariant ?? "default"}
+                                className="h-5 min-w-5 text-[10px] px-1.5"
+                              >
+                                {item.badgeCount}
+                              </Badge>
+                            )}
+                        </>
+                      )}
+                    </Link>
+                  );
 
-            if (collapsed) {
-              return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                  <TooltipContent side="right">
-                    <span>{item.label}</span>
-                    {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                      <Badge
-                        variant={item.badgeVariant ?? "default"}
-                        className="ml-2 h-5 min-w-5 text-[10px] px-1.5"
-                      >
-                        {item.badgeCount}
-                      </Badge>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
+                  if (collapsed) {
+                    return (
+                      <Tooltip key={item.href}>
+                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                        <TooltipContent side="right">
+                          <span>{item.label}</span>
+                          {item.badgeCount !== undefined &&
+                            item.badgeCount > 0 && (
+                              <Badge
+                                variant={item.badgeVariant ?? "default"}
+                                className="ml-2 h-5 min-w-5 text-[10px] px-1.5"
+                              >
+                                {item.badgeCount}
+                              </Badge>
+                            )}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
 
-            return <div key={item.href}>{linkContent}</div>;
-          })}
+                  return <div key={item.href}>{linkContent}</div>;
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Collapse Toggle */}

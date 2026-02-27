@@ -55,3 +55,34 @@ export const emailStepSchema = z.object({
 });
 
 export type EmailStepFormData = z.infer<typeof emailStepSchema>;
+
+// --- Deal ---
+export const dealSchema = z.object({
+  title: z.string().min(1, "Le titre est requis"),
+  value: z.coerce.number().min(0).optional().nullable(),
+  stage_id: z.string().min(1, "L'etape est requise"),
+  prospect_id: z.string().optional().nullable(),
+  expected_close_date: z.string().optional().nullable(),
+  probability: z.coerce.number().min(0).max(100).optional(),
+});
+export type DealFormData = z.infer<typeof dealSchema>;
+
+// --- Activity ---
+export const activitySchema = z.object({
+  activity_type: z.enum(['call', 'meeting', 'email', 'task', 'follow_up', 'demo']),
+  title: z.string().min(1, "Le titre est requis"),
+  description: z.string().optional().nullable(),
+  deal_id: z.string().optional().nullable(),
+  prospect_id: z.string().optional().nullable(),
+  due_date: z.string().optional().nullable(),
+  duration_minutes: z.coerce.number().min(0).optional().nullable(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+});
+export type ActivityFormData = z.infer<typeof activitySchema>;
+
+// --- Note ---
+export const noteSchema = z.object({
+  content: z.string().min(1, "Le contenu est requis"),
+  is_pinned: z.boolean().optional(),
+});
+export type NoteFormData = z.infer<typeof noteSchema>;

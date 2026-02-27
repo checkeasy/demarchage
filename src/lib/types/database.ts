@@ -61,6 +61,8 @@ export interface Database {
           full_name: string | null;
           avatar_url: string | null;
           current_workspace_id: string | null;
+          role: "super_admin" | "user";
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -69,6 +71,8 @@ export interface Database {
           full_name?: string | null;
           avatar_url?: string | null;
           current_workspace_id?: string | null;
+          role?: "super_admin" | "user";
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -77,6 +81,8 @@ export interface Database {
           full_name?: string | null;
           avatar_url?: string | null;
           current_workspace_id?: string | null;
+          role?: "super_admin" | "user";
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };

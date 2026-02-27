@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Mail, Lock, Chrome, Loader2 } from "lucide-react";
@@ -33,8 +33,23 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  useEffect(() => {
+    if (searchParams.get("error") === "account_disabled") {
+      toast.error("Votre compte a ete desactive. Contactez l'administrateur.");
+    }
+  }, [searchParams]);
 
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",

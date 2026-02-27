@@ -61,6 +61,7 @@ import {
 import { ProspectTimeline, type TimelineEvent } from "./ProspectTimeline";
 import { AIResearchCard } from "./AIResearchCard";
 import { AISuggestedReplyCard } from "./AISuggestedReplyCard";
+import { NoteList } from "@/components/notes/NoteList";
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
 type CrmStatus = keyof typeof CRM_STATUSES;
@@ -143,10 +144,6 @@ export function ProspectDetail({
 
   const hasConflict = campaigns.length > 0 && automations.length > 0;
 
-  // Notes state
-  const [noteText, setNoteText] = useState(prospect.notes || '');
-  const [isSavingNote, setIsSavingNote] = useState(false);
-
   // CRM custom fields editing state
   const [isEditingCrm, setIsEditingCrm] = useState(false);
   const [isSavingCrm, setIsSavingCrm] = useState(false);
@@ -158,22 +155,6 @@ export function ProspectDetail({
     nb_properties: cf.nb_properties ?? '',
     source_lead_original: cf.source_lead_original || '',
   });
-
-  async function handleSaveNote() {
-    setIsSavingNote(true);
-    const { error } = await supabase
-      .from('prospects')
-      .update({ notes: noteText || null })
-      .eq('id', prospect.id);
-    setIsSavingNote(false);
-
-    if (error) {
-      toast.error("Erreur lors de la sauvegarde des notes");
-      return;
-    }
-    toast.success("Notes sauvegardees");
-    router.refresh();
-  }
 
   function cancelCrmEdit() {
     setIsEditingCrm(false);
@@ -847,36 +828,16 @@ export function ProspectDetail({
         );
       })()}
 
-      {/* Notes & Comments Card */}
+      {/* Notes (timestamped) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="size-4" />
-            Notes & Commentaires
+            Notes
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Ajoutez des notes sur ce prospect..."
-            className="min-h-[120px] text-sm resize-y"
-            disabled={isSavingNote}
-          />
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {noteText.length} caractere{noteText.length !== 1 ? 's' : ''}
-            </p>
-            <Button
-              size="sm"
-              onClick={handleSaveNote}
-              disabled={isSavingNote || noteText === (prospect.notes || '')}
-              className="h-7 text-xs"
-            >
-              <Save className="size-3 mr-1" />
-              {isSavingNote ? 'Sauvegarde...' : 'Sauvegarder'}
-            </Button>
-          </div>
+        <CardContent>
+          <NoteList prospectId={prospect.id} />
         </CardContent>
       </Card>
 

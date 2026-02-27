@@ -24,7 +24,7 @@ export default async function AppLayout({
   // Fetch user profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url")
+    .select("full_name, avatar_url, role")
     .eq("id", user.id)
     .single();
 
@@ -32,6 +32,7 @@ export default async function AppLayout({
     email: user.email,
     full_name: profile?.full_name ?? undefined,
     avatar_url: profile?.avatar_url ?? undefined,
+    role: (profile?.role as "super_admin" | "user") ?? "user",
   };
 
   return (

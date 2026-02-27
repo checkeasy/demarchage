@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Menu, User, Settings, LogOut } from "lucide-react";
+import { Bell, Menu, User, Settings, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -20,6 +20,7 @@ interface HeaderProps {
     email?: string;
     full_name?: string;
     avatar_url?: string;
+    role?: "super_admin" | "user";
   };
   onMenuToggle?: () => void;
 }
@@ -109,6 +110,12 @@ export function Header({ title, user, onMenuToggle }: HeaderProps) {
                 <Settings className="size-4" />
                 Parametres
               </DropdownMenuItem>
+              {user?.role === "super_admin" && (
+                <DropdownMenuItem onClick={() => router.push("/admin")}>
+                  <Shield className="size-4" />
+                  Administration
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={handleLogout}>
