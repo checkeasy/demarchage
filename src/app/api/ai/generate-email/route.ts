@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildProductContext } from "@/lib/ai/prompts";
 
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
-  return _openai;
+  return _anthropic;
 }
+
+const CLAUDE_MODEL = "claude-opus-4-6";
 
 interface PerformanceStats {
   totalSent: number;
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    const { recipient, context, campaignId, prospectData } =
+    const { recipient, context, campaignId, prospectData, emailAccountId } =
       await request.json();
 
     if (!recipient) {
@@ -163,7 +165,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Build the enriched prompt
+    // 4. Load booking URL from email account
+    let bookingUrl = "";
+    if (emailAccountId && workspaceId) {
+      const { data: emailAccount } = await adminSupabase
+        .from("email_accounts")
+        .select("booking_url")
+        .eq("id", emailAccountId)
+        .eq("workspace_id", workspaceId)
+        .single();
+      if (emailAccount?.booking_url) {
+        bookingUrl = emailAccount.booking_url;
+      }
+    }
+
+    // 5. Build the enriched prompt
     const productContext = buildProductContext(companyContext);
 
     let prompt = `Tu es un expert en cold emailing B2B en France. Genere un email de prospection personnalise.
@@ -255,26 +271,26 @@ ${context || "Premier contact de prospection"}`;
 - Propose de la valeur concrete et specifique
 - L'email doit donner l'impression d'etre ecrit a la main, pas genere par une IA
 - Si des donnees sur l'entreprise du prospect sont disponibles, utilise-les pour personnaliser le message
-- Le CTA doit etre simple (repondre a l'email, pas un lien)
+- Le CTA doit etre simple (repondre a l'email, pas un lien)${bookingUrl ? `
+- IMPORTANT : Tu as un lien de prise de rendez-vous : ${bookingUrl}
+  Tu PEUX proposer ce lien dans l'email si c'est pertinent (ex: "Si vous souhaitez en discuter, voici un lien pour reserver un creneau : ${bookingUrl}")
+  Mais ne le force pas si ca ne colle pas avec le ton ou le contexte. Le lien doit paraitre naturel.` : ""}
 
 Reponds UNIQUEMENT en JSON valide avec ce format :
 {"subject": "...", "body": "..."}`;
 
-    const response = await getOpenAI().chat.completions.create({
-      model: "gpt-5-mini-2025-08-07",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire. Tu es le meilleur copywriter de cold email en France.",
-        },
-        { role: "user", content: prompt },
-      ],
+    const response = await getAnthropic().messages.create({
+      model: CLAUDE_MODEL,
+      system: "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire. Tu es le meilleur copywriter de cold email en France.",
+      messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 800,
     });
 
-    const content = response.choices[0]?.message?.content?.trim();
+    const content =
+      response.content[0]?.type === "text"
+        ? response.content[0].text.trim()
+        : "";
     if (!content) {
       return NextResponse.json(
         { error: "Pas de reponse de l'IA" },

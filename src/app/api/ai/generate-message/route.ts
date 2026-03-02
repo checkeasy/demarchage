@@ -110,17 +110,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Erreur generation de message:', error);
 
-    // Handle OpenAI-specific errors
+    // Handle Anthropic-specific errors
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
+      if (error.message.includes('API key') || error.message.includes('api_key')) {
         return NextResponse.json(
-          { error: 'Cle API OpenAI invalide ou manquante' },
+          { error: 'Cle API Anthropic invalide ou manquante' },
           { status: 500 }
         );
       }
       if (error.message.includes('rate limit') || error.message.includes('429')) {
         return NextResponse.json(
-          { error: 'Limite de requetes OpenAI atteinte. Veuillez reessayer dans quelques instants.' },
+          { error: 'Limite de requetes Anthropic atteinte. Veuillez reessayer dans quelques instants.' },
           { status: 429 }
         );
       }

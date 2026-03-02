@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT_WEBSITE } from '@/lib/ai/prompts';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -72,17 +72,17 @@ export interface EnrichedProspect {
   enrichmentSource: string[];
 }
 
-// ─── OpenAI Client (lazy to avoid crash during next build) ──────────────────
+// ─── Anthropic Client (lazy to avoid crash during next build) ────────────────
 
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
-  return _openai;
+  return _anthropic;
 }
 
-const OPENAI_MODEL = 'gpt-5-mini-2025-08-07';
+const CLAUDE_MODEL = 'claude-opus-4-6';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -386,38 +386,21 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
   // Step 2: Prepare content summary for AI
   const contentSummary = buildContentSummary(scrapedData);
 
-  // Step 3: Call GPT for analysis
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_WEBSITE,
-      },
+  // Step 3: Call Claude for analysis
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_WEBSITE,
+    messages: [
       {
         role: 'user',
         content: `Analyse le site web suivant et fournis ton analyse complete en JSON :\n\n${contentSummary}`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 4096,
   });
 
-  // Extract text from response
-  let responseText = '';
-  for (const item of response.output) {
-    if (item.type === 'message') {
-      const message = item as { type: 'message'; content: Array<{ type: string; text?: string }> };
-      for (const block of message.content) {
-        if (block.type === 'output_text' && block.text) {
-          responseText += block.text;
-        }
-      }
-    }
-  }
+  const responseText =
+    response.content[0]?.type === 'text' ? response.content[0].text : '';
 
   const aiAnalysis = JSON.parse(responseText);
 

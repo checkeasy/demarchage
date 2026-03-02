@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ import {
 import { AddProspectDialog } from "@/components/prospects/AddProspectDialog";
 import { SmartCampaignDialog } from "@/components/campaigns/SmartCampaignDialog";
 
-const ITEMS_PER_PAGE = 25;
+const ITEMS_PER_PAGE = 100;
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
 type CrmStatus = keyof typeof CRM_STATUSES;
@@ -103,6 +103,7 @@ export function ProspectPageClient({
   const [cityFilter, setCityFilter] = useState<string>("all");
   const [employeeCountFilter, setEmployeeCountFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [leadScoreFilter, setLeadScoreFilter] = useState<string>("all");
   const [emailQualityFilter, setEmailQualityFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -138,6 +139,14 @@ export function ProspectPageClient({
     return Array.from(set).sort();
   }, [prospects]);
 
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of prospects) {
+      if (p.department) set.add(p.department);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [prospects]);
+
   const availableTags = useMemo(() => {
     const set = new Set<string>();
     for (const p of prospects) {
@@ -161,7 +170,8 @@ export function ProspectPageClient({
           (p.company && p.company.toLowerCase().includes(term)) ||
           (p.organization && p.organization.toLowerCase().includes(term)) ||
           (p.industry && p.industry.toLowerCase().includes(term)) ||
-          (p.city && p.city.toLowerCase().includes(term))
+          (p.city && p.city.toLowerCase().includes(term)) ||
+          (p.loss_reason && p.loss_reason.toLowerCase().includes(term))
       );
     }
 
@@ -208,6 +218,11 @@ export function ProspectPageClient({
       result = result.filter((p) => p.employee_count === employeeCountFilter);
     }
 
+    // Filter by department
+    if (departmentFilter !== "all") {
+      result = result.filter((p) => p.department === departmentFilter);
+    }
+
     // Filter by tag
     if (tagFilter !== "all") {
       result = result.filter((p) => p.tags?.includes(tagFilter));
@@ -228,12 +243,14 @@ export function ProspectPageClient({
     if (emailQualityFilter !== "all") {
       if (emailQualityFilter === "real") {
         result = result.filter((p) =>
+          p.email &&
           !p.email.endsWith('@crm-import.local') &&
           !p.email.endsWith('@directory-import.local') &&
           !p.email.endsWith('@linkedin-prospect.local')
         );
       } else if (emailQualityFilter === "missing") {
         result = result.filter((p) =>
+          !p.email ||
           p.email.endsWith('@crm-import.local') ||
           p.email.endsWith('@directory-import.local') ||
           p.email.endsWith('@linkedin-prospect.local')
@@ -250,6 +267,7 @@ export function ProspectPageClient({
         );
       } else if (emailQualityFilter === "not_verified") {
         result = result.filter((p) =>
+          p.email &&
           !p.email.endsWith('@crm-import.local') &&
           !p.email.endsWith('@directory-import.local') &&
           !p.email.endsWith('@linkedin-prospect.local') &&
@@ -258,18 +276,27 @@ export function ProspectPageClient({
       }
     }
 
-    // Sort
+    // Sort — nulls always last regardless of direction
+    const numericFields = new Set(["nb_properties", "lead_score", "email_validity_score"]);
     result = [...result].sort((a, b) => {
-      const aVal = (a[sortField as keyof Prospect] ?? "") as string;
-      const bVal = (b[sortField as keyof Prospect] ?? "") as string;
-      const cmp = aVal
-        .toString()
-        .localeCompare(bVal.toString(), "fr", { sensitivity: "base" });
+      const aRaw = a[sortField as keyof Prospect];
+      const bRaw = b[sortField as keyof Prospect];
+      const aNull = aRaw == null || aRaw === "";
+      const bNull = bRaw == null || bRaw === "";
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      let cmp: number;
+      if (numericFields.has(sortField)) {
+        cmp = Number(aRaw) - Number(bRaw);
+      } else {
+        cmp = aRaw!.toString().localeCompare(bRaw!.toString(), "fr", { sensitivity: "base" });
+      }
       return sortDirection === "asc" ? cmp : -cmp;
     });
 
     return result;
-  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, tagFilter, leadScoreFilter, emailQualityFilter, sortField, sortDirection]);
+  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, departmentFilter, tagFilter, leadScoreFilter, emailQualityFilter, sortField, sortDirection]);
 
   // Stats
   const stats = useMemo(() => {
@@ -280,7 +307,7 @@ export function ProspectPageClient({
       if (crmStatus === 'lost') s.lost++;
       else if (crmStatus === 'converted') s.converted++;
       else s.active++;
-      if (!cf.needs_email && !p.email.endsWith('@crm-import.local') && !p.email.endsWith('@directory-import.local')) s.withEmail++;
+      if (!cf.needs_email && p.email && !p.email.endsWith('@crm-import.local') && !p.email.endsWith('@directory-import.local')) s.withEmail++;
     }
     return s;
   }, [prospects]);
@@ -496,8 +523,8 @@ export function ProspectPageClient({
     );
   }
 
-  function isPlaceholderEmail(email: string) {
-    return email.endsWith('@crm-import.local') || email.endsWith('@directory-import.local') || email.endsWith('@linkedin-prospect.local');
+  function isPlaceholderEmail(email: string | null) {
+    return !email || email.endsWith('@crm-import.local') || email.endsWith('@directory-import.local') || email.endsWith('@linkedin-prospect.local');
   }
 
   function SortableHeader({
@@ -537,9 +564,10 @@ export function ProspectPageClient({
     );
   }
 
-  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || search.trim() !== "";
+  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || departmentFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || search.trim() !== "";
 
   const advancedFilterCount = [
+    departmentFilter !== "all",
     countryFilter !== "all",
     industryFilter !== "all",
     cityFilter !== "all",
@@ -709,6 +737,28 @@ export function ProspectPageClient({
                   })}
                 </SelectContent>
               </Select>
+
+              {availableDepartments.length > 0 && (
+                <Select
+                  value={departmentFilter}
+                  onValueChange={(value) => { setDepartmentFilter(value); setPage(1); }}
+                >
+                  <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectValue placeholder="Departement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous departements</SelectItem>
+                    {availableDepartments.map((dept) => {
+                      const config = DEPARTMENTS[dept];
+                      return (
+                        <SelectItem key={dept} value={dept}>
+                          {config?.label || dept}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select
                 value={cityFilter}
@@ -885,6 +935,12 @@ export function ProspectPageClient({
                 <X className="size-3" />
               </Badge>
             )}
+            {departmentFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setDepartmentFilter("all"); setPage(1); }}>
+                {DEPARTMENTS[departmentFilter]?.label || departmentFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
             {cityFilter !== "all" && (
               <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setCityFilter("all"); setPage(1); }}>
                 {cityFilter}
@@ -937,6 +993,7 @@ export function ProspectPageClient({
                 setSourceFilter("all");
                 setIndustryFilter("all");
                 setCityFilter("all");
+                setDepartmentFilter("all");
                 setEmployeeCountFilter("all");
                 setTagFilter("all");
                 setLeadScoreFilter("all");
@@ -1027,13 +1084,12 @@ export function ProspectPageClient({
               </TableHead>
               <SortableHeader field="first_name" label="Nom" />
               <SortableHeader field="company" label="Entreprise" />
-              <TableHead className="text-right w-[60px]">Biens</TableHead>
-              <TableHead>Pays</TableHead>
-              <TableHead>Pipeline</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Score</TableHead>
-              <TableHead>Email%</TableHead>
+              <SortableHeader field="nb_properties" label="Biens" />
+              <SortableHeader field="country" label="Pays" />
+              <SortableHeader field="pipeline_stage" label="Pipeline" />
+              <SortableHeader field="source" label="Source" />
+              <SortableHeader field="lead_score" label="Score IA" />
+              <SortableHeader field="email_validity_score" label="Fiabilité" />
               <SortableHeader field="email" label="Email" />
               <SortableHeader field="created_at" label="Date" />
               <TableHead className="w-[50px]" />
@@ -1054,7 +1110,7 @@ export function ProspectPageClient({
             ) : (
               paginatedProspects.map((prospect) => {
                 const cf = (prospect.custom_fields || {}) as CustomFields;
-                const hasLossReason = cf.crm_status === 'lost' && prospect.loss_reason;
+                const hasLossReason = !!prospect.loss_reason;
 
                 return (
                   <TableRow key={prospect.id} className={cf.crm_status === 'lost' ? 'bg-red-50/30' : cf.crm_status === 'converted' ? 'bg-green-50/30' : ''}>

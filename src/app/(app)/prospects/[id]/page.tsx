@@ -142,8 +142,28 @@ export default async function ProspectPage({ params }: ProspectPageProps) {
     };
   });
 
+  // Fetch CRM activities from prospect_activities table
+  const { data: crmActivities } = await supabase
+    .from("prospect_activities")
+    .select("id, activity_type, channel, subject, body, metadata, created_at")
+    .eq("prospect_id", id)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  const crmEvents: TimelineEvent[] = (crmActivities || []).map((activity) => {
+    return {
+      id: `pa-${activity.id}`,
+      type: activity.activity_type as TimelineEvent["type"],
+      channel: (activity.channel || "manual") as TimelineEvent["channel"],
+      description: activity.subject || activity.activity_type,
+      detail: activity.body || undefined,
+      date: activity.created_at,
+    };
+  });
+
   // Merge and sort all events chronologically (newest first)
-  const allEvents = [...emailEvents, ...linkedinEvents].sort(
+  // Deduplicate by checking for similar events at the same time
+  const allEvents = [...emailEvents, ...linkedinEvents, ...crmEvents].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 

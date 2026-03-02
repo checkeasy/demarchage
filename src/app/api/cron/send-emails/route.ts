@@ -174,6 +174,13 @@ export async function POST(request: NextRequest) {
           custom_fields: item.custom_fields,
         });
 
+        // Add booking URL from email account
+        const bookingUrl = (item as Record<string, unknown>).booking_url as string | null;
+        if (bookingUrl) {
+          templateData.bookingUrl = bookingUrl;
+          templateData.bookingLink = `<a href="${bookingUrl}" target="_blank">Reserver un creneau</a>`;
+        }
+
         const mergedSubject = mergeTemplate(subject, templateData);
         let mergedBody = mergeTemplate(bodyHtml, templateData);
         const mergedText = bodyText

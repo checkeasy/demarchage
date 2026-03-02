@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT_OWNER_FINDER } from '@/lib/ai/prompts';
 import { getLinkedInClient, LinkedInError } from '@/lib/linkedin';
 
@@ -30,7 +30,7 @@ const OWNER_PAGES = [
   '/',
 ];
 
-const OPENAI_MODEL = 'gpt-5-mini-2025-08-07';
+const CLAUDE_MODEL = 'claude-opus-4-6';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -125,35 +125,22 @@ export async function findOwner(
     const combinedText = allTexts.join('\n\n').slice(0, 15000);
 
     // Call AI to extract owner name
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const response = await openai.responses.create({
-      model: OPENAI_MODEL,
-      input: [
-        { role: 'system', content: SYSTEM_PROMPT_OWNER_FINDER },
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      system: SYSTEM_PROMPT_OWNER_FINDER,
+      messages: [
         {
           role: 'user',
           content: `Entreprise : "${businessName}"\nSite web : ${websiteUrl}\n\nContenu scrape des pages du site :\n\n${combinedText}`,
         },
       ],
-      text: {
-        format: { type: 'json_object' },
-      },
+      max_tokens: 1024,
     });
 
-    // Parse AI response - handle the response object format
-    let responseText = '';
-    if (response.output && Array.isArray(response.output)) {
-      for (const item of response.output) {
-        if (item.type === 'message' && item.content) {
-          for (const block of item.content) {
-            if (block.type === 'output_text') {
-              responseText = block.text;
-            }
-          }
-        }
-      }
-    }
+    const responseText =
+      response.content[0]?.type === 'text' ? response.content[0].text : '';
 
     if (!responseText) {
       console.error('[OwnerFinder] No text in AI response');

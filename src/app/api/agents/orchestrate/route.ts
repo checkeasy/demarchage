@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error) {
       if (error.message.includes('API key') || error.message.includes('api_key')) {
         return NextResponse.json(
-          { error: 'Cle API OpenAI invalide ou manquante' },
+          { error: 'Cle API Anthropic invalide ou manquante' },
           { status: 500 }
         );
       }

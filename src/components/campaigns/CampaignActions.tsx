@@ -3,8 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Play, Pause, Edit, Loader2, Copy } from "lucide-react";
+import { Play, Pause, Edit, Loader2, Copy, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface CampaignActionsProps {
@@ -14,7 +25,28 @@ interface CampaignActionsProps {
 
 export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+
+  async function deleteCampaign() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Campagne supprimee");
+        router.push("/campaigns");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la suppression");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function updateStatus(newStatus: string) {
     setLoading(true);
@@ -100,6 +132,28 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
           Dupliquer
         </Button>
       )}
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting}>
+            {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette campagne ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irreversible. La campagne, ses etapes, ses prospects associes et tous les emails envoyes seront definitivement supprimes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteCampaign} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

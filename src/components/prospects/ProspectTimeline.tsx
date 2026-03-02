@@ -12,30 +12,78 @@ import {
   AlertTriangle,
   ChevronDown,
   Linkedin,
+  Phone,
+  PhoneCall,
+  CalendarCheck,
+  CalendarClock,
+  StickyNote,
+  ArrowRightLeft,
+  Bot,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export interface TimelineEvent {
   id: string;
-  type: "email_sent" | "email_opened" | "email_clicked" | "email_replied" | "email_bounced"
-    | "linkedin_view" | "linkedin_connect" | "linkedin_message" | "linkedin_check" | "linkedin_email";
-  channel: "email" | "linkedin";
+  type:
+    | "email_sent" | "email_opened" | "email_clicked" | "email_replied" | "email_bounced"
+    | "linkedin_view" | "linkedin_connect" | "linkedin_message" | "linkedin_check" | "linkedin_email"
+    // CRM activity types
+    | "call_logged" | "meeting_scheduled" | "meeting_completed"
+    | "note_added" | "status_changed"
+    | "reply_received"
+    | "linkedin_connect_sent" | "linkedin_connect_accepted" | "linkedin_message_sent" | "linkedin_reply_received" | "linkedin_profile_viewed"
+    | "whatsapp_sent" | "whatsapp_delivered" | "whatsapp_read" | "whatsapp_reply_received"
+    | "ai_reply_analysis" | "ai_research";
+  channel: "email" | "linkedin" | "whatsapp" | "phone" | "manual" | "ai";
   description: string;
   detail?: string;
   date: string;
 }
 
-const EVENT_CONFIG: Record<string, { icon: React.ElementType; color: string; bgColor: string }> = {
-  email_sent: { icon: Mail, color: "text-blue-600", bgColor: "bg-blue-50" },
-  email_opened: { icon: MailOpen, color: "text-green-600", bgColor: "bg-green-50" },
-  email_clicked: { icon: MousePointerClick, color: "text-purple-600", bgColor: "bg-purple-50" },
-  email_replied: { icon: MessageSquareReply, color: "text-emerald-600", bgColor: "bg-emerald-50" },
-  email_bounced: { icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-50" },
-  linkedin_view: { icon: Eye, color: "text-slate-600", bgColor: "bg-slate-100" },
-  linkedin_connect: { icon: UserPlus, color: "text-blue-600", bgColor: "bg-blue-50" },
-  linkedin_message: { icon: MessageSquare, color: "text-green-600", bgColor: "bg-green-50" },
-  linkedin_check: { icon: Linkedin, color: "text-sky-600", bgColor: "bg-sky-50" },
-  linkedin_email: { icon: Mail, color: "text-purple-600", bgColor: "bg-purple-50" },
+const EVENT_CONFIG: Record<string, { icon: React.ElementType; color: string; bgColor: string; label: string }> = {
+  // Email
+  email_sent: { icon: Mail, color: "text-blue-600", bgColor: "bg-blue-50", label: "Email" },
+  email_opened: { icon: MailOpen, color: "text-green-600", bgColor: "bg-green-50", label: "Email ouvert" },
+  email_clicked: { icon: MousePointerClick, color: "text-purple-600", bgColor: "bg-purple-50", label: "Clic" },
+  email_replied: { icon: MessageSquareReply, color: "text-emerald-600", bgColor: "bg-emerald-50", label: "Reponse" },
+  email_bounced: { icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-50", label: "Bounce" },
+  reply_received: { icon: MessageSquareReply, color: "text-emerald-600", bgColor: "bg-emerald-50", label: "Reponse" },
+  // LinkedIn
+  linkedin_view: { icon: Eye, color: "text-slate-600", bgColor: "bg-slate-100", label: "LinkedIn" },
+  linkedin_connect: { icon: UserPlus, color: "text-blue-600", bgColor: "bg-blue-50", label: "LinkedIn" },
+  linkedin_message: { icon: MessageSquare, color: "text-green-600", bgColor: "bg-green-50", label: "LinkedIn" },
+  linkedin_check: { icon: Linkedin, color: "text-sky-600", bgColor: "bg-sky-50", label: "LinkedIn" },
+  linkedin_email: { icon: Mail, color: "text-purple-600", bgColor: "bg-purple-50", label: "LinkedIn" },
+  linkedin_connect_sent: { icon: UserPlus, color: "text-blue-600", bgColor: "bg-blue-50", label: "LinkedIn" },
+  linkedin_connect_accepted: { icon: UserPlus, color: "text-green-600", bgColor: "bg-green-50", label: "Connexion" },
+  linkedin_message_sent: { icon: MessageSquare, color: "text-blue-600", bgColor: "bg-blue-50", label: "LinkedIn" },
+  linkedin_reply_received: { icon: MessageSquareReply, color: "text-emerald-600", bgColor: "bg-emerald-50", label: "LinkedIn" },
+  linkedin_profile_viewed: { icon: Eye, color: "text-slate-600", bgColor: "bg-slate-100", label: "LinkedIn" },
+  // Phone / CRM
+  call_logged: { icon: PhoneCall, color: "text-orange-600", bgColor: "bg-orange-50", label: "Appel" },
+  meeting_scheduled: { icon: CalendarClock, color: "text-indigo-600", bgColor: "bg-indigo-50", label: "RDV" },
+  meeting_completed: { icon: CalendarCheck, color: "text-indigo-600", bgColor: "bg-indigo-50", label: "RDV" },
+  note_added: { icon: StickyNote, color: "text-amber-600", bgColor: "bg-amber-50", label: "Note" },
+  status_changed: { icon: ArrowRightLeft, color: "text-slate-600", bgColor: "bg-slate-100", label: "Statut" },
+  // WhatsApp
+  whatsapp_sent: { icon: MessageSquare, color: "text-green-600", bgColor: "bg-green-50", label: "WhatsApp" },
+  whatsapp_delivered: { icon: MessageSquare, color: "text-green-600", bgColor: "bg-green-50", label: "WhatsApp" },
+  whatsapp_read: { icon: MessageSquare, color: "text-green-600", bgColor: "bg-green-50", label: "WhatsApp" },
+  whatsapp_reply_received: { icon: MessageSquareReply, color: "text-green-600", bgColor: "bg-green-50", label: "WhatsApp" },
+  // AI
+  ai_reply_analysis: { icon: Bot, color: "text-violet-600", bgColor: "bg-violet-50", label: "IA" },
+  ai_research: { icon: Search, color: "text-violet-600", bgColor: "bg-violet-50", label: "IA" },
+};
+
+const CHANNEL_ICONS: Record<string, { icon: React.ElementType; label: string }> = {
+  email: { icon: Mail, label: "Email" },
+  linkedin: { icon: Linkedin, label: "LinkedIn" },
+  phone: { icon: Phone, label: "Telephone" },
+  whatsapp: { icon: MessageSquare, label: "WhatsApp" },
+  manual: { icon: StickyNote, label: "Manuel" },
+  ai: { icon: Bot, label: "IA" },
 };
 
 interface ProspectTimelineProps {
@@ -44,9 +92,19 @@ interface ProspectTimelineProps {
 
 export function ProspectTimeline({ events }: ProspectTimelineProps) {
   const [showAll, setShowAll] = useState(false);
-  const INITIAL_COUNT = 10;
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const INITIAL_COUNT = 15;
 
   const visibleEvents = showAll ? events : events.slice(0, INITIAL_COUNT);
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   if (events.length === 0) {
     return (
@@ -59,9 +117,13 @@ export function ProspectTimeline({ events }: ProspectTimelineProps) {
   return (
     <div className="space-y-0">
       {visibleEvents.map((event, index) => {
-        const config = EVENT_CONFIG[event.type] || EVENT_CONFIG.email_sent;
+        const config = EVENT_CONFIG[event.type] || EVENT_CONFIG.note_added;
         const Icon = config.icon;
         const isLast = index === visibleEvents.length - 1;
+        const channelInfo = CHANNEL_ICONS[event.channel] || CHANNEL_ICONS.manual;
+        const ChannelIcon = channelInfo.icon;
+        const isExpanded = expandedIds.has(event.id);
+        const hasLongDetail = event.detail && event.detail.length > 120;
 
         return (
           <div key={event.id} className="relative flex gap-3">
@@ -79,11 +141,29 @@ export function ProspectTimeline({ events }: ProspectTimelineProps) {
 
             {/* Content */}
             <div className="flex-1 pb-4 min-w-0">
-              <p className="text-sm text-slate-900">{event.description}</p>
+              <div className="flex items-start gap-2">
+                <p className="text-sm text-slate-900 flex-1">{event.description}</p>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 h-5">
+                  {config.label}
+                </Badge>
+              </div>
               {event.detail && (
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {event.detail}
-                </p>
+                <div
+                  className={`mt-1 text-xs text-muted-foreground bg-slate-50 rounded px-2 py-1.5 border border-slate-100 ${
+                    !isExpanded && hasLongDetail ? "line-clamp-3 cursor-pointer" : ""
+                  }`}
+                  onClick={() => hasLongDetail && toggleExpand(event.id)}
+                >
+                  <span className="whitespace-pre-wrap">{event.detail}</span>
+                </div>
+              )}
+              {hasLongDetail && !isExpanded && (
+                <button
+                  onClick={() => toggleExpand(event.id)}
+                  className="text-[10px] text-primary hover:underline mt-0.5"
+                >
+                  Voir plus...
+                </button>
               )}
               <p className="text-[10px] text-muted-foreground mt-1">
                 {new Date(event.date).toLocaleDateString("fr-FR", {
@@ -94,12 +174,8 @@ export function ProspectTimeline({ events }: ProspectTimelineProps) {
                   minute: "2-digit",
                 })}
                 <span className="ml-2 inline-flex items-center gap-0.5">
-                  {event.channel === "email" ? (
-                    <Mail className="size-2.5" />
-                  ) : (
-                    <Linkedin className="size-2.5" />
-                  )}
-                  {event.channel === "email" ? "Email" : "LinkedIn"}
+                  <ChannelIcon className="size-2.5" />
+                  {channelInfo.label}
                 </span>
               </p>
             </div>

@@ -40,6 +40,9 @@ import {
   QrCode,
   Wifi,
   WifiOff,
+  CalendarCheck,
+  Pencil,
+  ExternalLink,
 } from "lucide-react";
 
 interface EmailAccountForm {
@@ -57,6 +60,7 @@ interface EmailAccountForm {
   daily_limit: number;
   signature_html: string;
   warmup_enabled: boolean;
+  booking_url: string;
 }
 
 export default function SettingsPage() {
@@ -75,6 +79,7 @@ export default function SettingsPage() {
       health_score: number;
       daily_limit: number;
       warmup_enabled: boolean;
+      booking_url: string | null;
     }>
   >([]);
   const [showAddEmail, setShowAddEmail] = useState(false);
@@ -94,6 +99,7 @@ export default function SettingsPage() {
     daily_limit: 50,
     signature_html: "",
     warmup_enabled: false,
+    booking_url: "",
   });
 
   // LinkedIn state
@@ -115,6 +121,10 @@ export default function SettingsPage() {
   const [whatsappLastError, setWhatsappLastError] = useState("");
   const [whatsappConnecting, setWhatsappConnecting] = useState(false);
   const [whatsappPolling, setWhatsappPolling] = useState(false);
+
+  // Booking URL edit state
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [editingBookingUrl, setEditingBookingUrl] = useState("");
 
   const supabase = createClient();
 
@@ -152,7 +162,7 @@ export default function SettingsPage() {
     const { data: accounts } = await supabase
       .from("email_accounts")
       .select(
-        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled"
+        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, booking_url"
       )
       .eq("workspace_id", profile.current_workspace_id);
 
@@ -293,6 +303,7 @@ export default function SettingsPage() {
       daily_limit: newAccount.daily_limit,
       signature_html: newAccount.signature_html || "",
       warmup_enabled: newAccount.warmup_enabled,
+      booking_url: newAccount.booking_url || null,
     });
 
     if (error) {
@@ -315,6 +326,21 @@ export default function SettingsPage() {
       toast.error("Erreur lors de la suppression");
     } else {
       toast.success("Compte email supprime");
+      loadSettings();
+    }
+  }
+
+  async function saveBookingUrl(accountId: string, url: string) {
+    const { error } = await supabase
+      .from("email_accounts")
+      .update({ booking_url: url || null })
+      .eq("id", accountId);
+
+    if (error) {
+      toast.error("Erreur lors de la sauvegarde du lien");
+    } else {
+      toast.success("Lien de prise de RDV sauvegarde");
+      setEditingBookingId(null);
       loadSettings();
     }
   }
@@ -571,42 +597,108 @@ export default function SettingsPage() {
           {/* Existing accounts */}
           {emailAccounts.map((account) => (
             <Card key={account.id}>
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-3 w-3 rounded-full ${
-                      account.is_active ? "bg-green-500" : "bg-gray-300"
-                    }`}
-                  />
-                  <div>
-                    <p className="font-medium">{account.email_address}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {account.display_name || account.provider} - Limite: {account.daily_limit}/jour
-                    </p>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`h-3 w-3 rounded-full ${
+                        account.is_active ? "bg-green-500" : "bg-gray-300"
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium">{account.email_address}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {account.display_name || account.provider} - Limite: {account.daily_limit}/jour
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={
+                        account.health_score > 80
+                          ? "default"
+                          : account.health_score > 50
+                          ? "secondary"
+                          : "destructive"
+                      }
+                    >
+                      Sante: {account.health_score}%
+                    </Badge>
+                    {account.warmup_enabled && (
+                      <Badge variant="outline">Warmup actif</Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteEmailAccount(account.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      account.health_score > 80
-                        ? "default"
-                        : account.health_score > 50
-                        ? "secondary"
-                        : "destructive"
-                    }
-                  >
-                    Sante: {account.health_score}%
-                  </Badge>
-                  {account.warmup_enabled && (
-                    <Badge variant="outline">Warmup actif</Badge>
+                {/* Booking URL */}
+                <div className="flex items-center gap-2 pl-6">
+                  <CalendarCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                  {editingBookingId === account.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={editingBookingUrl}
+                        onChange={(e) => setEditingBookingUrl(e.target.value)}
+                        placeholder="https://tidycal.com/votre-lien"
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8"
+                        onClick={() => saveBookingUrl(account.id, editingBookingUrl)}
+                      >
+                        Sauvegarder
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8"
+                        onClick={() => setEditingBookingId(null)}
+                      >
+                        Annuler
+                      </Button>
+                    </div>
+                  ) : account.booking_url ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <a
+                        href={account.booking_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline truncate max-w-[300px]"
+                      >
+                        {account.booking_url}
+                      </a>
+                      <ExternalLink className="h-3 w-3 text-blue-600 shrink-0" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => {
+                          setEditingBookingId(account.id);
+                          setEditingBookingUrl(account.booking_url || "");
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-sm text-muted-foreground"
+                      onClick={() => {
+                        setEditingBookingId(account.id);
+                        setEditingBookingUrl("");
+                      }}
+                    >
+                      + Ajouter un lien de prise de RDV
+                    </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteEmailAccount(account.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -777,6 +869,23 @@ export default function SettingsPage() {
                     />
                     <Label>Activer le warmup</Label>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Lien de prise de RDV (TidyCal, Calendly...)</Label>
+                  <Input
+                    value={newAccount.booking_url}
+                    onChange={(e) =>
+                      setNewAccount((p) => ({
+                        ...p,
+                        booking_url: e.target.value,
+                      }))
+                    }
+                    placeholder="https://tidycal.com/votre-lien"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    L&apos;IA pourra proposer ce lien dans les emails pour inviter les prospects a reserver un creneau.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

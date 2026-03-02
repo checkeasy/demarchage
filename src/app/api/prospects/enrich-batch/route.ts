@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Fetch prospects
     const { data: prospects, error: fetchError } = await admin
       .from('prospects')
-      .select('id, first_name, last_name, company, job_title, location, city, industry, employee_count, lead_score, linkedin_url, website, custom_fields')
+      .select('id, first_name, last_name, company, job_title, location, city, industry, employee_count, lead_score, linkedin_url, website, phone, nb_properties, pipeline_stage, loss_reason, source, custom_fields')
       .in('id', prospectIds);
 
     if (fetchError || !prospects) {
@@ -63,10 +63,19 @@ export async function POST(request: NextRequest) {
       const batch = toEnrich.slice(i, i + 5);
       const results = await Promise.allSettled(
         batch.map(async (prospect) => {
+          const cf = (prospect.custom_fields || {}) as Record<string, unknown>;
+          const otaListings = cf.ota_listings as Record<string, number | null> | undefined;
+          const otaInfo = otaListings ? Object.entries(otaListings).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+
           const prompt = `Analyse ce prospect B2B et determine:
 1. industry: le secteur d'activite (ex: Immobilier, SaaS, Construction, Tourisme, Restauration, Commerce, Sante, Finance, Education, Consulting, Industrie, Transport, Autre)
 2. employee_count: la taille estimee de l'entreprise (1-10, 11-50, 51-200, 201-500, 500+)
-3. lead_score: un score de 0 a 100 basé sur la qualite du prospect pour de la prospection B2B (plus le profil est complet et l'entreprise pertinente, plus le score est haut)
+3. lead_score: un score de 0 a 100. CRITERES IMPORTANTS pour le score:
+   - Completude du profil (email, telephone, LinkedIn, site web)
+   - Taille de l'entreprise / nombre de biens geres
+   - Etape pipeline (plus avance = plus chaud)
+   - Retour commercial : si le commercial a note "PAS LA CIBLE", "pas interesse", "n'existe plus" → score tres bas (0-15). Si "en nego", "demo faite" → score eleve (70+)
+   - Un prospect avec beaucoup de biens geres et un vrai email est plus interessant
 
 Informations disponibles:
 - Nom: ${prospect.first_name || ''} ${prospect.last_name || ''}
@@ -75,11 +84,16 @@ Informations disponibles:
 - Ville: ${prospect.city || prospect.location || 'Inconnue'}
 - LinkedIn: ${prospect.linkedin_url || 'Non disponible'}
 - Site web: ${prospect.website || 'Non disponible'}
+- Telephone: ${prospect.phone || 'Non disponible'}
+- Nb biens geres: ${prospect.nb_properties ?? 'Inconnu'}
+- Etape pipeline: ${prospect.pipeline_stage || 'Aucune'}
+- Source: ${prospect.source || 'Inconnue'}
+- Retour commercial: ${prospect.loss_reason || 'Aucun retour'}${otaInfo ? `\n- Listings OTA: ${otaInfo}` : ''}
 
 Reponds UNIQUEMENT en JSON valide: {"industry": "...", "employee_count": "...", "lead_score": 0}`;
 
           const response = await getAnthropic().messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-opus-4-6',
             max_tokens: 200,
             temperature: 0.3,
             messages: [{ role: 'user', content: prompt }],

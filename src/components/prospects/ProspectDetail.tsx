@@ -31,6 +31,8 @@ import {
   Star,
   ExternalLink,
   BarChart3,
+  Upload,
+  PhoneCall,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +64,8 @@ import { ProspectTimeline, type TimelineEvent } from "./ProspectTimeline";
 import { AIResearchCard } from "./AIResearchCard";
 import { AISuggestedReplyCard } from "./AISuggestedReplyCard";
 import { NoteList } from "@/components/notes/NoteList";
+import { AddActivityDialog } from "./AddActivityDialog";
+import { ImportCrmHistoryDialog } from "./ImportCrmHistoryDialog";
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
 type CrmStatus = keyof typeof CRM_STATUSES;
@@ -130,7 +134,7 @@ export function ProspectDetail({
   const crmConfig = crmStatus ? CRM_STATUSES[crmStatus] : null;
   const pipelineConfig = pipelineStage ? PIPELINE_STAGES[pipelineStage] : null;
   const countryConfig = cf.country ? COUNTRIES[cf.country as keyof typeof COUNTRIES] : null;
-  const isPlaceholderEmail = prospect.email.endsWith('@crm-import.local') || prospect.email.endsWith('@linkedin-prospect.local');
+  const isPlaceholderEmail = !prospect.email || prospect.email.endsWith('@crm-import.local') || prospect.email.endsWith('@linkedin-prospect.local');
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -143,6 +147,16 @@ export function ProspectDetail({
   const [enrolling, setEnrolling] = useState(false);
 
   const hasConflict = campaigns.length > 0 && automations.length > 0;
+
+  // Activity dialogs
+  const [showAddActivity, setShowAddActivity] = useState(false);
+  const [showImportCrm, setShowImportCrm] = useState(false);
+
+  const prospectName = [prospect.first_name, prospect.last_name].filter(Boolean).join(' ') || prospect.company || 'Prospect';
+
+  const handleActivityRefresh = () => {
+    router.refresh();
+  };
 
   // CRM custom fields editing state
   const [isEditingCrm, setIsEditingCrm] = useState(false);
@@ -503,13 +517,15 @@ export function ProspectDetail({
 
       <Separator />
 
-      {/* Loss reason alert */}
-      {cf.crm_status === 'lost' && cf.loss_reason && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-          <AlertCircle className="size-4 text-red-500 mt-0.5 shrink-0" />
+      {/* Loss reason / Notes alert */}
+      {cf.loss_reason && (
+        <div className={`${cf.crm_status === 'lost' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-3 flex items-start gap-2`}>
+          <AlertCircle className={`size-4 ${cf.crm_status === 'lost' ? 'text-red-500' : 'text-amber-500'} mt-0.5 shrink-0`} />
           <div>
-            <p className="text-sm font-medium text-red-800">Raison de la perte</p>
-            <p className="text-sm text-red-700">{cf.loss_reason}</p>
+            <p className={`text-sm font-medium ${cf.crm_status === 'lost' ? 'text-red-800' : 'text-amber-800'}`}>
+              {cf.crm_status === 'lost' ? 'Raison de la perte' : 'Note / Retour'}
+            </p>
+            <p className={`text-sm ${cf.crm_status === 'lost' ? 'text-red-700' : 'text-amber-700'}`}>{cf.loss_reason}</p>
           </div>
         </div>
       )}
@@ -1133,13 +1149,51 @@ export function ProspectDetail({
 
       {/* Unified activity timeline */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Activite</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="size-4" />
+            Historique ({timelineEvents.length})
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowImportCrm(true)}
+            >
+              <Upload className="size-3 mr-1" />
+              Import CRM
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowAddActivity(true)}
+            >
+              <Plus className="size-3 mr-1" />
+              Activite
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ProspectTimeline events={timelineEvents} />
         </CardContent>
       </Card>
+
+      {/* Activity dialogs */}
+      <AddActivityDialog
+        open={showAddActivity}
+        onOpenChange={setShowAddActivity}
+        prospectId={prospect.id}
+        onActivityAdded={handleActivityRefresh}
+      />
+      <ImportCrmHistoryDialog
+        open={showImportCrm}
+        onOpenChange={setShowImportCrm}
+        prospectId={prospect.id}
+        prospectName={prospectName}
+        onImported={handleActivityRefresh}
+      />
     </div>
   );
 }

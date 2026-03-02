@@ -1,6 +1,6 @@
 // Central file with all AI prompts for cold outreach message generation
 // Language: French (formal)
-// Model: gpt-5-mini-2025-08-07
+// Model: claude-opus-4-6
 
 // Fallback if no company context is configured in workspace settings
 const DEFAULT_PRODUCT_CONTEXT = `

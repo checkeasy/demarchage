@@ -133,6 +133,7 @@ export interface Database {
           warmup_current_volume: number;
           health_score: number;
           is_active: boolean;
+          booking_url: string | null;
           last_synced_at: string | null;
           created_at: string;
           updated_at: string;
@@ -159,6 +160,7 @@ export interface Database {
           warmup_current_volume?: number;
           health_score?: number;
           is_active?: boolean;
+          booking_url?: string | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -185,6 +187,7 @@ export interface Database {
           warmup_current_volume?: number;
           health_score?: number;
           is_active?: boolean;
+          booking_url?: string | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -215,6 +218,7 @@ export interface Database {
           employee_count: string | null;
           tags: string[];
           lead_score: number | null;
+          department: string | null;
           email_validity_score: number | null;
           email_verified_at: string | null;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
@@ -247,6 +251,7 @@ export interface Database {
           employee_count?: string | null;
           tags?: string[];
           lead_score?: number | null;
+          department?: string | null;
           email_validity_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
@@ -279,6 +284,7 @@ export interface Database {
           employee_count?: string | null;
           tags?: string[];
           lead_score?: number | null;
+          department?: string | null;
           email_validity_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
@@ -481,6 +487,33 @@ export type Prospect = Database["public"]["Tables"]["prospects"]["Row"];
 export type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
 export type SequenceStep = Database["public"]["Tables"]["sequence_steps"]["Row"];
 export type EmailSent = Database["public"]["Tables"]["emails_sent"]["Row"];
+
+// ─── Prospect Activity Types ─────────────────────────────────────────────────
+
+export type ProspectActivityType =
+  | "email_sent" | "email_opened" | "email_clicked" | "email_bounced" | "reply_received"
+  | "linkedin_connect_sent" | "linkedin_connect_accepted" | "linkedin_message_sent" | "linkedin_reply_received" | "linkedin_profile_viewed"
+  | "whatsapp_sent" | "whatsapp_delivered" | "whatsapp_read" | "whatsapp_reply_received"
+  | "ai_reply_analysis" | "ai_research"
+  | "note_added" | "status_changed" | "call_logged" | "meeting_scheduled" | "meeting_completed";
+
+export type ProspectActivityChannel = "email" | "linkedin" | "whatsapp" | "phone" | "manual" | "ai";
+
+export interface ProspectActivity {
+  id: string;
+  workspace_id: string;
+  prospect_id: string;
+  activity_type: ProspectActivityType;
+  channel: ProspectActivityChannel | null;
+  campaign_id: string | null;
+  sequence_id: string | null;
+  subject: string | null;
+  body: string | null;
+  metadata: Record<string, unknown>;
+  ai_analyzed: boolean | null;
+  performed_by: string | null;
+  created_at: string;
+}
 
 // ─── Agent System Types ──────────────────────────────────────────────────────
 

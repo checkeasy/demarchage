@@ -46,6 +46,7 @@ interface BuiltContext {
   campaign: CampaignContext;
   performance: PerformanceContext;
   memory: MemoryEntry[];
+  bookingUrl?: string | null;
 }
 
 // ─── Helper: Safe JSON Parse ────────────────────────────────────────────────
@@ -409,7 +410,23 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       this.fetchMemoryContext(task.workspaceId, task.prospectId),
     ]);
 
-    return { prospect, campaign, performance, memory };
+    // Fetch booking URL from the campaign's email account
+    let bookingUrl: string | null = null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(task.campaignId)) {
+      const supabase = createAdminClient();
+      const { data: campaignData } = await supabase
+        .from('campaigns')
+        .select('email_accounts!inner(booking_url)')
+        .eq('id', task.campaignId)
+        .single();
+      if (campaignData) {
+        const ea = campaignData.email_accounts as unknown as { booking_url: string | null };
+        bookingUrl = ea?.booking_url || null;
+      }
+    }
+
+    return { prospect, campaign, performance, memory, bookingUrl };
   }
 
   // ─── Private: Strategy Management ───────────────────────────────────────
@@ -661,6 +678,9 @@ ${context.performance.bestSubjectPatterns.length > 0 ? `- Meilleurs patterns obj
 ${context.performance.avoidSubjects.length > 0 ? `- Objets a eviter : ${context.performance.avoidSubjects.join(', ')}` : ''}
 
 ${memoryContext}
+${context.bookingUrl ? `LIEN DE PRISE DE RENDEZ-VOUS : ${context.bookingUrl}
+Tu PEUX proposer ce lien dans l'email si c'est pertinent (ex: "Si vous souhaitez en discuter, voici un lien pour reserver un creneau : ${context.bookingUrl}").
+Le lien doit paraitre naturel, ne le force pas si ca ne colle pas.` : ''}
 ${task.abTestVariant ? `VARIANTE A/B : ${task.abTestVariant} - Propose une approche differente.` : ''}
 
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;

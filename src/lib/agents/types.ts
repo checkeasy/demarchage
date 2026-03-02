@@ -98,17 +98,16 @@ Reponds toujours en JSON structure avec: company_description, industry, pain_poi
 
 // Model config per agent type
 export const AGENT_MODELS = {
-  ceo: 'claude-sonnet-4-5-20250929',
-  email_writer: 'claude-haiku-4-5-20251001',
-  linkedin_writer: 'claude-haiku-4-5-20251001',
-  response_handler: 'claude-sonnet-4-5-20250929',
-  prospect_researcher: 'claude-haiku-4-5-20251001',
+  ceo: 'claude-opus-4-6',
+  email_writer: 'claude-opus-4-6',
+  linkedin_writer: 'claude-opus-4-6',
+  response_handler: 'claude-opus-4-6',
+  prospect_researcher: 'claude-opus-4-6',
 } as const;
 
 // Cost per 1M tokens
 export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
-  'claude-sonnet-4-5-20250929': { input: 3.0, output: 15.0 },
+  'claude-opus-4-6': { input: 15.0, output: 75.0 },
 };
 
 // ─── Database-backed Configs ────────────────────────────────────────────────

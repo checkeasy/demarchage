@@ -53,14 +53,9 @@ interface AgentConfigDialogProps {
 
 const AVAILABLE_MODELS = [
   {
-    value: "claude-haiku-4-5-20251001",
-    label: "Claude Haiku 4.5",
-    description: "Rapide et economique",
-  },
-  {
-    value: "claude-sonnet-4-5-20250415",
-    label: "Claude Sonnet 4.5",
-    description: "Equilibre qualite/prix",
+    value: "claude-opus-4-6",
+    label: "Claude Opus 4.6",
+    description: "Le plus performant",
   },
 ];
 

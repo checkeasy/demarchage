@@ -102,9 +102,9 @@ export function mergeProspectData(
   }
 
   // Replace placeholder email with real one
-  const existingEmail = existing.email as string;
-  const incomingEmail = incoming.email as string;
-  if (existingEmail && (existingEmail.endsWith('@crm-import.local') || existingEmail.endsWith('@linkedin-prospect.local'))) {
+  const existingEmail = (existing.email as string) || null;
+  const incomingEmail = (incoming.email as string) || null;
+  if (!existingEmail || existingEmail.endsWith('@crm-import.local') || existingEmail.endsWith('@linkedin-prospect.local')) {
     if (incomingEmail && !incomingEmail.endsWith('@crm-import.local') && !incomingEmail.endsWith('@linkedin-prospect.local')) {
       merged.email = incomingEmail.toLowerCase();
     }

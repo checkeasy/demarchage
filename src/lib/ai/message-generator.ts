@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import {
   SYSTEM_PROMPT_CONNECTION,
   SYSTEM_PROMPT_FOLLOWUP,
@@ -106,17 +106,17 @@ export interface WebsiteDataForIcebreaker {
   products?: string[];
 }
 
-// ─── OpenAI Client (lazy to avoid crash during next build) ──────────────────
+// ─── Anthropic Client (lazy to avoid crash during next build) ────────────────
 
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
-  return _openai;
+  return _anthropic;
 }
 
-const OPENAI_MODEL = 'gpt-5-mini-2025-08-07';
+const CLAUDE_MODEL = 'claude-opus-4-6';
 
 // ─── Helper: Build Profile Description ──────────────────────────────────────
 
@@ -169,22 +169,12 @@ function buildContextDescription(context: MessageContext): string {
   return parts.join('\n');
 }
 
-// ─── Helper: Extract GPT Response Text ──────────────────────────────────────
+// ─── Helper: Extract Claude Response Text ───────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractResponseText(response: any): string {
-  let text = '';
-  if (!response.output) return text;
-  for (const item of response.output) {
-    if (item.type === 'message') {
-      for (const block of item.content) {
-        if (block.type === 'output_text' && block.text) {
-          text += block.text;
-        }
-      }
-    }
-  }
-  return text;
+function extractResponseText(response: Anthropic.Message): string {
+  const block = response.content[0];
+  if (block?.type === 'text') return block.text;
+  return '';
 }
 
 // ─── Message Generation Functions ───────────────────────────────────────────
@@ -199,13 +189,10 @@ export async function generateConnectionMessage(
   const profileDesc = buildProfileDescription(profile);
   const contextDesc = buildContextDescription(context);
 
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_CONNECTION,
-      },
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_CONNECTION,
+    messages: [
       {
         role: 'user',
         content: `Genere un message de connexion LinkedIn personnalise pour ce prospect.
@@ -219,11 +206,7 @@ ${contextDesc}
 Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions systeme.`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 1024,
   });
 
   const text = extractResponseText(response);
@@ -263,13 +246,10 @@ export async function generateFollowUpMessage(
     (msg) => msg.role === 'assistant'
   ).length + 1;
 
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_FOLLOWUP,
-      },
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_FOLLOWUP,
+    messages: [
       {
         role: 'user',
         content: `Genere un message de suivi LinkedIn (follow-up #${followUpNumber}) personnalise pour ce prospect.
@@ -287,11 +267,7 @@ C'est le follow-up numero ${followUpNumber}. Adapte le ton et le contenu en cons
 Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions systeme.`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 1024,
   });
 
   const text = extractResponseText(response);
@@ -312,13 +288,10 @@ export async function generateEmailSequence(
   // Clamp numSteps between 2 and 7
   const steps = Math.max(2, Math.min(7, numSteps));
 
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_EMAIL,
-      },
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_EMAIL,
+    messages: [
       {
         role: 'user',
         content: `Genere une sequence de ${steps} emails de prospection personnalisee pour ce prospect.
@@ -341,11 +314,7 @@ Rappel de la structure attendue :
 Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions systeme.`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 4096,
   });
 
   const text = extractResponseText(response);
@@ -378,13 +347,10 @@ export async function generateIcebreaker(
     websiteInfo = `\n\nDONNEES DU SITE WEB DU PROSPECT :\n${wParts.join('\n')}`;
   }
 
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_ICEBREAKER,
-      },
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_ICEBREAKER,
+    messages: [
       {
         role: 'user',
         content: `Genere un icebreaker personnalise pour ce prospect.
@@ -395,11 +361,7 @@ ${profileDesc}${websiteInfo}
 Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions systeme.`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 1024,
   });
 
   const text = extractResponseText(response);
@@ -414,13 +376,10 @@ export async function analyzeProfileForOutreach(
 ): Promise<ProfileAnalysisResult> {
   const profileDesc = buildProfileDescription(profile);
 
-  const response = await getOpenAI().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT_ANALYSIS,
-      },
+  const response = await getAnthropic().messages.create({
+    model: CLAUDE_MODEL,
+    system: SYSTEM_PROMPT_ANALYSIS,
+    messages: [
       {
         role: 'user',
         content: `Analyse ce profil de prospect et fournis tes recommandations pour la prospection avec CheckEasy.
@@ -431,11 +390,7 @@ ${profileDesc}
 Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions systeme.`,
       },
     ],
-    text: {
-      format: {
-        type: 'json_object',
-      },
-    },
+    max_tokens: 2048,
   });
 
   const text = extractResponseText(response);
