@@ -73,6 +73,28 @@ function extractFirstUrl(val: string | undefined | null): string {
   return '';
 }
 
+/** Convert a domain name to a readable company name.
+ *  e.g. "chaletsdevalloire.com" → "Chaletsdevalloire"
+ *       "ouest-ocean.com" → "Ouest Ocean"
+ *       "ibis.accor.com" → "Ibis Accor"
+ */
+function domainToCompanyName(domain: string): string {
+  if (!domain) return '';
+  const KNOWN_TLDS = new Set(['com','fr','net','org','eu','ch','io','me','uk','de','it','es','be','nl','at','co']);
+  // Remove www prefix
+  let d = domain.toLowerCase().replace(/^(www\.)?/, '').trim();
+  if (!d) return '';
+  // Split by dots and remove known TLD parts from the end
+  const parts = d.split('.');
+  while (parts.length > 1 && KNOWN_TLDS.has(parts[parts.length - 1])) {
+    parts.pop();
+  }
+  if (parts.length === 0) return '';
+  // Join remaining parts, replace dashes/underscores with spaces, capitalize
+  const words = parts.join(' ').replace(/[-_]+/g, ' ').trim();
+  return words.replace(/\b\w/g, c => c.toUpperCase());
+}
+
 // ─── Main Import ────────────────────────────────────────────────────────────
 
 export async function POST() {
@@ -308,7 +330,7 @@ export async function POST() {
       email,
       first_name: firstName || null,
       last_name: lastName || null,
-      company: hostName || normalizedDom || null,
+      company: hostName || domainToCompanyName(normalizedDom) || null,
       organization: normalizedDom || null,
       job_title: title || null,
       phone: phone || null,

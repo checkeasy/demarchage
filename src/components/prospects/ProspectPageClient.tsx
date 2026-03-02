@@ -19,11 +19,17 @@ import {
   Loader2,
   Wand2,
   ShieldCheck,
+  SlidersHorizontal,
+  X,
+  ChevronDown,
+  Mail,
+  MailX,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -97,6 +103,9 @@ export function ProspectPageClient({
   const [cityFilter, setCityFilter] = useState<string>("all");
   const [employeeCountFilter, setEmployeeCountFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [leadScoreFilter, setLeadScoreFilter] = useState<string>("all");
+  const [emailQualityFilter, setEmailQualityFilter] = useState<string>("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [sortField, setSortField] = useState<string>("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -204,6 +213,51 @@ export function ProspectPageClient({
       result = result.filter((p) => p.tags?.includes(tagFilter));
     }
 
+    // Filter by lead score range
+    if (leadScoreFilter !== "all") {
+      const range = LEAD_SCORE_RANGES[leadScoreFilter as keyof typeof LEAD_SCORE_RANGES];
+      if (range) {
+        result = result.filter((p) =>
+          p.lead_score !== null && p.lead_score !== undefined &&
+          p.lead_score >= range.min && p.lead_score <= range.max
+        );
+      }
+    }
+
+    // Filter by email quality
+    if (emailQualityFilter !== "all") {
+      if (emailQualityFilter === "real") {
+        result = result.filter((p) =>
+          !p.email.endsWith('@crm-import.local') &&
+          !p.email.endsWith('@directory-import.local') &&
+          !p.email.endsWith('@linkedin-prospect.local')
+        );
+      } else if (emailQualityFilter === "missing") {
+        result = result.filter((p) =>
+          p.email.endsWith('@crm-import.local') ||
+          p.email.endsWith('@directory-import.local') ||
+          p.email.endsWith('@linkedin-prospect.local')
+        );
+      } else if (emailQualityFilter === "verified_high") {
+        result = result.filter((p) =>
+          p.email_validity_score !== null && p.email_validity_score !== undefined &&
+          p.email_validity_score >= 70
+        );
+      } else if (emailQualityFilter === "verified_low") {
+        result = result.filter((p) =>
+          p.email_validity_score !== null && p.email_validity_score !== undefined &&
+          p.email_validity_score < 70 && p.email_validity_score > 0
+        );
+      } else if (emailQualityFilter === "not_verified") {
+        result = result.filter((p) =>
+          !p.email.endsWith('@crm-import.local') &&
+          !p.email.endsWith('@directory-import.local') &&
+          !p.email.endsWith('@linkedin-prospect.local') &&
+          (p.email_validity_score === null || p.email_validity_score === undefined)
+        );
+      }
+    }
+
     // Sort
     result = [...result].sort((a, b) => {
       const aVal = (a[sortField as keyof Prospect] ?? "") as string;
@@ -215,7 +269,7 @@ export function ProspectPageClient({
     });
 
     return result;
-  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, tagFilter, sortField, sortDirection]);
+  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, tagFilter, leadScoreFilter, emailQualityFilter, sortField, sortDirection]);
 
   // Stats
   const stats = useMemo(() => {
@@ -483,7 +537,17 @@ export function ProspectPageClient({
     );
   }
 
-  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || tagFilter !== "all" || search.trim() !== "";
+  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || search.trim() !== "";
+
+  const advancedFilterCount = [
+    countryFilter !== "all",
+    industryFilter !== "all",
+    cityFilter !== "all",
+    employeeCountFilter !== "all",
+    tagFilter !== "all",
+    leadScoreFilter !== "all",
+    emailQualityFilter !== "all",
+  ].filter(Boolean).length;
 
   return (
     <TooltipProvider>
@@ -511,33 +575,32 @@ export function ProspectPageClient({
         </div>
       </div>
 
-      {/* Actions bar */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex flex-1 gap-2 w-full sm:w-auto flex-wrap">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                placeholder="Nom, email, entreprise..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-10"
-              />
-            </div>
-
-            {/* CRM Status filter */}
-            <Select
-              value={crmStatusFilter}
-              onValueChange={(value) => {
-                setCrmStatusFilter(value);
+      {/* Filters & Actions */}
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Search + Primary Filters + Actions */}
+        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Nom, email, entreprise, ville..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
                 setPage(1);
               }}
+              className="pl-10 h-9"
+            />
+          </div>
+
+          {/* Primary filters */}
+          <div className="flex gap-2 flex-wrap">
+            {/* CRM Status */}
+            <Select
+              value={crmStatusFilter}
+              onValueChange={(value) => { setCrmStatusFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[130px] h-9">
                 <SelectValue placeholder="Statut CRM" />
               </SelectTrigger>
               <SelectContent>
@@ -550,15 +613,12 @@ export function ProspectPageClient({
               </SelectContent>
             </Select>
 
-            {/* Pipeline filter */}
+            {/* Pipeline */}
             <Select
               value={pipelineFilter}
-              onValueChange={(value) => {
-                setPipelineFilter(value);
-                setPage(1);
-              }}
+              onValueChange={(value) => { setPipelineFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[155px] h-9">
                 <SelectValue placeholder="Pipeline" />
               </SelectTrigger>
               <SelectContent>
@@ -571,46 +631,19 @@ export function ProspectPageClient({
               </SelectContent>
             </Select>
 
-            {/* Country filter */}
-            <Select
-              value={countryFilter}
-              onValueChange={(value) => {
-                setCountryFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Pays" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous pays</SelectItem>
-                {availableCountries.map((country) => {
-                  const config = COUNTRIES[country as keyof typeof COUNTRIES];
-                  return (
-                    <SelectItem key={country} value={country}>
-                      {config ? `${config.flag} ${config.label}` : country}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-
-            {/* Source filter */}
+            {/* Source */}
             <Select
               value={sourceFilter}
-              onValueChange={(value) => {
-                setSourceFilter(value);
-                setPage(1);
-              }}
+              onValueChange={(value) => { setSourceFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[135px] h-9">
                 <SelectValue placeholder="Source" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes sources</SelectItem>
                 <SelectItem value="csv_import">CSV Import</SelectItem>
                 <SelectItem value="crm_import">CRM Pipedrive</SelectItem>
-                <SelectItem value="directory_import">Annuaire Hostinfly</SelectItem>
+                <SelectItem value="directory_import">Annuaire</SelectItem>
                 <SelectItem value="linkedin">LinkedIn</SelectItem>
                 <SelectItem value="google_maps">Google Maps</SelectItem>
                 <SelectItem value="manual">Manuel</SelectItem>
@@ -618,121 +651,283 @@ export function ProspectPageClient({
               </SelectContent>
             </Select>
 
-            {/* Industry filter */}
-            <Select
-              value={industryFilter}
-              onValueChange={(value) => {
-                setIndustryFilter(value);
-                setPage(1);
-              }}
+            {/* Toggle advanced filters */}
+            <Button
+              variant={showAdvancedFilters ? "secondary" : "outline"}
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             >
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Secteur" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous secteurs</SelectItem>
-                {availableIndustries.map((ind) => {
-                  const config = INDUSTRIES[ind];
-                  return (
-                    <SelectItem key={ind} value={ind}>
-                      {config?.label || ind}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-
-            {/* City filter */}
-            <Select
-              value={cityFilter}
-              onValueChange={(value) => {
-                setCityFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Ville" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes villes</SelectItem>
-                {availableCities.map((city) => (
-                  <SelectItem key={city} value={city}>
-                    {city}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Employee count filter */}
-            <Select
-              value={employeeCountFilter}
-              onValueChange={(value) => {
-                setEmployeeCountFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Taille" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes tailles</SelectItem>
-                {Object.entries(EMPLOYEE_COUNTS).map(([key, config]) => (
-                  <SelectItem key={key} value={key}>
-                    {config.label} emp.
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Tag filter */}
-            {availableTags.length > 0 && (
-              <Select
-                value={tagFilter}
-                onValueChange={(value) => {
-                  setTagFilter(value);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous tags</SelectItem>
-                  {availableTags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              <SlidersHorizontal className="size-3.5" />
+              Filtres
+              {advancedFilterCount > 0 && (
+                <Badge variant="secondary" className="size-5 p-0 flex items-center justify-center text-[10px] bg-blue-100 text-blue-700">
+                  {advancedFilterCount}
+                </Badge>
+              )}
+              <ChevronDown className={`size-3.5 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`} />
+            </Button>
           </div>
 
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" asChild>
+          {/* Action buttons */}
+          <div className="flex gap-2 shrink-0 ml-auto">
+            <Button variant="outline" size="sm" className="h-9" asChild>
               <Link href="/prospects/import">
                 <Upload className="size-4" />
                 Importer
               </Link>
             </Button>
-            <Button onClick={() => setAddDialogOpen(true)}>
+            <Button size="sm" className="h-9" onClick={() => setAddDialogOpen(true)}>
               <Plus className="size-4" />
               Ajouter
             </Button>
           </div>
         </div>
 
-        {/* Results counter */}
+        {/* Row 2: Advanced Filters (collapsible) */}
+        {showAdvancedFilters && (
+          <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            {/* Geographie */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Geo</span>
+              <Select
+                value={countryFilter}
+                onValueChange={(value) => { setCountryFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue placeholder="Pays" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous pays</SelectItem>
+                  {availableCountries.map((country) => {
+                    const config = COUNTRIES[country as keyof typeof COUNTRIES];
+                    return (
+                      <SelectItem key={country} value={country}>
+                        {config ? `${config.flag} ${config.label}` : country}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={cityFilter}
+                onValueChange={(value) => { setCityFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue placeholder="Ville" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes villes</SelectItem>
+                  {availableCities.map((city) => (
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+
+            {/* Entreprise */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Entreprise</span>
+              <Select
+                value={industryFilter}
+                onValueChange={(value) => { setIndustryFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[145px] h-8 text-xs">
+                  <SelectValue placeholder="Secteur" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous secteurs</SelectItem>
+                  {availableIndustries.map((ind) => {
+                    const config = INDUSTRIES[ind];
+                    return (
+                      <SelectItem key={ind} value={ind}>
+                        {config?.label || ind}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={employeeCountFilter}
+                onValueChange={(value) => { setEmployeeCountFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[120px] h-8 text-xs">
+                  <SelectValue placeholder="Taille" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes tailles</SelectItem>
+                  {Object.entries(EMPLOYEE_COUNTS).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label} emp.
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+
+            {/* Qualite */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Qualite</span>
+              <Select
+                value={leadScoreFilter}
+                onValueChange={(value) => { setLeadScoreFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[120px] h-8 text-xs">
+                  <SelectValue placeholder="Score IA" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous scores</SelectItem>
+                  {Object.entries(LEAD_SCORE_RANGES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${config.color}`} />
+                        {config.label} ({config.min}-{config.max})
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={emailQualityFilter}
+                onValueChange={(value) => { setEmailQualityFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <SelectValue placeholder="Email" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous emails</SelectItem>
+                  <SelectItem value="real">
+                    <span className="flex items-center gap-1.5"><Mail className="size-3 text-green-600" /> Avec email</span>
+                  </SelectItem>
+                  <SelectItem value="missing">
+                    <span className="flex items-center gap-1.5"><MailX className="size-3 text-orange-500" /> Sans email</span>
+                  </SelectItem>
+                  <SelectItem value="verified_high">
+                    <span className="flex items-center gap-1.5"><ShieldCheck className="size-3 text-green-600" /> Verifie 70%+</span>
+                  </SelectItem>
+                  <SelectItem value="verified_low">
+                    <span className="flex items-center gap-1.5"><ShieldCheck className="size-3 text-yellow-500" /> Verifie &lt;70%</span>
+                  </SelectItem>
+                  <SelectItem value="not_verified">
+                    <span className="flex items-center gap-1.5"><Target className="size-3 text-slate-400" /> Non verifie</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tags (only if tags exist) */}
+            {availableTags.length > 0 && (
+              <>
+                <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Tags</span>
+                  <Select
+                    value={tagFilter}
+                    onValueChange={(value) => { setTagFilter(value); setPage(1); }}
+                  >
+                    <SelectTrigger className="w-[120px] h-8 text-xs">
+                      <SelectValue placeholder="Tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous tags</SelectItem>
+                      {availableTags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Active filter chips + Results counter */}
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            {filteredProspects.length} prospect
-            {filteredProspects.length !== 1 ? "s" : ""}
-            {hasActiveFilters && ` sur ${prospects.length}`}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">
+              {filteredProspects.length} prospect{filteredProspects.length !== 1 ? "s" : ""}
+              {hasActiveFilters && ` sur ${prospects.length}`}
+            </span>
+
+            {/* Active filter chips */}
+            {crmStatusFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setCrmStatusFilter("all"); setPage(1); }}>
+                {CRM_STATUSES[crmStatusFilter as keyof typeof CRM_STATUSES]?.label || crmStatusFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {pipelineFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setPipelineFilter("all"); setPage(1); }}>
+                {PIPELINE_STAGES[pipelineFilter as keyof typeof PIPELINE_STAGES]?.label || pipelineFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {sourceFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setSourceFilter("all"); setPage(1); }}>
+                {SOURCE_LABELS[sourceFilter as keyof typeof SOURCE_LABELS]?.label || sourceFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {countryFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setCountryFilter("all"); setPage(1); }}>
+                {COUNTRIES[countryFilter as keyof typeof COUNTRIES]?.flag} {countryFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {cityFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setCityFilter("all"); setPage(1); }}>
+                {cityFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {industryFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setIndustryFilter("all"); setPage(1); }}>
+                {INDUSTRIES[industryFilter]?.label || industryFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {employeeCountFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setEmployeeCountFilter("all"); setPage(1); }}>
+                {employeeCountFilter} emp.
+                <X className="size-3" />
+              </Badge>
+            )}
+            {leadScoreFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setLeadScoreFilter("all"); setPage(1); }}>
+                Score: {LEAD_SCORE_RANGES[leadScoreFilter as keyof typeof LEAD_SCORE_RANGES]?.label || leadScoreFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {emailQualityFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setEmailQualityFilter("all"); setPage(1); }}>
+                Email: {emailQualityFilter === "real" ? "Avec" : emailQualityFilter === "missing" ? "Sans" : emailQualityFilter === "verified_high" ? "70%+" : emailQualityFilter === "verified_low" ? "<70%" : "Non verifie"}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {tagFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setTagFilter("all"); setPage(1); }}>
+                #{tagFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+          </div>
+
           {hasActiveFilters && (
             <Button
               variant="ghost"
               size="sm"
+              className="text-xs shrink-0"
               onClick={() => {
                 setSearch("");
                 setStatusFilter("all");
@@ -744,10 +939,13 @@ export function ProspectPageClient({
                 setCityFilter("all");
                 setEmployeeCountFilter("all");
                 setTagFilter("all");
+                setLeadScoreFilter("all");
+                setEmailQualityFilter("all");
                 setPage(1);
               }}
             >
-              Reinitialiser les filtres
+              <X className="size-3 mr-1" />
+              Tout reinitialiser
             </Button>
           )}
         </div>
