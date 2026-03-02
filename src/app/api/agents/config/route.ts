@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   AgentType,
   AGENT_TYPES,
+  AGENT_DISPLAY,
   AGENT_MODELS,
   DEFAULT_AGENT_PROMPTS,
 } from '@/lib/agents/types';
@@ -95,6 +96,8 @@ export async function POST(request: NextRequest) {
     const configInserts = agentTypesToCreate.map((agentType: AgentType) => ({
       workspace_id: workspaceId,
       agent_type: agentType,
+      name: AGENT_DISPLAY[agentType].name,
+      description: AGENT_DISPLAY[agentType].description,
       model: AGENT_MODELS[agentType],
       temperature: agentType === 'prospect_researcher' ? 0.3 : agentType === 'response_handler' ? 0.4 : 0.7,
       max_tokens: 2048,
