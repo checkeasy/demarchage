@@ -210,7 +210,7 @@ export default function NewCampaignPage() {
   const canGoNext = (): boolean => {
     switch (currentStep) {
       case 0:
-        return formData.name.trim().length > 0;
+        return formData.name.trim().length > 0 && formData.email_account_id.length > 0;
       case 1:
         return selectedProspectIds.size > 0;
       case 2:
@@ -482,7 +482,7 @@ export default function NewCampaignPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Compte email</Label>
+                <Label>Compte email <span className="text-red-500">*</span></Label>
                 <Select
                   value={formData.email_account_id}
                   onValueChange={(val) =>

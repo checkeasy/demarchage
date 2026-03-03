@@ -139,6 +139,11 @@ export default function EditCampaignPage() {
       return;
     }
 
+    if (!emailAccountId) {
+      toast.error("Un compte email est requis pour envoyer les emails");
+      return;
+    }
+
     setSaving(true);
 
     try {
