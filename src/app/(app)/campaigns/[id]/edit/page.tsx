@@ -164,6 +164,13 @@ export default function EditCampaignPage() {
 
       if (updateError) throw updateError;
 
+      // Nullify current_step_id on campaign_prospects before deleting steps
+      // (FK constraint blocks deletion otherwise)
+      await supabase
+        .from("campaign_prospects")
+        .update({ current_step_id: null })
+        .eq("campaign_id", campaignId);
+
       // Delete old steps and re-insert
       const { error: deleteError } = await supabase
         .from("sequence_steps")
