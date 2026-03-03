@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { prospectId, campaignId, channel, stepNumber, linkedinMessageType } = body;
+    const { prospectId, campaignId, channel, stepNumber, linkedinMessageType, previousSubjects } = body;
 
     // Validate required fields
     if (!prospectId) {
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       channel,
       stepNumber,
       linkedinMessageType,
+      previousSubjects,
     });
 
     return NextResponse.json({ success: true, result });

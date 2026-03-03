@@ -8,6 +8,7 @@ interface AIGenerationParams {
   channel: "email" | "linkedin";
   stepNumber: number;
   linkedinMessageType?: "connection" | "followup" | "inmail";
+  previousSubjects?: string[];
 }
 
 interface AIResearchParams {

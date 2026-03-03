@@ -234,6 +234,7 @@ export interface OutreachTask {
   stepNumber: number;
   linkedinMessageType?: 'connection' | 'followup' | 'inmail';
   abTestVariant?: string;
+  previousSubjects?: string[];
 }
 
 export interface GeneratedEmail {

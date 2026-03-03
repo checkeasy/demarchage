@@ -148,6 +148,7 @@ export function SmartCampaignDialog({
         { channel: "email" as const, stepNum: 3 },
       ];
 
+      const previousSubjects: string[] = [];
       for (const seq of sequence) {
         try {
           const result = await generateOutreach({
@@ -155,9 +156,11 @@ export function SmartCampaignDialog({
             campaignId,
             channel: seq.channel,
             stepNumber: seq.stepNum,
+            previousSubjects,
           });
           if (result?.content) {
             const content = result.content as AnyRecord;
+            if (content.subject) previousSubjects.push(content.subject);
             steps.push({
               step_type: seq.channel === "email" ? "email" : "linkedin_message",
               step_order: steps.length + 1,

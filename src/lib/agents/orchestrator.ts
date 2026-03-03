@@ -701,7 +701,10 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const memoryContext = this.buildMemoryContext(context.memory);
 
     const userMessage = `Redige un email de prospection (etape ${task.stepNumber} sur ${strat.sequence_length}).
-
+${task.previousSubjects && task.previousSubjects.length > 0 ? `
+OBJETS DEJA UTILISES DANS LES ETAPES PRECEDENTES (tu DOIS utiliser un objet COMPLETEMENT DIFFERENT) :
+${task.previousSubjects.map((s, i) => `- Etape ${i + 1} : "${s}"`).join('\n')}
+` : ''}
 BRIEF STRATEGIQUE :
 - Angle principal : ${strat.primary_angle}
 - Ton : ${strat.tone}
