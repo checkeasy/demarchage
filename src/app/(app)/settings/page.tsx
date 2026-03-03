@@ -81,6 +81,7 @@ export default function SettingsPage() {
       daily_limit: number;
       warmup_enabled: boolean;
       booking_url: string | null;
+      signature_html: string | null;
     }>
   >([]);
   const [showAddEmail, setShowAddEmail] = useState(false);
@@ -126,6 +127,9 @@ export default function SettingsPage() {
   // Booking URL edit state
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [editingBookingUrl, setEditingBookingUrl] = useState("");
+  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null);
+  const [editingSignatureHtml, setEditingSignatureHtml] = useState("");
+  const [savingSignature, setSavingSignature] = useState(false);
 
   const supabase = createClient();
 
@@ -163,7 +167,7 @@ export default function SettingsPage() {
     const { data: accounts } = await supabase
       .from("email_accounts")
       .select(
-        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, booking_url"
+        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, booking_url, signature_html"
       )
       .eq("workspace_id", profile.current_workspace_id)
       .eq("user_id", user.id);
@@ -346,6 +350,23 @@ export default function SettingsPage() {
       setEditingBookingId(null);
       loadSettings();
     }
+  }
+
+  async function saveSignature(accountId: string, html: string) {
+    setSavingSignature(true);
+    const { error } = await supabase
+      .from("email_accounts")
+      .update({ signature_html: html || "" })
+      .eq("id", accountId);
+
+    if (error) {
+      toast.error("Erreur lors de la sauvegarde de la signature");
+    } else {
+      toast.success("Signature sauvegardee");
+      setEditingSignatureId(null);
+      loadSettings();
+    }
+    setSavingSignature(false);
   }
 
   function applyProviderPreset(provider: string) {
@@ -702,6 +723,75 @@ export default function SettingsPage() {
                       + Ajouter un lien de prise de RDV
                     </Button>
                   )}
+                </div>
+                {/* Signature */}
+                <div className="pl-6 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {editingSignatureId === account.id ? (
+                      <div className="flex-1 space-y-2">
+                        <Textarea
+                          value={editingSignatureHtml}
+                          onChange={(e) => setEditingSignatureHtml(e.target.value)}
+                          placeholder={"Cordialement,\nJean Dupont\nCheckEasy - 06 12 34 56 78"}
+                          rows={4}
+                          className="text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Vous pouvez utiliser du HTML simple : &lt;b&gt;gras&lt;/b&gt;, &lt;br/&gt; retour a la ligne, &lt;a href=&quot;...&quot;&gt;lien&lt;/a&gt;
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-8"
+                            disabled={savingSignature}
+                            onClick={() => saveSignature(account.id, editingSignatureHtml)}
+                          >
+                            {savingSignature && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                            Sauvegarder
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8"
+                            onClick={() => setEditingSignatureId(null)}
+                          >
+                            Annuler
+                          </Button>
+                        </div>
+                      </div>
+                    ) : account.signature_html ? (
+                      <div className="flex items-start gap-2 flex-1">
+                        <div
+                          className="text-sm text-muted-foreground border rounded px-3 py-2 bg-muted/30 flex-1 max-w-md"
+                          dangerouslySetInnerHTML={{ __html: account.signature_html }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 shrink-0"
+                          onClick={() => {
+                            setEditingSignatureId(account.id);
+                            setEditingSignatureHtml(account.signature_html || "");
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-sm text-muted-foreground"
+                        onClick={() => {
+                          setEditingSignatureId(account.id);
+                          setEditingSignatureHtml("");
+                        }}
+                      >
+                        + Ajouter une signature
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
