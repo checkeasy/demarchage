@@ -112,9 +112,18 @@ export function CampaignDetailTabs({
   const [editableSteps, setEditableSteps] = useState<StepData[]>(initialEditorSteps);
   const [savingSequence, setSavingSequence] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const savingRef = useRef(false);
+  const pendingSaveRef = useRef<StepData[] | null>(null);
 
-  // Auto-save to DB when steps change (debounced 1s)
+  // Auto-save to DB when steps change (debounced 2s, no concurrent saves)
   const saveToDb = useCallback(async (stepsToSave: StepData[]) => {
+    // If already saving, queue this save for after
+    if (savingRef.current) {
+      pendingSaveRef.current = stepsToSave;
+      return;
+    }
+
+    savingRef.current = true;
     setSavingSequence(true);
     try {
       const { error: deleteError } = await supabase
@@ -151,7 +160,15 @@ export function CampaignDetailTabs({
       console.error("Error saving sequence:", error);
       toast.error("Erreur lors de la sauvegarde");
     } finally {
+      savingRef.current = false;
       setSavingSequence(false);
+
+      // If a save was queued while we were saving, run it now
+      if (pendingSaveRef.current) {
+        const queued = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        saveToDb(queued);
+      }
     }
   }, [campaign.id, supabase]);
 
@@ -161,7 +178,7 @@ export function CampaignDetailTabs({
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveToDb(newSteps);
-    }, 1000);
+    }, 2000);
   }, [saveToDb]);
 
   const progress =
