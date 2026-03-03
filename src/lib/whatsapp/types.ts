@@ -22,6 +22,7 @@ export const DEFAULT_DAILY_LIMITS: Record<WhatsAppActionType, { min: number; max
 
 export type WhatsAppClientStatus =
   | 'disconnected'
+  | 'initializing'
   | 'qr_pending'
   | 'authenticating'
   | 'ready'

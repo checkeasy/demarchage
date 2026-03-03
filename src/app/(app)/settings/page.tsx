@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,7 @@ import {
   CalendarCheck,
   Pencil,
   ExternalLink,
+  ImagePlus,
 } from "lucide-react";
 
 interface EmailAccountForm {
@@ -117,7 +118,7 @@ export default function SettingsPage() {
   const [testingLinkedin, setTestingLinkedin] = useState(false);
 
   // WhatsApp state
-  const [whatsappStatus, setWhatsappStatus] = useState<"disconnected" | "qr_pending" | "authenticating" | "ready" | "error">("disconnected");
+  const [whatsappStatus, setWhatsappStatus] = useState<"disconnected" | "initializing" | "qr_pending" | "authenticating" | "ready" | "error">("disconnected");
   const [whatsappPhone, setWhatsappPhone] = useState("");
   const [whatsappQrCode, setWhatsappQrCode] = useState<string | null>(null);
   const [whatsappLastError, setWhatsappLastError] = useState("");
@@ -352,6 +353,42 @@ export default function SettingsPage() {
     }
   }
 
+  const signatureFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  async function handleSignaturePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/settings/signature-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Erreur lors de l'upload");
+        return;
+      }
+
+      // Insert image tag into signature HTML
+      const imgTag = `<img src="${data.url}" alt="Photo" style="width:80px;height:80px;border-radius:50%;object-fit:cover;" />`;
+      setEditingSignatureHtml((prev) => imgTag + "\n" + prev);
+      toast.success("Photo ajoutee a la signature");
+    } catch {
+      toast.error("Erreur lors de l'upload");
+    } finally {
+      setUploadingPhoto(false);
+      // Reset file input
+      if (signatureFileRef.current) signatureFileRef.current.value = "";
+    }
+  }
+
   async function saveSignature(accountId: string, html: string) {
     setSavingSignature(true);
     const { error } = await supabase
@@ -522,10 +559,19 @@ export default function SettingsPage() {
     }
   }
 
-  // Polling WhatsApp status
+  // Polling WhatsApp status (with 60s timeout for safety)
   useEffect(() => {
     if (!whatsappPolling) return;
+    const startTime = Date.now();
+    const maxPollingDuration = 60_000; // 60s max
     const interval = setInterval(async () => {
+      // Safety timeout: stop polling after 60s to avoid infinite loops
+      if (Date.now() - startTime > maxPollingDuration) {
+        setWhatsappPolling(false);
+        setWhatsappStatus("error");
+        setWhatsappLastError("Timeout: le demarrage a pris trop de temps. Reessayez.");
+        return;
+      }
       try {
         const res = await fetch("/api/settings/whatsapp");
         if (res.ok) {
@@ -538,12 +584,13 @@ export default function SettingsPage() {
           if (data.status === "ready") {
             setWhatsappPolling(false);
             toast.success("WhatsApp connecte !");
-          } else if (data.status === "error" || data.status === "disconnected") {
+          } else if (data.status === "error") {
             setWhatsappPolling(false);
             if (data.lastError) {
               toast.error(data.lastError);
             }
           }
+          // Keep polling for "initializing", "qr_pending", "authenticating"
         }
       } catch {
         // Silencieux
@@ -740,7 +787,7 @@ export default function SettingsPage() {
                         <p className="text-xs text-muted-foreground">
                           Vous pouvez utiliser du HTML simple : &lt;b&gt;gras&lt;/b&gt;, &lt;br/&gt; retour a la ligne, &lt;a href=&quot;...&quot;&gt;lien&lt;/a&gt;
                         </p>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Button
                             size="sm"
                             className="h-8"
@@ -750,6 +797,23 @@ export default function SettingsPage() {
                             {savingSignature && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                             Sauvegarder
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            disabled={uploadingPhoto}
+                            onClick={() => signatureFileRef.current?.click()}
+                          >
+                            {uploadingPhoto ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <ImagePlus className="mr-2 h-3 w-3" />}
+                            Ajouter une photo
+                          </Button>
+                          <input
+                            ref={signatureFileRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            className="hidden"
+                            onChange={handleSignaturePhotoUpload}
+                          />
                           <Button
                             size="sm"
                             variant="ghost"
@@ -1391,6 +1455,12 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
                     Authentification...
                   </Badge>
                 )}
+                {whatsappStatus === "initializing" && (
+                  <Badge className="bg-blue-100 text-blue-800 gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Demarrage...
+                  </Badge>
+                )}
                 {whatsappStatus === "disconnected" && (
                   <Badge className="bg-gray-100 text-gray-600 gap-1">
                     <WifiOff className="h-3 w-3" />
@@ -1409,7 +1479,9 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
                   ? `Connecte avec le numero ${whatsappPhone || "inconnu"}`
                   : whatsappStatus === "qr_pending"
                     ? "Scannez le QR code ci-dessous avec votre application WhatsApp"
-                    : "Connectez votre compte WhatsApp pour envoyer des messages automatiquement."}
+                    : whatsappStatus === "initializing"
+                      ? "Demarrage du navigateur en cours, le QR code va apparaitre..."
+                      : "Connectez votre compte WhatsApp pour envoyer des messages automatiquement."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1444,6 +1516,14 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
               {whatsappLastError && whatsappStatus === "error" && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                   <p className="text-sm text-red-700">{whatsappLastError}</p>
+                </div>
+              )}
+
+              {/* Initializing spinner */}
+              {whatsappStatus === "initializing" && (
+                <div className="flex items-center gap-3 p-4 rounded-lg border bg-blue-50">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <p className="text-sm text-blue-700">Demarrage de WhatsApp... le QR code va apparaitre dans quelques secondes.</p>
                 </div>
               )}
 

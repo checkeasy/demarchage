@@ -50,7 +50,7 @@ class WhatsAppClientWrapper {
     if (this._status === 'ready') return;
 
     this._initializing = true;
-    this._status = 'disconnected';
+    this._status = 'initializing';
     this._lastError = null;
 
     try {
