@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
-import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT_OWNER_FINDER } from '@/lib/ai/prompts';
 import { getLinkedInClient, LinkedInError } from '@/lib/linkedin';
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent as extractAIText } from '@/lib/ai/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ const OWNER_PAGES = [
   '/',
 ];
 
-const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+const CLAUDE_MODEL = CLAUDE_HAIKU;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -122,9 +122,7 @@ export async function findOwner(
     const combinedText = allTexts.join('\n\n').slice(0, 15000);
 
     // Call AI to extract owner name
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const response = await anthropic.messages.create({
+    const response = await getAnthropic().messages.create({
       model: CLAUDE_MODEL,
       system: SYSTEM_PROMPT_OWNER_FINDER,
       messages: [
@@ -136,15 +134,20 @@ export async function findOwner(
       max_tokens: 1024,
     });
 
-    const responseText =
-      response.content[0]?.type === 'text' ? response.content[0].text : '';
+    const responseText = extractAIText(response);
 
     if (!responseText) {
       console.error('[OwnerFinder] No text in AI response');
       return defaultResult;
     }
 
-    const parsed = JSON.parse(responseText);
+    let parsed: { owner_first_name?: string; owner_last_name?: string; owner_role?: string; confidence?: number; evidence?: string };
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      console.error('[OwnerFinder] JSON parse error:', responseText.slice(0, 500));
+      return defaultResult;
+    }
 
     const ownerFirstName: string | null = parsed.owner_first_name || null;
     const ownerLastName: string | null = parsed.owner_last_name || null;

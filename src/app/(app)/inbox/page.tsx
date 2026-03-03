@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -13,9 +13,9 @@ import {
   Search,
   Mail,
   Send,
-  Clock,
-  CheckCircle2,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { sanitizeHtml } from "@/lib/utils";
 
 interface Thread {
@@ -59,6 +59,8 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
   const supabase = createClient();
 
   const loadThreads = useCallback(async () => {
@@ -105,7 +107,35 @@ export default function InboxPage() {
 
   function selectThread(thread: Thread) {
     setSelectedThread(thread);
+    setReplyText("");
     loadMessages(thread.id);
+  }
+
+  async function handleReply() {
+    if (!replyText.trim() || !selectedThread?.prospects?.email) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: selectedThread.prospects.email,
+          subject: `Re: ${selectedThread.subject || ""}`,
+          body: replyText.replace(/\n/g, "<br />"),
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Erreur lors de l'envoi");
+        return;
+      }
+      toast.success("Reponse envoyee");
+      setReplyText("");
+      loadMessages(selectedThread.id);
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setSending(false);
+    }
   }
 
   const filteredThreads = threads.filter((t) => {
@@ -146,7 +176,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] gap-0">
+    <div className="flex h-[calc(100vh-4rem-2rem)] gap-0 -m-4 md:-m-6 lg:-m-8">
       {/* Thread list */}
       <div className="w-1/3 border-r">
         <div className="p-4 space-y-3">
@@ -267,6 +297,39 @@ export default function InboxPage() {
                 ))}
               </div>
             </ScrollArea>
+
+            {/* Reply input */}
+            <div className="border-t p-3">
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="Ecrire une reponse..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      handleReply();
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  onClick={handleReply}
+                  disabled={!replyText.trim() || sending}
+                  className="shrink-0 self-end"
+                >
+                  {sending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Ctrl+Entree pour envoyer
+              </p>
+            </div>
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground">

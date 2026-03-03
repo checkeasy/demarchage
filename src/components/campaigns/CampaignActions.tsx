@@ -135,7 +135,7 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting}>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting} aria-label="Supprimer">
             {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
           </Button>
         </AlertDialogTrigger>

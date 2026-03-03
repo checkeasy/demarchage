@@ -94,6 +94,7 @@ export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
             <button
               data-drag-handle
               className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+              aria-label="Deplacer"
               {...attributes}
               {...listeners}
             >

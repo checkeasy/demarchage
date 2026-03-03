@@ -5,6 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAnthropic as getCentralAnthropic } from '@/lib/ai/client';
 import type {
   AgentType,
   AgentConfig,
@@ -26,17 +27,10 @@ import type {
 import { AGENT_MODELS, MODEL_PRICING } from './types';
 import { DEFAULT_PROMPTS } from './prompts';
 
-// ─── Lazy Singleton Anthropic Client ────────────────────────────────────────
+// ─── Anthropic Client (uses centralized singleton from @/lib/ai/client) ─────
 
-let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-      timeout: 30_000, // 30s timeout per request
-    });
-  }
-  return _anthropic;
+  return getCentralAnthropic();
 }
 
 // ─── Context Bundle ─────────────────────────────────────────────────────────

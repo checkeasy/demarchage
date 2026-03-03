@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Plus,
@@ -25,10 +25,13 @@ import {
   Mail,
   MailX,
   Target,
+  Users,
+  SearchX,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS, BUSINESS_TYPES, SIZE_TIERS, TOURIST_ZONES, OTA_STRATEGIES, REVIEW_QUALITY } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
@@ -102,6 +105,7 @@ export function ProspectPageClient({
   workspaceId,
 }: ProspectPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [search, setSearch] = useState("");
@@ -130,7 +134,7 @@ export function ProspectPageClient({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(searchParams.get("action") === "add");
   const [smartCampaignOpen, setSmartCampaignOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -702,7 +706,7 @@ export function ProspectPageClient({
               value={crmStatusFilter}
               onValueChange={(value) => { setCrmStatusFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[130px] h-9">
+              <SelectTrigger className="w-full sm:w-[130px] h-9">
                 <SelectValue placeholder="Statut CRM" />
               </SelectTrigger>
               <SelectContent>
@@ -720,7 +724,7 @@ export function ProspectPageClient({
               value={pipelineFilter}
               onValueChange={(value) => { setPipelineFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[155px] h-9">
+              <SelectTrigger className="w-full sm:w-[155px] h-9">
                 <SelectValue placeholder="Pipeline" />
               </SelectTrigger>
               <SelectContent>
@@ -738,7 +742,7 @@ export function ProspectPageClient({
               value={sourceFilter}
               onValueChange={(value) => { setSourceFilter(value); setPage(1); }}
             >
-              <SelectTrigger className="w-[135px] h-9">
+              <SelectTrigger className="w-full sm:w-[135px] h-9">
                 <SelectValue placeholder="Source" />
               </SelectTrigger>
               <SelectContent>
@@ -796,7 +800,7 @@ export function ProspectPageClient({
                 value={countryFilter}
                 onValueChange={(value) => { setCountryFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Pays" />
                 </SelectTrigger>
                 <SelectContent>
@@ -817,7 +821,7 @@ export function ProspectPageClient({
                   value={departmentFilter}
                   onValueChange={(value) => { setDepartmentFilter(value); setPage(1); }}
                 >
-                  <SelectTrigger className="w-[180px] h-8 text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
                     <SelectValue placeholder="Departement" />
                   </SelectTrigger>
                   <SelectContent>
@@ -838,7 +842,7 @@ export function ProspectPageClient({
                 value={zoneFilter}
                 onValueChange={(value) => { setZoneFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs">
                   <SelectValue placeholder="Zone" />
                 </SelectTrigger>
                 <SelectContent>
@@ -855,7 +859,7 @@ export function ProspectPageClient({
                 value={cityFilter}
                 onValueChange={(value) => { setCityFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Ville" />
                 </SelectTrigger>
                 <SelectContent>
@@ -878,7 +882,7 @@ export function ProspectPageClient({
                 value={industryFilter}
                 onValueChange={(value) => { setIndustryFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs">
                   <SelectValue placeholder="Secteur" />
                 </SelectTrigger>
                 <SelectContent>
@@ -898,7 +902,7 @@ export function ProspectPageClient({
                 value={businessTypeFilter}
                 onValueChange={(value) => { setBusinessTypeFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[155px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[155px] h-8 text-xs">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -918,7 +922,7 @@ export function ProspectPageClient({
                 value={sizeTierFilter}
                 onValueChange={(value) => { setSizeTierFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Taille" />
                 </SelectTrigger>
                 <SelectContent>
@@ -941,7 +945,7 @@ export function ProspectPageClient({
                 value={leadScoreFilter}
                 onValueChange={(value) => { setLeadScoreFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[120px] h-8 text-xs">
                   <SelectValue placeholder="Score IA" />
                 </SelectTrigger>
                 <SelectContent>
@@ -961,7 +965,7 @@ export function ProspectPageClient({
                 value={emailQualityFilter}
                 onValueChange={(value) => { setEmailQualityFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[140px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[140px] h-8 text-xs">
                   <SelectValue placeholder="Email" />
                 </SelectTrigger>
                 <SelectContent>
@@ -994,7 +998,7 @@ export function ProspectPageClient({
                 value={otaFilter}
                 onValueChange={(value) => { setOtaFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Strategie OTA" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1011,7 +1015,7 @@ export function ProspectPageClient({
                 value={reviewFilter}
                 onValueChange={(value) => { setReviewFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[150px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs">
                   <SelectValue placeholder="Avis" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1037,7 +1041,7 @@ export function ProspectPageClient({
                 value={emailTypeFilter}
                 onValueChange={(value) => { setEmailTypeFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Type email" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1052,7 +1056,7 @@ export function ProspectPageClient({
                 value={contactableFilter}
                 onValueChange={(value) => { setContactableFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[125px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[125px] h-8 text-xs">
                   <SelectValue placeholder="Contactable" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1066,7 +1070,7 @@ export function ProspectPageClient({
                 value={websiteFilter}
                 onValueChange={(value) => { setWebsiteFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectTrigger className="w-full sm:w-[120px] h-8 text-xs">
                   <SelectValue placeholder="Site web" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1087,7 +1091,7 @@ export function ProspectPageClient({
                     value={tagFilter}
                     onValueChange={(value) => { setTagFilter(value); setPage(1); }}
                   >
-                    <SelectTrigger className="w-[120px] h-8 text-xs">
+                    <SelectTrigger className="w-full sm:w-[120px] h-8 text-xs">
                       <SelectValue placeholder="Tag" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1350,7 +1354,11 @@ export function ProspectPageClient({
       />
 
       {/* Table */}
-      <div className="border rounded-lg bg-white overflow-x-auto">
+      <div className="relative border rounded-lg bg-white">
+        <p className="text-xs text-muted-foreground px-4 py-1 sm:hidden">
+          Glissez pour voir plus de colonnes
+        </p>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -1368,7 +1376,7 @@ export function ProspectPageClient({
               <SortableHeader field="pipeline_stage" label="Pipeline" className="hidden md:table-cell" />
               <SortableHeader field="status" label="Statut" />
               <SortableHeader field="source" label="Source" className="hidden lg:table-cell" />
-              <SortableHeader field="lead_score" label="Score IA" className="hidden lg:table-cell" />
+              <SortableHeader field="lead_score" label="Score IA" className="hidden sm:table-cell" />
               <SortableHeader field="email_validity_score" label="Fiabilité" className="hidden xl:table-cell" />
               <SortableHeader field="email" label="Email" className="hidden md:table-cell" />
               <SortableHeader field="created_at" label="Date" className="hidden xl:table-cell" />
@@ -1378,13 +1386,24 @@ export function ProspectPageClient({
           <TableBody>
             {paginatedProspects.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={13}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  {prospects.length === 0
-                    ? "Aucun prospect. Ajoutez votre premier prospect ou importez un fichier CSV."
-                    : "Aucun prospect ne correspond a votre recherche."}
+                <TableCell colSpan={13} className="p-0">
+                  {prospects.length === 0 ? (
+                    <EmptyState
+                      icon={Users}
+                      title="Aucun prospect"
+                      description="Ajoutez votre premier prospect manuellement ou importez un fichier CSV pour commencer."
+                      action={{
+                        label: "Importer des prospects",
+                        href: "/prospects/import",
+                      }}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={SearchX}
+                      title="Aucun resultat"
+                      description="Aucun prospect ne correspond a vos criteres de recherche. Essayez de modifier vos filtres."
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
@@ -1393,7 +1412,23 @@ export function ProspectPageClient({
                 const hasLossReason = !!prospect.loss_reason;
 
                 return (
-                  <TableRow key={prospect.id} className={cf.crm_status === 'lost' ? 'bg-red-50/30' : cf.crm_status === 'converted' ? 'bg-green-50/30' : ''}>
+                  <TableRow
+                    key={prospect.id}
+                    className={`cursor-pointer hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cf.crm_status === 'lost' ? 'bg-red-50/30' : cf.crm_status === 'converted' ? 'bg-green-50/30' : ''}`}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button, a, [role="checkbox"], input, [data-radix-collection-item]')) return;
+                      router.push(`/prospects/${prospect.id}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/prospects/${prospect.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(prospect.id)}
@@ -1445,7 +1480,7 @@ export function ProspectPageClient({
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">{getSourceBadge(prospect.source)}</TableCell>
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="hidden sm:table-cell">
                       {prospect.lead_score !== null && prospect.lead_score !== undefined ? (
                         <Badge
                           variant="secondary"
@@ -1492,7 +1527,7 @@ export function ProspectPageClient({
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="size-8 p-0">
+                          <Button variant="ghost" size="sm" className="size-8 p-0" aria-label="Plus d'options">
                             <MoreHorizontal className="size-4" />
                             <span className="sr-only">Actions</span>
                           </Button>
@@ -1521,6 +1556,7 @@ export function ProspectPageClient({
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {filteredProspects.length > 0 && (
@@ -1536,6 +1572,7 @@ export function ProspectPageClient({
                 size="icon-sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
+                aria-label="Precedent"
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -1570,6 +1607,7 @@ export function ProspectPageClient({
                 size="icon-sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
+                aria-label="Suivant"
               >
                 <ChevronRight className="size-4" />
               </Button>

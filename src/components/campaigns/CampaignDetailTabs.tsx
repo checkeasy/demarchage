@@ -512,7 +512,11 @@ function CampaignProspectsTab({
           </div>
         ) : (
           <>
-            <div className="border rounded-lg overflow-x-auto">
+            <div className="relative border rounded-lg">
+              <p className="text-xs text-muted-foreground px-4 py-1 sm:hidden">
+                Glissez pour voir plus de colonnes
+              </p>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -601,7 +605,7 @@ function CampaignProspectsTab({
                             {formatDate(cp.enrolled_at)}
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" className="size-8 p-0" asChild>
+                            <Button variant="ghost" size="sm" className="size-8 p-0" asChild aria-label="Ouvrir">
                               <Link href={`/prospects/${p.id}`}>
                                 <ExternalLink className="size-3.5" />
                                 <span className="sr-only">Voir</span>
@@ -614,6 +618,7 @@ function CampaignProspectsTab({
                   )}
                 </TableBody>
               </Table>
+              </div>
             </div>
 
             {/* Pagination */}
@@ -629,6 +634,7 @@ function CampaignProspectsTab({
                     className="h-7 w-7 p-0"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
+                    aria-label="Precedent"
                   >
                     <ChevronLeft className="size-4" />
                   </Button>
@@ -641,6 +647,7 @@ function CampaignProspectsTab({
                     className="h-7 w-7 p-0"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
+                    aria-label="Suivant"
                   >
                     <ChevronRight className="size-4" />
                   </Button>

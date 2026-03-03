@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
-import Anthropic from '@anthropic-ai/sdk';
 import { SYSTEM_PROMPT_WEBSITE } from '@/lib/ai/prompts';
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from '@/lib/ai/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -72,17 +72,8 @@ export interface EnrichedProspect {
   enrichmentSource: string[];
 }
 
-// ─── Anthropic Client (lazy to avoid crash during next build) ────────────────
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return _anthropic;
-}
-
-const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+// Model alias for backward compatibility
+const CLAUDE_MODEL = CLAUDE_HAIKU;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -399,10 +390,14 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
     max_tokens: 4096,
   });
 
-  const responseText =
-    response.content[0]?.type === 'text' ? response.content[0].text : '';
+  const responseText = extractTextContent(response);
 
-  const aiAnalysis = JSON.parse(responseText);
+  let aiAnalysis;
+  try {
+    aiAnalysis = JSON.parse(responseText);
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (analyzeWebsite)');
+  }
 
   return {
     scrapedData,

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ChevronLeft,
+  ArrowLeft,
   UserCheck,
   MessageSquare,
   CalendarCheck,
@@ -28,6 +28,7 @@ import {
   Sparkles,
   Trash2,
   Plus,
+  ChevronLeft,
   ChevronUp,
   ChevronDown,
   GripVertical,
@@ -542,7 +543,7 @@ export default function AutomationDetailPage() {
         <div className="flex items-start gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/automation">
-              <ChevronLeft className="size-4" />
+              <ArrowLeft className="size-4" />
               Retour
             </Link>
           </Button>

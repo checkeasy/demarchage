@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildProductContext } from "@/lib/ai/prompts";
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return _anthropic;
-}
-
-const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from "@/lib/ai/client";
 
 interface PerformanceStats {
   totalSent: number;
@@ -280,17 +270,14 @@ Reponds UNIQUEMENT en JSON valide avec ce format :
 {"subject": "...", "body": "..."}`;
 
     const response = await getAnthropic().messages.create({
-      model: CLAUDE_MODEL,
+      model: CLAUDE_HAIKU,
       system: "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire. Tu es le meilleur copywriter de cold email en France.",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 800,
     });
 
-    const content =
-      response.content[0]?.type === "text"
-        ? response.content[0].text.trim()
-        : "";
+    const content = extractTextContent(response);
     if (!content) {
       return NextResponse.json(
         { error: "Pas de reponse de l'IA" },
@@ -298,7 +285,16 @@ Reponds UNIQUEMENT en JSON valide avec ce format :
       );
     }
 
-    const parsed = JSON.parse(content);
+    let parsed: { subject?: string; body?: string };
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      console.error("[API generate-email] JSON parse error:", content.slice(0, 500));
+      return NextResponse.json(
+        { error: "Erreur de parsing de la reponse IA" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       subject: parsed.subject,

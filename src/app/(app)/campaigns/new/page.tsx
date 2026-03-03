@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Save,
@@ -333,13 +334,11 @@ export default function NewCampaignPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/campaigns")}
-        >
-          <ChevronLeft className="size-4" />
-          Retour
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/campaigns">
+            <ArrowLeft className="size-4" />
+            Retour
+          </Link>
         </Button>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">

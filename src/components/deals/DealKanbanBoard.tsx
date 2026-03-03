@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useId, useMemo, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
@@ -42,12 +42,13 @@ export function DealKanbanBoard({
   prospects,
 }: DealKanbanBoardProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dndId = useId();
 
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(searchParams.get("action") === "add");
   const [defaultStageId, setDefaultStageId] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 

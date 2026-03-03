@@ -65,7 +65,7 @@ export default async function AppLayout({
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Header */}
-        <Header title="ColdReach" user={userData} />
+        <Header user={userData} />
 
         {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-20 md:pb-6">
@@ -76,7 +76,7 @@ export default async function AppLayout({
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <MobileNav />
+      <MobileNav userRole={userData.role} />
     </div>
   );
 }

@@ -1,5 +1,83 @@
+import {
+  LayoutDashboard,
+  Users,
+  Search,
+  Send,
+  Mail,
+  Inbox,
+  Bot,
+  Linkedin,
+  Brain,
+  Settings,
+  MapPin,
+  Shield,
+  Kanban,
+  CheckSquare,
+} from "lucide-react";
+
 export const APP_NAME = "ColdReach";
 export const APP_DESCRIPTION = "Plateforme de cold outreach multi-canal";
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+
+export type NavGroup = "crm" | "outreach" | "tools" | "settings" | "admin";
+
+export interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  group: NavGroup;
+}
+
+export const NAV_ITEMS: NavItem[] = [
+  // CRM
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "crm" },
+  { label: "Pipeline", href: "/deals", icon: Kanban, group: "crm" },
+  { label: "Activites", href: "/activities", icon: CheckSquare, group: "crm" },
+  { label: "Prospects", href: "/prospects", icon: Users, group: "crm" },
+  // Outreach
+  { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
+  { label: "Emails", href: "/emails", icon: Mail, group: "outreach" },
+  { label: "Inbox", href: "/inbox", icon: Inbox, group: "outreach" },
+  { label: "LinkedIn", href: "/linkedin", icon: Linkedin, group: "outreach" },
+  { label: "Automation", href: "/automation", icon: Bot, group: "outreach" },
+  // Tools
+  { label: "Scraper", href: "/scraper", icon: Search, group: "tools" },
+  { label: "Google Maps", href: "/maps-scraper", icon: MapPin, group: "tools" },
+  { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
+  // Settings
+  { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
+];
+
+export const ADMIN_NAV_ITEM: NavItem = {
+  label: "Administration",
+  href: "/admin",
+  icon: Shield,
+  group: "admin",
+};
+
+export const NAV_GROUP_ORDER: NavGroup[] = ["crm", "outreach", "tools", "settings", "admin"];
+
+/** Page titles for Header — includes sub-routes */
+export const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/prospects": "Prospects",
+  "/prospects/import": "Importer des prospects",
+  "/campaigns": "Campagnes",
+  "/campaigns/new": "Nouvelle campagne",
+  "/emails": "Emails envoyes",
+  "/deals": "Pipeline",
+  "/inbox": "Inbox",
+  "/linkedin": "LinkedIn",
+  "/agents": "Agents IA",
+  "/settings": "Parametres",
+  "/admin": "Administration",
+  "/activities": "Activites",
+  "/automation": "Automation",
+  "/scraper": "Scraper",
+  "/maps-scraper": "Google Maps",
+  "/onboarding": "Onboarding",
+};
 
 export const PLANS = {
   free: { name: "Gratuit", dailyLimit: 50, campaigns: 3, prospects: 500 },

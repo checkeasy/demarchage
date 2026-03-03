@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { buildProductContext } from "@/lib/ai/prompts";
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return _anthropic;
-}
-
-const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from "@/lib/ai/client";
 
 /**
  * POST /api/ai/generate-template
@@ -166,7 +156,7 @@ Reponds UNIQUEMENT en JSON valide : ${jsonFormat}`;
     }
 
     const response = await getAnthropic().messages.create({
-      model: CLAUDE_MODEL,
+      model: CLAUDE_HAIKU,
       system:
         "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire.",
       messages: [{ role: "user", content: prompt }],
@@ -174,10 +164,7 @@ Reponds UNIQUEMENT en JSON valide : ${jsonFormat}`;
       max_tokens: 800,
     });
 
-    const content =
-      response.content[0]?.type === "text"
-        ? response.content[0].text.trim()
-        : "";
+    const content = extractTextContent(response);
 
     if (!content) {
       return NextResponse.json(
@@ -192,7 +179,16 @@ Reponds UNIQUEMENT en JSON valide : ${jsonFormat}`;
       .replace(/\s*```$/i, "")
       .trim();
 
-    const parsed = JSON.parse(cleaned);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      console.error("[API generate-template] JSON parse error:", cleaned.slice(0, 500));
+      return NextResponse.json(
+        { error: "Erreur de parsing de la reponse IA" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -200,7 +196,7 @@ Reponds UNIQUEMENT en JSON valide : ${jsonFormat}`;
         content: parsed,
         metadata: {
           agentType: "template_generator",
-          model: CLAUDE_MODEL,
+          model: CLAUDE_HAIKU,
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,
           costUsd:

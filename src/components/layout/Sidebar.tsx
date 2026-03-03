@@ -3,25 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Search,
-  Send,
-  Mail,
-  Inbox,
-  Bot,
-  Linkedin,
-  Brain,
-  Settings,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Shield,
-  Kanban,
-  CheckSquare,
-} from "lucide-react";
+import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { NAV_ITEMS, ADMIN_NAV_ITEM, NAV_GROUP_ORDER, type NavGroup } from "@/lib/constants";
 
 interface SidebarProps {
   user?: {
@@ -50,9 +33,7 @@ interface SidebarProps {
   };
 }
 
-type NavGroup = "crm" | "outreach" | "tools" | "settings" | "admin";
-
-interface NavItem {
+interface SidebarNavItem {
   label: string;
   href: string;
   icon: React.ElementType;
@@ -60,35 +41,6 @@ interface NavItem {
   badgeCount?: number;
   badgeVariant?: "default" | "secondary" | "destructive" | "outline";
 }
-
-const navItems: NavItem[] = [
-  // CRM
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "crm" },
-  { label: "Pipeline", href: "/deals", icon: Kanban, group: "crm" },
-  { label: "Activites", href: "/activities", icon: CheckSquare, group: "crm" },
-  { label: "Prospects", href: "/prospects", icon: Users, group: "crm" },
-  // Outreach
-  { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
-  { label: "Emails", href: "/emails", icon: Mail, group: "outreach" },
-  { label: "Inbox", href: "/inbox", icon: Inbox, group: "outreach" },
-  { label: "LinkedIn", href: "/linkedin", icon: Linkedin, group: "outreach" },
-  { label: "Automation", href: "/automation", icon: Bot, group: "outreach" },
-  // Tools
-  { label: "Scraper", href: "/scraper", icon: Search, group: "tools" },
-  { label: "Google Maps", href: "/maps-scraper", icon: MapPin, group: "tools" },
-  { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
-  // Settings
-  { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
-];
-
-const adminItem: NavItem = {
-  label: "Administration",
-  href: "/admin",
-  icon: Shield,
-  group: "admin",
-};
-
-const groupOrder: NavGroup[] = ["crm", "outreach", "tools", "settings", "admin"];
 
 export function Sidebar({ user, counts }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -118,17 +70,17 @@ export function Sidebar({ user, counts }: SidebarProps) {
     "/deals": counts?.deals,
   };
 
-  const allItems = [
-    ...navItems.map((item) => ({
+  const allItems: SidebarNavItem[] = [
+    ...NAV_ITEMS.map((item) => ({
       ...item,
       badgeCount: countMap[item.href],
       badgeVariant: "secondary" as const,
     })),
-    ...(user?.role === "super_admin" ? [adminItem] : []),
+    ...(user?.role === "super_admin" ? [ADMIN_NAV_ITEM] : []),
   ];
 
   // Group items
-  const groupedItems = groupOrder
+  const groupedItems = NAV_GROUP_ORDER
     .map((group) => ({
       group,
       items: allItems.filter((item) => item.group === group),
@@ -264,6 +216,7 @@ export function Sidebar({ user, counts }: SidebarProps) {
                     size="icon-xs"
                     onClick={handleLogout}
                     className="text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                    aria-label="Se deconnecter"
                   >
                     <LogOut className="size-4" />
                   </Button>
@@ -276,6 +229,7 @@ export function Sidebar({ user, counts }: SidebarProps) {
                 size="icon-xs"
                 onClick={handleLogout}
                 className="text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                aria-label="Se deconnecter"
               >
                 <LogOut className="size-4" />
               </Button>

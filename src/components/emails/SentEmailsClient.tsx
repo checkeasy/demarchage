@@ -14,7 +14,9 @@ import {
   MessageSquare,
   AlertTriangle,
   Send,
+  SearchX,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,16 +132,15 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
 
   if (emails.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-          <Mail className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-semibold">Aucun email envoye</h3>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Les emails envoyes depuis vos campagnes apparaitront ici.
-          Commencez par creer une campagne et lancer un envoi.
-        </p>
-      </div>
+      <EmptyState
+        icon={Mail}
+        title="Aucun email envoye"
+        description="Les emails envoyes depuis vos campagnes apparaitront ici. Commencez par creer une campagne et lancer un envoi."
+        action={{
+          label: "Creer une campagne",
+          href: "/campaigns/new",
+        }}
+      />
     );
   }
 
@@ -196,12 +197,23 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border overflow-hidden">
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={SearchX}
+          title="Aucun resultat"
+          description="Aucun email ne correspond a vos criteres de recherche. Essayez de modifier vos filtres."
+        />
+      ) : (
+      <div className="relative rounded-lg border overflow-hidden">
+        <p className="text-xs text-muted-foreground px-4 py-1 sm:hidden">
+          Glissez pour voir plus de colonnes
+        </p>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Destinataire</TableHead>
-              <TableHead>Objet</TableHead>
+              <TableHead className="hidden sm:table-cell">Objet</TableHead>
               <TableHead className="hidden md:table-cell">Campagne</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead className="hidden sm:table-cell">Date</TableHead>
@@ -232,7 +244,7 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <p className="text-sm truncate max-w-[200px]">
                       {email.subject || "(sans objet)"}
                     </p>
@@ -272,6 +284,7 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
                       variant="ghost"
                       size="sm"
                       onClick={() => setPreviewEmail(email)}
+                      aria-label="Voir"
                     >
                       <Eye className="size-4" />
                     </Button>
@@ -281,7 +294,9 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
             })}
           </TableBody>
         </Table>
+        </div>
       </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

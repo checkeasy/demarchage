@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import {
-  ChevronLeft,
+  ArrowLeft,
   Mail,
   Eye,
   Reply,
@@ -159,7 +159,7 @@ export default async function CampaignDetailPage({
         <div className="flex items-start gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/campaigns">
-              <ChevronLeft className="size-4" />
+              <ArrowLeft className="size-4" />
               Retour
             </Link>
           </Button>

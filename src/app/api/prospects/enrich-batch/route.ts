@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import Anthropic from '@anthropic-ai/sdk';
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-      timeout: 30_000,
-    });
-  }
-  return _anthropic;
-}
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from '@/lib/ai/client';
 
 export const maxDuration = 120;
 
@@ -93,23 +82,28 @@ Informations disponibles:
 Reponds UNIQUEMENT en JSON valide: {"industry": "...", "employee_count": "...", "lead_score": 0}`;
 
           const response = await getAnthropic().messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: CLAUDE_HAIKU,
             max_tokens: 200,
             temperature: 0.3,
             messages: [{ role: 'user', content: prompt }],
           });
 
-          const text = response.content[0].type === 'text' ? response.content[0].text : '';
+          const text = extractTextContent(response);
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (!jsonMatch) throw new Error('No JSON in response');
 
-          const parsed = JSON.parse(jsonMatch[0]);
+          let parsed: { industry?: string; employee_count?: string; lead_score?: number };
+          try {
+            parsed = JSON.parse(jsonMatch[0]);
+          } catch {
+            throw new Error('Erreur de parsing de la reponse IA');
+          }
 
           const updates: Record<string, unknown> = {};
           if (parsed.industry && !prospect.industry) updates.industry = parsed.industry;
           if (parsed.employee_count && !prospect.employee_count) updates.employee_count = parsed.employee_count;
           if (parsed.lead_score !== undefined && prospect.lead_score === null) {
-            const score = Math.max(0, Math.min(100, Math.round(parsed.lead_score)));
+            const score = Math.max(0, Math.min(100, Math.round(parsed.lead_score ?? 0)));
             updates.lead_score = score;
           }
 

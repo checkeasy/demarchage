@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import Anthropic from '@anthropic-ai/sdk';
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-      timeout: 60_000,
-    });
-  }
-  return _anthropic;
-}
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from '@/lib/ai/client';
 
 export const maxDuration = 120;
 
@@ -86,13 +75,13 @@ Voici le texte CRM a parser :
 ${text.slice(0, 15000)}`;
 
     const response = await getAnthropic().messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: CLAUDE_HAIKU,
       max_tokens: 4096,
       temperature: 0.1,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+    const responseText = extractTextContent(response);
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
       console.error('[Import CRM] No JSON array in response:', responseText.slice(0, 500));

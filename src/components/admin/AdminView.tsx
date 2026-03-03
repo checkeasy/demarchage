@@ -330,6 +330,7 @@ export function AdminView() {
                           size="icon-xs"
                           onClick={() => openEdit(user)}
                           title="Modifier"
+                          aria-label="Modifier"
                         >
                           <Pencil className="size-3.5" />
                         </Button>

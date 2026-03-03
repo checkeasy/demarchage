@@ -3,23 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Kanban,
-  CheckSquare,
-  MoreHorizontal,
-  Send,
-  Mail,
-  Inbox,
-  Linkedin,
-  Bot,
-  Search,
-  MapPin,
-  Brain,
-  Settings,
-  X,
-} from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -27,29 +11,27 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { NAV_ITEMS, ADMIN_NAV_ITEM } from "@/lib/constants";
 
-const primaryNavItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Pipeline", href: "/deals", icon: Kanban },
-  { label: "Prospects", href: "/prospects", icon: Users },
-  { label: "Activites", href: "/activities", icon: CheckSquare },
-];
+// Primary items shown in the bottom bar (CRM group)
+const primaryHrefs = ["/dashboard", "/deals", "/prospects", "/activities"];
 
-const moreNavItems = [
-  { label: "Campagnes", href: "/campaigns", icon: Send },
-  { label: "Emails", href: "/emails", icon: Mail },
-  { label: "Inbox", href: "/inbox", icon: Inbox },
-  { label: "LinkedIn", href: "/linkedin", icon: Linkedin },
-  { label: "Automation", href: "/automation", icon: Bot },
-  { label: "Scraper", href: "/scraper", icon: Search },
-  { label: "Google Maps", href: "/maps-scraper", icon: MapPin },
-  { label: "Agents IA", href: "/agents", icon: Brain },
-  { label: "Parametres", href: "/settings", icon: Settings },
-];
+interface MobileNavProps {
+  userRole?: "super_admin" | "user";
+}
 
-export function MobileNav() {
+export function MobileNav({ userRole }: MobileNavProps) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const primaryNavItems = NAV_ITEMS.filter((item) =>
+    primaryHrefs.includes(item.href)
+  );
+
+  const moreNavItems = [
+    ...NAV_ITEMS.filter((item) => !primaryHrefs.includes(item.href)),
+    ...(userRole === "super_admin" ? [ADMIN_NAV_ITEM] : []),
+  ];
 
   const isMoreActive = moreNavItems.some(
     (item) =>

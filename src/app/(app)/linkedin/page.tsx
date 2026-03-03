@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -208,7 +209,7 @@ export default function LinkedInPage() {
                   Les actions LinkedIn de vos campagnes apparaitront ici.
                 </p>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="/campaigns">Voir les campagnes</a>
+                  <Link href="/campaigns">Voir les campagnes</Link>
                 </Button>
               </CardContent>
             </Card>

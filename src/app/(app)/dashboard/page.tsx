@@ -494,7 +494,7 @@ export default async function DashboardPage() {
   const quickActions = [
     {
       label: "Nouveau prospect",
-      href: "/prospects",
+      href: "/prospects?action=add",
       icon: Plus,
       color: "text-blue-600",
     },
@@ -506,7 +506,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Nouveau deal",
-      href: "/deals",
+      href: "/deals?action=add",
       icon: Briefcase,
       color: "text-emerald-600",
     },

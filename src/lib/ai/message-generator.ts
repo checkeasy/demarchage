@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import {
   buildConnectionPrompt,
   buildFollowupPrompt,
@@ -7,6 +6,7 @@ import {
   buildAnalysisPrompt,
   type WorkspaceAIContext,
 } from '@/lib/ai/prompts';
+import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from '@/lib/ai/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,17 +107,8 @@ export interface WebsiteDataForIcebreaker {
   products?: string[];
 }
 
-// ─── Anthropic Client (lazy to avoid crash during next build) ────────────────
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return _anthropic;
-}
-
-const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+// Model alias for backward compatibility
+const CLAUDE_MODEL = CLAUDE_HAIKU;
 
 // ─── Helper: Build Profile Description ──────────────────────────────────────
 
@@ -172,9 +163,10 @@ function buildContextDescription(context: MessageContext): string {
 
 // ─── Helper: Extract Claude Response Text ───────────────────────────────────
 
-function extractResponseText(response: Anthropic.Message): string {
+function extractResponseText(response: { content: Array<{ type: string; text?: string }> }): string {
+  if (!response.content || response.content.length === 0) return '';
   const block = response.content[0];
-  if (block?.type === 'text') return block.text;
+  if (block?.type === 'text') return block.text || '';
   return '';
 }
 
@@ -212,7 +204,12 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
   });
 
   const text = extractResponseText(response);
-  const result: ConnectionMessageResult = JSON.parse(text);
+  let result: ConnectionMessageResult;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (generateConnectionMessage)');
+  }
 
   // Safety check: ensure message is under 300 characters
   if (result.message.length > 300) {
@@ -274,7 +271,11 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
   });
 
   const text = extractResponseText(response);
-  return JSON.parse(text) as FollowUpMessageResult;
+  try {
+    return JSON.parse(text) as FollowUpMessageResult;
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (generateFollowUpMessage)');
+  }
 }
 
 /**
@@ -322,7 +323,11 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
   });
 
   const text = extractResponseText(response);
-  return JSON.parse(text) as EmailSequenceResult;
+  try {
+    return JSON.parse(text) as EmailSequenceResult;
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (generateEmailSequence)');
+  }
 }
 
 /**
@@ -370,7 +375,11 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
   });
 
   const text = extractResponseText(response);
-  return JSON.parse(text) as IcebreakerResult;
+  try {
+    return JSON.parse(text) as IcebreakerResult;
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (generateIcebreaker)');
+  }
 }
 
 /**
@@ -401,5 +410,9 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
   });
 
   const text = extractResponseText(response);
-  return JSON.parse(text) as ProfileAnalysisResult;
+  try {
+    return JSON.parse(text) as ProfileAnalysisResult;
+  } catch {
+    throw new Error('Erreur de parsing de la reponse IA (analyzeProfileForOutreach)');
+  }
 }

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, Menu, Settings, LogOut, Shield } from "lucide-react";
+import { Mail, Menu, Settings, LogOut, Shield, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -13,9 +14,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
+import { PAGE_TITLES } from "@/lib/constants";
 
 interface HeaderProps {
-  title: string;
   user?: {
     email?: string;
     full_name?: string;
@@ -25,36 +26,69 @@ interface HeaderProps {
   onMenuToggle?: () => void;
 }
 
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/prospects": "Prospects",
-  "/campaigns": "Campagnes",
-  "/emails": "Emails envoyes",
-  "/deals": "Pipeline",
-  "/inbox": "Inbox",
-  "/linkedin": "LinkedIn",
-  "/agents": "Agents IA",
-  "/settings": "Parametres",
-  "/admin": "Administration",
-  "/activities": "Activites",
-  "/automation": "Automation",
-  "/scraper": "Scraper",
-  "/maps-scraper": "Google Maps",
-  "/onboarding": "Onboarding",
-};
+/**
+ * Resolve page title and optional breadcrumb from pathname.
+ * Returns { title, breadcrumb? } where breadcrumb is the parent label + href.
+ */
+function resolvePageInfo(pathname: string): {
+  title: string;
+  breadcrumb?: { label: string; href: string };
+} {
+  // Exact match first (includes sub-routes like /campaigns/new)
+  if (PAGE_TITLES[pathname]) {
+    // Check if this is a known sub-route (has more than 1 segment after /)
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length >= 2) {
+      const parentPath = "/" + segments[0];
+      const parentTitle = PAGE_TITLES[parentPath];
+      if (parentTitle) {
+        return {
+          title: PAGE_TITLES[pathname],
+          breadcrumb: { label: parentTitle, href: parentPath },
+        };
+      }
+    }
+    return { title: PAGE_TITLES[pathname] };
+  }
 
-function getPageTitle(pathname: string): string {
-  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
-  // Match sub-routes like /campaigns/[id]
-  const base = "/" + pathname.split("/")[1];
-  return PAGE_TITLES[base] || "ColdReach";
+  // Dynamic sub-routes: /campaigns/[id]/edit, /campaigns/[id], etc.
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length >= 3) {
+    const lastSegment = segments[segments.length - 1];
+    if (lastSegment === "edit") {
+      const parentPath = "/" + segments[0];
+      const parentTitle = PAGE_TITLES[parentPath];
+      if (parentTitle) {
+        return {
+          title: `Modifier`,
+          breadcrumb: { label: parentTitle, href: parentPath },
+        };
+      }
+    }
+  }
+
+  // 2-segment dynamic route: /campaigns/[id], /deals/[id], etc.
+  if (segments.length >= 2) {
+    const parentPath = "/" + segments[0];
+    const parentTitle = PAGE_TITLES[parentPath];
+    if (parentTitle) {
+      return {
+        title: parentTitle,
+        breadcrumb: { label: parentTitle, href: parentPath },
+      };
+    }
+  }
+
+  // Fallback: base path
+  const base = "/" + (segments[0] || "");
+  return { title: PAGE_TITLES[base] || "ColdReach" };
 }
 
-export function Header({ title, user, onMenuToggle }: HeaderProps) {
+export function Header({ user, onMenuToggle }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
-  const pageTitle = getPageTitle(pathname);
+  const { title, breadcrumb } = resolvePageInfo(pathname);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -84,9 +118,20 @@ export function Header({ title, user, onMenuToggle }: HeaderProps) {
           <span className="sr-only">Menu</span>
         </Button>
 
-        {/* Page title */}
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-slate-900">{pageTitle}</h1>
+        {/* Page title with breadcrumb */}
+        <div className="flex items-center gap-1.5">
+          {breadcrumb && (
+            <>
+              <Link
+                href={breadcrumb.href}
+                className="text-sm text-muted-foreground hover:text-slate-700 transition-colors hidden sm:inline"
+              >
+                {breadcrumb.label}
+              </Link>
+              <ChevronRight className="size-3.5 text-muted-foreground hidden sm:inline" />
+            </>
+          )}
+          <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
         </div>
       </div>
 

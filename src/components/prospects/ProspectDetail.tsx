@@ -1005,6 +1005,7 @@ export function ProspectDetail({
                 size="sm"
                 className="h-7 w-7 p-0"
                 onClick={() => setShowCampaignSelect(false)}
+                aria-label="Fermer"
               >
                 <X className="size-3" />
               </Button>
@@ -1091,6 +1092,7 @@ export function ProspectDetail({
                 size="sm"
                 className="h-7 w-7 p-0"
                 onClick={() => setShowAutomationSelect(false)}
+                aria-label="Fermer"
               >
                 <X className="size-3" />
               </Button>
