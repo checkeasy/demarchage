@@ -44,6 +44,35 @@ import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge"
 import { STEP_TYPES } from "@/lib/constants";
 import type { EmailAccount, Prospect } from "@/lib/types/database";
 
+const DRAFT_KEY = "campaign-wizard-draft";
+
+interface WizardDraft {
+  currentStep: number;
+  formData: CampaignFormData;
+  selectedProspectIds: string[];
+  steps: StepData[];
+  schedule: ScheduleData;
+}
+
+function saveDraft(draft: WizardDraft) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch { /* ignore quota errors */ }
+}
+
+function loadDraft(): WizardDraft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  sessionStorage.removeItem(DRAFT_KEY);
+}
+
 const WIZARD_STEPS = [
   { label: "Configuration", icon: Settings },
   { label: "Audience", icon: Users },
@@ -62,29 +91,43 @@ export default function NewCampaignPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [currentStep, setCurrentStep] = useState(0);
+  // Restore draft from sessionStorage
+  const draft = React.useMemo(() => loadDraft(), []);
+
+  const [currentStep, setCurrentStep] = useState(draft?.currentStep ?? 0);
   const [saving, setSaving] = useState(false);
 
   // Step 1: Configuration
-  const [formData, setFormData] = useState<CampaignFormData>({
-    name: "",
-    description: "",
-    email_account_id: "",
-  });
+  const [formData, setFormData] = useState<CampaignFormData>(
+    draft?.formData ?? { name: "", description: "", email_account_id: "" }
+  );
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
 
   // Step 2: Audience
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [selectedProspectIds, setSelectedProspectIds] = useState<Set<string>>(
-    new Set()
+    new Set(draft?.selectedProspectIds ?? [])
   );
   const [prospectSearch, setProspectSearch] = useState("");
 
   // Step 3: Sequence
-  const [steps, setSteps] = useState<StepData[]>([]);
+  const [steps, setSteps] = useState<StepData[]>(draft?.steps ?? []);
 
   // Step 4: Schedule
-  const [schedule, setSchedule] = useState<ScheduleData>(getDefaultSchedule());
+  const [schedule, setSchedule] = useState<ScheduleData>(
+    draft?.schedule ?? getDefaultSchedule()
+  );
+
+  // Auto-save draft on changes
+  useEffect(() => {
+    saveDraft({
+      currentStep,
+      formData,
+      selectedProspectIds: [...selectedProspectIds],
+      steps,
+      schedule,
+    });
+  }, [currentStep, formData, selectedProspectIds, steps, schedule]);
 
   // Test email
   const [testEmail, setTestEmail] = useState("");
@@ -320,6 +363,7 @@ export default function NewCampaignPage() {
 
       if (updateError) throw updateError;
 
+      clearDraft();
       toast.success("Campagne creee avec succes !");
       router.push(`/campaigns/${campaign.id}`);
     } catch (error: unknown) {

@@ -22,6 +22,9 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowRight,
+  CheckCircle2,
+  Circle,
+  Rocket,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -33,6 +36,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { PipelineValueCard } from "@/components/dashboard/PipelineValueCard";
 import { DealsWonLostChart } from "@/components/dashboard/DealsWonLostChart";
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
@@ -118,6 +122,58 @@ export default async function DashboardPage() {
   if (!workspaceId) {
     redirect("/onboarding");
   }
+
+  // --- Onboarding checklist data ---
+  const { count: prospectCount } = await supabase
+    .from("prospects")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+
+  const { count: emailAccountCount } = await supabase
+    .from("email_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("is_active", true);
+
+  const { count: campaignCount } = await supabase
+    .from("campaigns")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+
+  const { count: linkedinAccountCount } = await supabase
+    .from("linkedin_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+
+  const onboardingSteps = [
+    {
+      label: "Configurer un compte email",
+      done: (emailAccountCount ?? 0) > 0,
+      href: "/settings",
+      description: "Connectez un compte email pour envoyer des campagnes",
+    },
+    {
+      label: "Importer des prospects",
+      done: (prospectCount ?? 0) > 0,
+      href: "/prospects/import",
+      description: "Ajoutez vos premiers prospects depuis un CSV ou LinkedIn",
+    },
+    {
+      label: "Creer une campagne",
+      done: (campaignCount ?? 0) > 0,
+      href: "/campaigns/new",
+      description: "Lancez votre premiere sequence d'emails",
+    },
+    {
+      label: "Connecter LinkedIn",
+      done: (linkedinAccountCount ?? 0) > 0,
+      href: "/settings",
+      description: "Ajoutez vos cookies LinkedIn pour la prospection",
+    },
+  ];
+
+  const onboardingComplete = onboardingSteps.every((s) => s.done);
+  const onboardingProgress = onboardingSteps.filter((s) => s.done).length;
 
   // --- Pipeline stats ---
   const { data: openDeals } = await supabase
@@ -527,6 +583,67 @@ export default async function DashboardPage() {
           Vue d&apos;ensemble de votre CRM et de vos campagnes
         </p>
       </div>
+
+      {/* Onboarding Checklist */}
+      {!onboardingComplete && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center size-10 rounded-xl bg-blue-100">
+                  <Rocket className="size-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Demarrage rapide</CardTitle>
+                  <CardDescription>
+                    {onboardingProgress}/{onboardingSteps.length} etapes completees
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+            <Progress
+              value={(onboardingProgress / onboardingSteps.length) * 100}
+              className="h-1.5 mt-2 bg-blue-200"
+            />
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {onboardingSteps.map((step) => (
+                <Link
+                  key={step.label}
+                  href={step.href}
+                  className={`flex items-start gap-3 rounded-lg p-3 transition-colors ${
+                    step.done
+                      ? "bg-green-50 border border-green-200"
+                      : "bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50"
+                  }`}
+                >
+                  {step.done ? (
+                    <CheckCircle2 className="size-5 text-green-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <Circle className="size-5 text-slate-300 shrink-0 mt-0.5" />
+                  )}
+                  <div className="min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        step.done ? "text-green-700 line-through" : "text-slate-900"
+                      }`}
+                    >
+                      {step.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {step.description}
+                    </p>
+                  </div>
+                  {!step.done && (
+                    <ArrowRight className="size-4 text-slate-400 shrink-0 mt-0.5 ml-auto" />
+                  )}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Row 1: Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

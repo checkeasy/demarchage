@@ -58,6 +58,14 @@ export const ADMIN_NAV_ITEM: NavItem = {
 
 export const NAV_GROUP_ORDER: NavGroup[] = ["crm", "outreach", "tools", "settings", "admin"];
 
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
+  crm: "CRM",
+  outreach: "Outreach",
+  tools: "Outils",
+  settings: "Systeme",
+  admin: "Admin",
+};
+
 /** Page titles for Header — includes sub-routes */
 export const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",

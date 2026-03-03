@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
-import { NAV_ITEMS, ADMIN_NAV_ITEM, NAV_GROUP_ORDER, type NavGroup } from "@/lib/constants";
+import { NAV_ITEMS, ADMIN_NAV_ITEM, NAV_GROUP_ORDER, NAV_GROUP_LABELS, type NavGroup } from "@/lib/constants";
 
 interface SidebarProps {
   user?: {
@@ -42,8 +42,21 @@ interface SidebarNavItem {
   badgeVariant?: "default" | "secondary" | "destructive" | "outline";
 }
 
+const COLLAPSED_GROUPS_KEY = "sidebar-collapsed-groups";
+
+function loadCollapsedGroups(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const stored = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 export function Sidebar({ user, counts }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(loadCollapsedGroups);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -61,6 +74,19 @@ export function Sidebar({ user, counts }: SidebarProps) {
         .toUpperCase()
         .slice(0, 2)
     : user?.email?.charAt(0).toUpperCase() ?? "U";
+
+  function toggleGroup(group: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) {
+        next.delete(group);
+      } else {
+        next.add(group);
+      }
+      localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   // Map href to badge counts
   const countMap: Record<string, number | undefined> = {
@@ -99,11 +125,34 @@ export function Sidebar({ user, counts }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2 overflow-y-auto">
-          {groupedItems.map((group, groupIndex) => (
+          {groupedItems.map((group, groupIndex) => {
+            const isGroupCollapsed = collapsedGroups.has(group.group);
+            const hasActiveItem = group.items.some(
+              (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+            );
+
+            return (
             <div key={group.group}>
               {groupIndex > 0 && (
                 <Separator className="bg-slate-700/50 my-2 mx-1" />
               )}
+
+              {/* Group label (only when sidebar is expanded) */}
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.group)}
+                  className="flex items-center justify-between w-full px-3 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <span>{NAV_GROUP_LABELS[group.group]}</span>
+                  <ChevronDown
+                    className={`size-3 transition-transform ${isGroupCollapsed ? "-rotate-90" : ""}`}
+                  />
+                </button>
+              )}
+
+              {/* Group items (hidden when collapsed, unless an item is active) */}
+              {(!isGroupCollapsed || collapsed || hasActiveItem) && (
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const isActive =
@@ -161,8 +210,10 @@ export function Sidebar({ user, counts }: SidebarProps) {
                   return <div key={item.href}>{linkContent}</div>;
                 })}
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Collapse Toggle */}
