@@ -34,6 +34,71 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
+    // --- A/B Winner Auto-Selection ---
+    // Check steps where A/B testing is active but no winner has been selected yet
+    const { data: abSteps } = await supabase
+      .from("sequence_steps")
+      .select("id, ab_winner_metric, ab_winner_after_hours, campaign_id")
+      .eq("ab_enabled", true)
+      .is("ab_winner_variant_id", null);
+
+    if (abSteps && abSteps.length > 0) {
+      for (const abStep of abSteps) {
+        // Check if enough time has passed since the first email was sent for this step
+        const { data: firstSent } = await supabase
+          .from("emails_sent")
+          .select("sent_at")
+          .eq("step_id", abStep.id)
+          .not("ab_variant_id", "is", null)
+          .order("sent_at", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (!firstSent?.sent_at) continue;
+
+        const hoursSince = (Date.now() - new Date(firstSent.sent_at).getTime()) / (1000 * 60 * 60);
+        if (hoursSince < (abStep.ab_winner_after_hours || 24)) continue;
+
+        // Calculate metrics per variant
+        const { data: variants } = await supabase
+          .from("ab_variants")
+          .select("*")
+          .eq("step_id", abStep.id);
+
+        if (!variants || variants.length < 2) continue;
+
+        const metric = abStep.ab_winner_metric || "open_rate";
+        let bestVariant = variants[0];
+        let bestScore = -1;
+
+        for (const v of variants) {
+          let score = 0;
+          if (v.total_sent > 0) {
+            if (metric === "open_rate") score = v.total_opened / v.total_sent;
+            else if (metric === "click_rate") score = v.total_clicked / v.total_sent;
+            else if (metric === "reply_rate") score = v.total_replied / v.total_sent;
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestVariant = v;
+          }
+        }
+
+        // Set winner
+        await supabase
+          .from("sequence_steps")
+          .update({ ab_winner_variant_id: bestVariant.id })
+          .eq("id", abStep.id);
+
+        await supabase
+          .from("ab_variants")
+          .update({ is_winner: true })
+          .eq("id", bestVariant.id);
+
+        console.log(`[A/B] Winner selected for step ${abStep.id}: variant ${bestVariant.variant_label} (${metric}: ${(bestScore * 100).toFixed(1)}%)`);
+      }
+    }
+
     // Fetch emails ready to send from the queue view
     const { data: queue, error: queueError } = await supabase
       .from("email_send_queue")

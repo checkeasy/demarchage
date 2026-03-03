@@ -50,10 +50,10 @@ export default async function CampaignDetailPage({
     notFound();
   }
 
-  // Fetch sequence steps
+  // Fetch sequence steps with their A/B variants
   const { data: stepsData } = await supabase
     .from("sequence_steps")
-    .select("*")
+    .select("*, ab_variants(*)")
     .eq("campaign_id", id)
     .order("step_order", { ascending: true });
 
@@ -181,6 +181,17 @@ export default async function CampaignDetailPage({
         {/* Action buttons */}
         <CampaignActions campaignId={id} status={typedCampaign.status} />
       </div>
+
+      {/* Warning: no email account */}
+      {!typedCampaign.email_account_id && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            <strong>Aucun compte email associe.</strong> Les emails ne seront pas envoyes tant qu&apos;un compte n&apos;est pas configure.{" "}
+            <Link href={`/campaigns/${id}/edit`} className="underline font-medium">Modifier la campagne</Link>
+          </span>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

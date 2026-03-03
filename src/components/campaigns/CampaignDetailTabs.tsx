@@ -95,7 +95,8 @@ export function CampaignDetailTabs({
   const supabase = createClient();
 
   // Convert DB sequence steps to StepData for the SequenceEditor
-  const initialEditorSteps: StepData[] = (steps as (typeof steps[number] & Record<string, unknown>)[]).map((s) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initialEditorSteps: StepData[] = (steps as any[]).map((s) => ({
     id: s.id,
     step_order: s.step_order,
     step_type: s.step_type as StepData["step_type"],
@@ -107,6 +108,7 @@ export function CampaignDetailTabs({
     linkedin_message: s.linkedin_message,
     whatsapp_message: (s.whatsapp_message as string) ?? null,
     ab_enabled: s.ab_enabled,
+    ab_variants: s.ab_variants || undefined,
   }));
 
   const [editableSteps, setEditableSteps] = useState<StepData[]>(initialEditorSteps);
@@ -148,11 +150,32 @@ export function CampaignDetailTabs({
           ab_enabled: s.ab_enabled,
         }));
 
-        const { error: stepsError } = await supabase
+        const { data: insertedSteps, error: stepsError } = await supabase
           .from("sequence_steps")
-          .insert(stepsToInsert);
+          .insert(stepsToInsert)
+          .select("id, step_order");
 
         if (stepsError) throw stepsError;
+
+        // Save A/B variants for steps that have them
+        if (insertedSteps) {
+          for (const step of stepsToSave) {
+            if (step.ab_enabled && step.ab_variants && step.ab_variants.length > 0) {
+              const insertedStep = insertedSteps.find((is) => is.step_order === step.step_order);
+              if (insertedStep) {
+                const variantsToInsert = step.ab_variants.map((v) => ({
+                  step_id: insertedStep.id,
+                  variant_label: v.variant_label,
+                  subject: v.subject,
+                  body_html: v.body_html,
+                  body_text: v.body_text,
+                  weight: v.weight,
+                }));
+                await supabase.from("ab_variants").insert(variantsToInsert);
+              }
+            }
+          }
+        }
       }
 
       toast.success("Sequence sauvegardee");

@@ -14,11 +14,12 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailComposer } from "./EmailComposer";
 import { STEP_TYPES } from "@/lib/constants";
-import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
+import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle, Sparkles, Loader2, Copy } from "lucide-react";
 import { toast } from "sonner";
-import type { StepData } from "./types";
+import type { StepData, ABVariant } from "./types";
 
 // Hook for template generation (no prospect needed)
 function useTemplateGeneration() {
@@ -151,78 +152,161 @@ function EmailStepEditor({
   step: StepData;
   onSave: (step: StepData) => void;
 }) {
-  const [subject, setSubject] = useState(step.subject ?? "");
-  const [body, setBody] = useState(step.body_html ?? "");
+  const existingA = step.ab_variants?.find((v) => v.variant_label === "A");
+  const existingB = step.ab_variants?.find((v) => v.variant_label === "B");
+
+  const [subject, setSubject] = useState(existingA?.subject || step.subject || "");
+  const [body, setBody] = useState(existingA?.body_html || step.body_html || "");
   const [abEnabled, setAbEnabled] = useState(step.ab_enabled ?? false);
+  const [subjectB, setSubjectB] = useState(existingB?.subject || "");
+  const [bodyB, setBodyB] = useState(existingB?.body_html || "");
+  const [weightA, setWeightA] = useState(existingA?.weight ?? 50);
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
-  // Sync state when step changes (key prop forces remount, but just in case)
   useEffect(() => {
-    setSubject(step.subject ?? "");
-    setBody(step.body_html ?? "");
+    const a = step.ab_variants?.find((v) => v.variant_label === "A");
+    const b = step.ab_variants?.find((v) => v.variant_label === "B");
+    setSubject(a?.subject || step.subject || "");
+    setBody(a?.body_html || step.body_html || "");
     setAbEnabled(step.ab_enabled ?? false);
-  }, [step.id, step.subject, step.body_html, step.ab_enabled]);
+    setSubjectB(b?.subject || "");
+    setBodyB(b?.body_html || "");
+    setWeightA(a?.weight ?? 50);
+  }, [step.id, step.subject, step.body_html, step.ab_enabled, step.ab_variants]);
 
-  const handleAIGenerate = async () => {
+  const handleAIGenerate = async (variant: "A" | "B" = "A") => {
     const result = await generate({
       channel: "email",
       stepNumber: step.step_order,
     });
     if (result?.content) {
       const content = result.content as { subject?: string; body_html?: string; body_text?: string };
-      if (content.subject) setSubject(content.subject);
-      if (content.body_html) setBody(content.body_html);
-      else if (content.body_text) setBody(content.body_text);
-      toast.success("Email genere par l'IA");
+      if (variant === "A") {
+        if (content.subject) setSubject(content.subject);
+        if (content.body_html) setBody(content.body_html);
+        else if (content.body_text) setBody(content.body_text);
+      } else {
+        if (content.subject) setSubjectB(content.subject);
+        if (content.body_html) setBodyB(content.body_html);
+        else if (content.body_text) setBodyB(content.body_text);
+      }
+      toast.success(`Variante ${variant} generee par l'IA`);
     }
   };
 
+  const handleCopyAtoB = () => {
+    setSubjectB(subject);
+    setBodyB(body);
+    toast.success("Variante A copiee vers B");
+  };
+
   const handleSave = () => {
+    const variants: ABVariant[] | undefined = abEnabled
+      ? [
+          {
+            variant_label: "A",
+            subject,
+            body_html: body,
+            body_text: body.replace(/<[^>]*>/g, ""),
+            weight: weightA,
+          },
+          {
+            variant_label: "B",
+            subject: subjectB,
+            body_html: bodyB,
+            body_text: bodyB.replace(/<[^>]*>/g, ""),
+            weight: 100 - weightA,
+          },
+        ]
+      : undefined;
+
     onSave({
       ...step,
       subject,
       body_html: body,
       body_text: body.replace(/<[^>]*>/g, ""),
       ab_enabled: abEnabled,
+      ab_variants: variants,
     });
   };
 
   return (
     <div className="space-y-5">
-      {/* AI Generation Button */}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
-        onClick={handleAIGenerate}
-        disabled={aiLoading}
-      >
-        {aiLoading ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Sparkles className="size-4" />
-        )}
-        {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
-      </Button>
-
-      <EmailComposer
-        subject={subject}
-        body={body}
-        onSubjectChange={setSubject}
-        onBodyChange={setBody}
-      />
-
       {/* A/B test toggle */}
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div>
           <p className="text-sm font-medium">Test A/B</p>
           <p className="text-xs text-muted-foreground">
-            Tester differentes versions de cet email
+            Tester deux versions de cet email
           </p>
         </div>
         <Switch checked={abEnabled} onCheckedChange={setAbEnabled} />
       </div>
+
+      {abEnabled ? (
+        <Tabs defaultValue="A" className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="A" className="flex-1">Variante A ({weightA}%)</TabsTrigger>
+            <TabsTrigger value="B" className="flex-1">Variante B ({100 - weightA}%)</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="A" className="space-y-4 mt-3">
+            <Button
+              type="button" variant="outline" size="sm"
+              className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+              onClick={() => handleAIGenerate("A")} disabled={aiLoading}
+            >
+              {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              {aiLoading ? "Generation..." : "Generer A avec l'IA"}
+            </Button>
+            <EmailComposer subject={subject} body={body} onSubjectChange={setSubject} onBodyChange={setBody} />
+          </TabsContent>
+
+          <TabsContent value="B" className="space-y-4 mt-3">
+            <div className="flex gap-2">
+              <Button
+                type="button" variant="outline" size="sm"
+                className="flex-1 gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+                onClick={() => handleAIGenerate("B")} disabled={aiLoading}
+              >
+                {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {aiLoading ? "Generation..." : "Generer B avec l'IA"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleCopyAtoB}>
+                <Copy className="size-4" />
+                Copier A
+              </Button>
+            </div>
+            <EmailComposer subject={subjectB} body={bodyB} onSubjectChange={setSubjectB} onBodyChange={setBodyB} />
+          </TabsContent>
+
+          {/* Weight slider */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-xs text-muted-foreground">Repartition du trafic</Label>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium w-8">A: {weightA}%</span>
+              <input
+                type="range" min={10} max={90} step={10} value={weightA}
+                onChange={(e) => setWeightA(parseInt(e.target.value))}
+                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <span className="text-xs font-medium w-8">B: {100 - weightA}%</span>
+            </div>
+          </div>
+        </Tabs>
+      ) : (
+        <>
+          <Button
+            type="button" variant="outline" size="sm"
+            className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+            onClick={() => handleAIGenerate("A")} disabled={aiLoading}
+          >
+            {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {aiLoading ? "Generation en cours..." : "Generer avec l'IA"}
+          </Button>
+          <EmailComposer subject={subject} body={body} onSubjectChange={setSubject} onBodyChange={setBody} />
+        </>
+      )}
 
       <SheetFooter className="p-0">
         <Button onClick={handleSave} className="w-full">

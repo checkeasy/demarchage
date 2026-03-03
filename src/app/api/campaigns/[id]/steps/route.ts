@@ -48,7 +48,8 @@ export async function PUT(
       .eq("campaign_id", campaignId);
 
     // Insert new steps
-    const stepsToInsert = steps.map((step: Record<string, unknown>, index: number) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stepsToInsert = steps.map((step: any, index: number) => ({
       campaign_id: campaignId,
       step_order: step.step_order || index + 1,
       step_type: step.step_type || "email",
@@ -57,6 +58,7 @@ export async function PUT(
       body_text: step.body_text || null,
       delay_days: step.delay_days || 0,
       delay_hours: step.delay_hours || 0,
+      ab_enabled: step.ab_enabled || false,
       is_active: true,
     }));
 
@@ -71,6 +73,30 @@ export async function PUT(
         { error: "Erreur sauvegarde des etapes", details: insertError.message },
         { status: 500 }
       );
+    }
+
+    // Save A/B variants if any steps have them
+    if (inserted) {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (step.ab_enabled && step.ab_variants?.length > 0) {
+          const insertedStep = inserted.find(
+            (is: { step_order: number }) => is.step_order === (step.step_order || i + 1)
+          );
+          if (insertedStep) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const variantsToInsert = step.ab_variants.map((v: any) => ({
+              step_id: insertedStep.id,
+              variant_label: v.variant_label || "A",
+              subject: v.subject || null,
+              body_html: v.body_html || null,
+              body_text: v.body_text || null,
+              weight: v.weight ?? 50,
+            }));
+            await supabase.from("ab_variants").insert(variantsToInsert);
+          }
+        }
+      }
     }
 
     return NextResponse.json({ success: true, steps: inserted });

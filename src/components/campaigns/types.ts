@@ -1,3 +1,18 @@
+export interface ABVariant {
+  id?: string;
+  step_id?: string;
+  variant_label: string; // 'A' | 'B'
+  subject: string;
+  body_html: string;
+  body_text: string;
+  weight: number;
+  total_sent?: number;
+  total_opened?: number;
+  total_clicked?: number;
+  total_replied?: number;
+  is_winner?: boolean;
+}
+
 export interface StepData {
   id: string;
   step_order: number;
@@ -10,4 +25,5 @@ export interface StepData {
   linkedin_message: string | null;
   whatsapp_message: string | null;
   ab_enabled: boolean;
+  ab_variants?: ABVariant[];
 }
