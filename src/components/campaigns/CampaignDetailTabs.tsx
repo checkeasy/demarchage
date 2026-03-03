@@ -128,6 +128,24 @@ export function CampaignDetailTabs({
     savingRef.current = true;
     setSavingSequence(true);
     try {
+      // Nullify FK references before deleting steps
+      await supabase
+        .from("campaign_prospects")
+        .update({ current_step_id: null })
+        .eq("campaign_id", campaign.id);
+
+      const { data: cpIds } = await supabase
+        .from("campaign_prospects")
+        .select("id")
+        .eq("campaign_id", campaign.id);
+
+      if (cpIds && cpIds.length > 0) {
+        await supabase
+          .from("emails_sent")
+          .update({ step_id: null })
+          .in("campaign_prospect_id", cpIds.map((cp) => cp.id));
+      }
+
       const { error: deleteError } = await supabase
         .from("sequence_steps")
         .delete()
@@ -159,6 +177,16 @@ export function CampaignDetailTabs({
 
         // Save A/B variants for steps that have them
         if (insertedSteps) {
+          // Reassign active prospects to the first step
+          const firstStep = insertedSteps.find((s) => s.step_order === 1);
+          if (firstStep && cpIds && cpIds.length > 0) {
+            await supabase
+              .from("campaign_prospects")
+              .update({ current_step_id: firstStep.id })
+              .eq("campaign_id", campaign.id)
+              .eq("status", "active");
+          }
+
           for (const step of stepsToSave) {
             if (step.ab_enabled && step.ab_variants && step.ab_variants.length > 0) {
               const insertedStep = insertedSteps.find((is) => is.step_order === step.step_order);
