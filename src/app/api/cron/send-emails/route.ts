@@ -99,6 +99,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Fix orphaned prospects (active but no current_step_id) ---
+    const { data: orphanedCampaigns } = await supabase
+      .from("campaign_prospects")
+      .select("campaign_id")
+      .eq("status", "active")
+      .is("current_step_id", null);
+
+    if (orphanedCampaigns && orphanedCampaigns.length > 0) {
+      const uniqueCampaignIds = [...new Set(orphanedCampaigns.map((o) => o.campaign_id))];
+      for (const cId of uniqueCampaignIds) {
+        const { data: step1 } = await supabase
+          .from("sequence_steps")
+          .select("id")
+          .eq("campaign_id", cId)
+          .order("step_order", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (step1) {
+          const { data: fixed } = await supabase
+            .from("campaign_prospects")
+            .update({ current_step_id: step1.id, next_send_at: new Date().toISOString() })
+            .eq("campaign_id", cId)
+            .eq("status", "active")
+            .is("current_step_id", null)
+            .select("id");
+
+          if (fixed && fixed.length > 0) {
+            console.log(`[Cron] Fixed ${fixed.length} orphaned prospects in campaign ${cId}`);
+          }
+        }
+      }
+    }
+
     // Fetch emails ready to send from the queue view
     const { data: queue, error: queueError } = await supabase
       .from("email_send_queue")

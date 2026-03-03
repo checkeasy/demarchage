@@ -128,83 +128,29 @@ export function CampaignDetailTabs({
     savingRef.current = true;
     setSavingSequence(true);
     try {
-      // Nullify FK references before deleting steps
-      await supabase
-        .from("campaign_prospects")
-        .update({ current_step_id: null })
-        .eq("campaign_id", campaign.id);
+      // Use server-side API to handle FK cleanup + reassignment
+      const res = await fetch(`/api/campaigns/${campaign.id}/steps`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          steps: stepsToSave.map((s) => ({
+            step_order: s.step_order,
+            step_type: s.step_type,
+            delay_days: s.delay_days,
+            delay_hours: s.delay_hours,
+            subject: s.subject,
+            body_html: s.body_html,
+            body_text: s.body_text,
+            linkedin_message: s.linkedin_message,
+            whatsapp_message: s.whatsapp_message,
+            ab_enabled: s.ab_enabled,
+            ab_variants: s.ab_variants,
+          })),
+        }),
+      });
 
-      const { data: cpIds } = await supabase
-        .from("campaign_prospects")
-        .select("id")
-        .eq("campaign_id", campaign.id);
-
-      if (cpIds && cpIds.length > 0) {
-        await supabase
-          .from("emails_sent")
-          .update({ step_id: null })
-          .in("campaign_prospect_id", cpIds.map((cp) => cp.id));
-      }
-
-      const { error: deleteError } = await supabase
-        .from("sequence_steps")
-        .delete()
-        .eq("campaign_id", campaign.id);
-
-      if (deleteError) throw deleteError;
-
-      if (stepsToSave.length > 0) {
-        const stepsToInsert = stepsToSave.map((s) => ({
-          campaign_id: campaign.id,
-          step_order: s.step_order,
-          step_type: s.step_type,
-          delay_days: s.delay_days,
-          delay_hours: s.delay_hours,
-          subject: s.subject,
-          body_html: s.body_html,
-          body_text: s.body_text,
-          linkedin_message: s.linkedin_message,
-          whatsapp_message: s.whatsapp_message,
-          ab_enabled: s.ab_enabled,
-        }));
-
-        const { data: insertedSteps, error: stepsError } = await supabase
-          .from("sequence_steps")
-          .insert(stepsToInsert)
-          .select("id, step_order");
-
-        if (stepsError) throw stepsError;
-
-        // Save A/B variants for steps that have them
-        if (insertedSteps) {
-          // Reassign active prospects to the first step
-          const firstStep = insertedSteps.find((s) => s.step_order === 1);
-          if (firstStep && cpIds && cpIds.length > 0) {
-            await supabase
-              .from("campaign_prospects")
-              .update({ current_step_id: firstStep.id })
-              .eq("campaign_id", campaign.id)
-              .eq("status", "active");
-          }
-
-          for (const step of stepsToSave) {
-            if (step.ab_enabled && step.ab_variants && step.ab_variants.length > 0) {
-              const insertedStep = insertedSteps.find((is) => is.step_order === step.step_order);
-              if (insertedStep) {
-                const variantsToInsert = step.ab_variants.map((v) => ({
-                  step_id: insertedStep.id,
-                  variant_label: v.variant_label,
-                  subject: v.subject,
-                  body_html: v.body_html,
-                  body_text: v.body_text,
-                  weight: v.weight,
-                }));
-                await supabase.from("ab_variants").insert(variantsToInsert);
-              }
-            }
-          }
-        }
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur serveur");
 
       toast.success("Sequence sauvegardee");
     } catch (error) {

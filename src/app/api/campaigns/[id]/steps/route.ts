@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getNextSendTime } from "@/lib/email/scheduler";
 
 // PUT /api/campaigns/[id]/steps — Save sequence steps for a campaign
 export async function PUT(
@@ -119,6 +120,36 @@ export async function PUT(
             await supabase.from("ab_variants").insert(variantsToInsert);
           }
         }
+      }
+
+      // Reassign active prospects with null current_step_id to step 1
+      const firstStep = inserted.find((s: { step_order: number }) => s.step_order === 1);
+      if (firstStep) {
+        const { data: campaignData } = await adminSupabase
+          .from("campaigns")
+          .select("timezone, sending_window_start, sending_window_end, sending_days")
+          .eq("id", campaignId)
+          .single();
+
+        const nextSendAt = campaignData
+          ? getNextSendTime(
+              campaignData.timezone || "Europe/Paris",
+              campaignData.sending_window_start || "08:00",
+              campaignData.sending_window_end || "18:00",
+              campaignData.sending_days || [1, 2, 3, 4, 5],
+              0, 0
+            )
+          : new Date();
+
+        await adminSupabase
+          .from("campaign_prospects")
+          .update({
+            current_step_id: firstStep.id,
+            next_send_at: nextSendAt.toISOString(),
+          })
+          .eq("campaign_id", campaignId)
+          .eq("status", "active")
+          .is("current_step_id", null);
       }
     }
 
