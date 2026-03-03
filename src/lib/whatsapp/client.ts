@@ -55,7 +55,8 @@ class WhatsAppClientWrapper {
 
     try {
       // Trouver le chemin vers Chromium
-      const chromiumPath = await findChromiumPath();
+      const chromiumPath = findChromiumPath();
+      console.log(`[WhatsApp ${this._userId}] Chromium path: ${chromiumPath || 'bundled'}`);
 
       this.client = new WAClient({
         authStrategy: new LocalAuth({
@@ -337,14 +338,14 @@ export async function disconnectWhatsAppClient(userId: string): Promise<void> {
 // Utilitaires
 // -----------------------------------------------------------------------------
 
-async function findChromiumPath(): Promise<string | undefined> {
+function findChromiumPath(): string | undefined {
   // 1. Variable d'environnement
   if (process.env.CHROMIUM_PATH) {
     return process.env.CHROMIUM_PATH;
   }
 
   // 2. Chemins communs sur Linux
-  const fs = await import('fs');
+  const fs = require('fs');
   const commonPaths = [
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
@@ -354,7 +355,7 @@ async function findChromiumPath(): Promise<string | undefined> {
 
   for (const p of commonPaths) {
     try {
-      await fs.promises.access(p);
+      fs.accessSync(p);
       return p;
     } catch {
       // Pas a ce chemin
