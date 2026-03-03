@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MoreHorizontal, X } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +14,7 @@ import {
 import { NAV_ITEMS, ADMIN_NAV_ITEM } from "@/lib/constants";
 
 // Primary items shown in the bottom bar (CRM group)
-const primaryHrefs = ["/dashboard", "/deals", "/prospects", "/activities"];
+const primaryHrefs = ["/dashboard", "/deals", "/prospects", "/campaigns"];
 
 interface MobileNavProps {
   userRole?: "super_admin" | "user";

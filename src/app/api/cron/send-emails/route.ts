@@ -150,6 +150,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "No emails to send", sent: 0 });
     }
 
+    // --- Bulk-fetch steps and AB variants to avoid N+1 queries ---
+    const uniqueStepIds = [...new Set(queue.map((q) => q.current_step_id as string).filter(Boolean))];
+
+    const stepsMap = new Map<string, Record<string, unknown>>();
+    if (uniqueStepIds.length > 0) {
+      const { data: stepsData } = await supabase
+        .from("sequence_steps")
+        .select("*")
+        .in("id", uniqueStepIds);
+      if (stepsData) {
+        for (const s of stepsData) {
+          stepsMap.set(s.id as string, s);
+        }
+      }
+    }
+
+    // Bulk-fetch AB variants for all steps that have ab_enabled
+    const abEnabledStepIds = [...stepsMap.values()]
+      .filter((s) => s.ab_enabled)
+      .map((s) => s.id as string);
+
+    const variantsByStepId = new Map<string, Record<string, unknown>[]>();
+    if (abEnabledStepIds.length > 0) {
+      const { data: variantsData } = await supabase
+        .from("ab_variants")
+        .select("*")
+        .in("step_id", abEnabledStepIds);
+      if (variantsData) {
+        for (const v of variantsData) {
+          const stepId = v.step_id as string;
+          if (!variantsByStepId.has(stepId)) {
+            variantsByStepId.set(stepId, []);
+          }
+          variantsByStepId.get(stepId)!.push(v);
+        }
+      }
+    }
+
     let sentCount = 0;
     let errorCount = 0;
     let skippedCount = 0;
@@ -201,12 +239,8 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Get the current step content
-        const { data: step } = await supabase
-          .from("sequence_steps")
-          .select("*")
-          .eq("id", item.current_step_id)
-          .single();
+        // Get the current step content from pre-fetched map
+        const step = stepsMap.get(item.current_step_id as string) || null;
 
         if (!step || step.step_type !== "email") {
           // Handle non-email steps (LinkedIn tasks, WhatsApp, etc.)
@@ -220,43 +254,40 @@ export async function POST(request: NextRequest) {
         }
 
         // Handle A/B variant selection
-        let subject = step.subject || "";
-        let bodyHtml = step.body_html || "";
-        let bodyText = step.body_text || "";
+        let subject = (step.subject as string) || "";
+        let bodyHtml = (step.body_html as string) || "";
+        let bodyText = (step.body_text as string) || "";
         let variantId: string | null = null;
 
         if (step.ab_enabled) {
-          const { data: variants } = await supabase
-            .from("ab_variants")
-            .select("*")
-            .eq("step_id", step.id);
+          const variants = variantsByStepId.get(step.id as string) || [];
 
-          if (variants && variants.length > 0) {
+          if (variants.length > 0) {
             // Check if winner already determined
             if (step.ab_winner_variant_id) {
               const winner = variants.find(
                 (v) => v.id === step.ab_winner_variant_id
               );
               if (winner) {
-                subject = winner.subject;
-                bodyHtml = winner.body_html || bodyHtml;
-                bodyText = winner.body_text || bodyText;
-                variantId = winner.id;
+                subject = (winner.subject as string) || subject;
+                bodyHtml = (winner.body_html as string) || bodyHtml;
+                bodyText = (winner.body_text as string) || bodyText;
+                variantId = winner.id as string;
               }
             } else {
               // Weighted random selection
               const totalWeight = variants.reduce(
-                (sum, v) => sum + v.weight,
+                (sum, v) => sum + ((v.weight as number) || 0),
                 0
               );
               let random = Math.random() * totalWeight;
               for (const variant of variants) {
-                random -= variant.weight;
+                random -= (variant.weight as number) || 0;
                 if (random <= 0) {
-                  subject = variant.subject;
-                  bodyHtml = variant.body_html || bodyHtml;
-                  bodyText = variant.body_text || bodyText;
-                  variantId = variant.id;
+                  subject = (variant.subject as string) || subject;
+                  bodyHtml = (variant.body_html as string) || bodyHtml;
+                  bodyText = (variant.body_text as string) || bodyText;
+                  variantId = variant.id as string;
                   break;
                 }
               }

@@ -23,6 +23,7 @@ import {
   Loader2,
   Play,
   RefreshCw,
+  Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -96,6 +97,7 @@ export default function AutomationPage() {
   const [sequenceName, setSequenceName] = useState("");
   const [isLaunching, setIsLaunching] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
   const [preselectedProspectIds, setPreselectedProspectIds] = useState<string[]>([]);
 
   // Configuration state
@@ -387,6 +389,49 @@ export default function AutomationPage() {
     }
   }
 
+  async function handleSearchLinkedIn() {
+    setIsSearchingLinkedIn(true);
+    try {
+      // Search LinkedIn for all sequences' prospects
+      const allProspectIds: string[] = [];
+      for (const seq of sequences) {
+        try {
+          const res = await fetch(`/api/automation/sequences/${seq.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            const ids = (data.prospects || []).map((p: { prospect_id: string }) => p.prospect_id);
+            allProspectIds.push(...ids);
+          }
+        } catch {
+          // skip this sequence
+        }
+      }
+
+      if (allProspectIds.length === 0) {
+        toast.info("Aucun prospect dans les sequences");
+        setIsSearchingLinkedIn(false);
+        return;
+      }
+
+      const uniqueIds = [...new Set(allProspectIds)];
+      const res = await fetch("/api/prospects/find-linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectIds: uniqueIds }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`${data.found} profil(s) LinkedIn trouve(s) sur ${data.total} prospect(s)`);
+      } else {
+        toast.error(data.error || "Erreur lors de la recherche LinkedIn");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setIsSearchingLinkedIn(false);
+    }
+  }
+
   const WIZARD_STEPS = [
     "Selectionner les prospects",
     "Configurer la sequence",
@@ -407,6 +452,18 @@ export default function AutomationPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSearchLinkedIn}
+            disabled={isSearchingLinkedIn || sequences.length === 0}
+          >
+            {isSearchingLinkedIn ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Linkedin className="size-4" />
+            )}
+            Rechercher les LinkedIn
+          </Button>
           <Button
             variant="outline"
             onClick={handleExecuteQueue}
@@ -973,7 +1030,7 @@ export default function AutomationPage() {
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="h-[500px]">
+                <ScrollArea className="max-h-[50vh] md:max-h-[500px]">
                   <div className="space-y-1">
                     {activityLog.map((log) => {
                       const logConfig =

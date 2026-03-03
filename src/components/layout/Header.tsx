@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, Menu, Settings, LogOut, Shield, ChevronRight } from "lucide-react";
+import { Mail, Settings, LogOut, Shield, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -23,7 +23,6 @@ interface HeaderProps {
     avatar_url?: string;
     role?: "super_admin" | "user";
   };
-  onMenuToggle?: () => void;
 }
 
 /**
@@ -84,7 +83,7 @@ function resolvePageInfo(pathname: string): {
   return { title: PAGE_TITLES[base] || "ColdReach" };
 }
 
-export function Header({ user, onMenuToggle }: HeaderProps) {
+export function Header({ user }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -107,17 +106,6 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
   return (
     <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white border-b shrink-0">
       <div className="flex items-center gap-3">
-        {/* Mobile menu toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          onClick={onMenuToggle}
-        >
-          <Menu className="size-5" />
-          <span className="sr-only">Menu</span>
-        </Button>
-
         {/* Page title with breadcrumb */}
         <div className="flex items-center gap-1.5">
           {breadcrumb && (

@@ -35,52 +35,90 @@ export async function POST(request: NextRequest) {
     let successCount = 0;
     let errorCount = 0;
 
+    // --- Bulk-fetch LinkedIn accounts to avoid N+1 queries ---
+    const uniqueAccountIds = [...new Set(
+      queue
+        .map((q) => q.linkedin_account_id as string)
+        .filter(Boolean)
+    )];
+
+    const accountsMap = new Map<string, Record<string, unknown>>();
+    if (uniqueAccountIds.length > 0) {
+      const { data: accountsData } = await supabase
+        .from("linkedin_accounts")
+        .select("id, is_active, session_valid, li_at_cookie, jsessionid_cookie, proxy_url, user_agent, connections_today, messages_today, views_today, searches_today, daily_connection_limit, daily_message_limit, daily_view_limit, daily_search_limit")
+        .in("id", uniqueAccountIds);
+      if (accountsData) {
+        for (const a of accountsData) {
+          accountsMap.set(a.id as string, a);
+        }
+      }
+    }
+
+    // --- Bulk-fetch workspace_ids for sequence logging to avoid N+1 in logAction ---
+    const uniqueSequenceIds = [...new Set(
+      queue
+        .map((q) => q.sequence_id as string)
+        .filter(Boolean)
+    )];
+
+    const sequenceWorkspaceMap = new Map<string, string>();
+    if (uniqueSequenceIds.length > 0) {
+      const { data: seqData } = await supabase
+        .from("automation_sequences")
+        .select("id, workspace_id")
+        .in("id", uniqueSequenceIds);
+      if (seqData) {
+        for (const s of seqData) {
+          sequenceWorkspaceMap.set(s.id as string, s.workspace_id as string);
+        }
+      }
+    }
+
     for (const item of queue) {
       try {
-        // Get LinkedIn account credentials
-        const { data: account } = await supabase
-          .from("linkedin_accounts")
-          .select("*")
-          .eq("id", item.linkedin_account_id)
-          .single();
+        // Get LinkedIn account from pre-fetched map
+        const account = accountsMap.get(item.linkedin_account_id as string) || null;
 
         const isEmailStep = (item.step_action_type as string) === "email";
 
+        const workspaceId = sequenceWorkspaceMap.get(item.sequence_id as string) || null;
+
         if (!isEmailStep) {
           if (!account || !account.is_active || !account.session_valid) {
-            await logAction(supabase, item, "skipped", "Compte LinkedIn inactif ou session expiree");
+            await logAction(supabase, item, "skipped", "Compte LinkedIn inactif ou session expiree", undefined, workspaceId);
             continue;
           }
 
           // Check rate limits (only for LinkedIn actions)
           const canProceed = await checkRateLimit(supabase, account, item.step_action_type);
           if (!canProceed) {
-            await logAction(supabase, item, "rate_limited", "Limite quotidienne atteinte");
+            await logAction(supabase, item, "rate_limited", "Limite quotidienne atteinte", undefined, workspaceId);
             continue;
           }
         }
 
         // Execute the action
-        const result = await executeAction(supabase, account, item);
+        const result = await executeAction(supabase, account || {}, item);
 
         if (result.success) {
           // Increment LinkedIn usage (only for LinkedIn actions)
           if (!isEmailStep) {
             await supabase.rpc("increment_linkedin_usage", {
-              p_account_id: account.id,
+              p_account_id: account!.id,
               p_action_type: item.step_action_type,
             });
           }
 
           // Log success
-          await logAction(supabase, item, "success", null, result.message);
+          await logAction(supabase, item, "success", null, result.message, workspaceId);
 
           // Advance to next step
           await advanceAutomationStep(supabase, item);
 
           successCount++;
         } else {
-          await logAction(supabase, item, "failed", result.error);
+          await logAction(supabase, item, "failed", result.error, undefined, workspaceId);
           errorCount++;
         }
 
@@ -92,11 +130,14 @@ export async function POST(request: NextRequest) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       } catch (err) {
         console.error("Automation action error:", err);
+        const workspaceId = sequenceWorkspaceMap.get(item.sequence_id as string) || null;
         await logAction(
           supabase,
           item,
           "failed",
-          err instanceof Error ? err.message : "Unknown error"
+          err instanceof Error ? err.message : "Unknown error",
+          undefined,
+          workspaceId
         );
         errorCount++;
       }
@@ -524,16 +565,11 @@ async function logAction(
   item: Record<string, unknown>,
   status: string,
   errorMessage?: string | null,
-  messageSent?: string
+  messageSent?: string,
+  workspaceId?: string | null
 ) {
-  const { data: sequence } = await supabase
-    .from("automation_sequences")
-    .select("workspace_id")
-    .eq("id", item.sequence_id as string)
-    .single();
-
   await supabase.from("automation_actions_log").insert({
-    workspace_id: sequence?.workspace_id,
+    workspace_id: workspaceId || null,
     sequence_id: item.sequence_id,
     prospect_id: item.prospect_id,
     automation_prospect_id: item.automation_prospect_id,

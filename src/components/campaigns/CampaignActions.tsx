@@ -79,26 +79,26 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
     <div className="flex gap-2 shrink-0">
       {status === "draft" && (
         <>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" className="min-h-[44px] min-w-[44px]" asChild>
             <Link href={`/campaigns/${campaignId}/edit`}>
               <Edit className="size-4" />
               Modifier
             </Link>
           </Button>
-          <Button size="sm" onClick={() => updateStatus("active")} disabled={loading}>
+          <Button size="sm" className="min-h-[44px] min-w-[44px]" onClick={() => updateStatus("active")} disabled={loading}>
             {loading ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
             Lancer
           </Button>
         </>
       )}
       {status === "active" && (
-        <Button variant="outline" size="sm" onClick={() => updateStatus("paused")} disabled={loading}>
+        <Button variant="outline" size="sm" className="min-h-[44px] min-w-[44px]" onClick={() => updateStatus("paused")} disabled={loading}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Pause className="size-4" />}
           Pause
         </Button>
       )}
       {status === "paused" && (
-        <Button size="sm" onClick={() => updateStatus("active")} disabled={loading}>
+        <Button size="sm" className="min-h-[44px] min-w-[44px]" onClick={() => updateStatus("active")} disabled={loading}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
           Reprendre
         </Button>
@@ -107,6 +107,7 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
         <Button
           variant="outline"
           size="sm"
+          className="min-h-[44px] min-w-[44px]"
           onClick={async () => {
             setLoading(true);
             try {
@@ -135,7 +136,7 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting} aria-label="Supprimer">
+          <Button variant="ghost" size="sm" className="min-h-[44px] min-w-[44px] text-destructive hover:text-destructive" disabled={deleting} aria-label="Supprimer">
             {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
           </Button>
         </AlertDialogTrigger>

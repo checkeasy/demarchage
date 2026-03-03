@@ -33,6 +33,7 @@ import {
   ChevronDown,
   GripVertical,
   Settings,
+  Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -377,6 +378,10 @@ export default function AutomationDetailPage() {
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
+  // LinkedIn search
+  const [isSearchingLinkedIn, setIsSearchingLinkedIn] = useState(false);
+  const [linkedinResults, setLinkedinResults] = useState<{ found: number; total: number } | null>(null);
+
   // Prospect filters
   const [prospectSearch, setProspectSearch] = useState("");
   const [prospectStatusFilter, setProspectStatusFilter] = useState("all");
@@ -486,6 +491,30 @@ export default function AutomationDetailPage() {
       toast.error("Erreur reseau");
     } finally {
       setIsGenerating(null);
+    }
+  }
+
+  async function handleSearchLinkedIn() {
+    setIsSearchingLinkedIn(true);
+    setLinkedinResults(null);
+    try {
+      const res = await fetch("/api/prospects/find-linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sequenceId: id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setLinkedinResults({ found: data.found, total: data.total });
+        toast.success(`${data.found} profil(s) LinkedIn trouve(s) sur ${data.total} prospect(s)`);
+        loadSequence();
+      } else {
+        toast.error(data.error || "Erreur lors de la recherche LinkedIn");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setIsSearchingLinkedIn(false);
     }
   }
 
@@ -613,12 +642,12 @@ export default function AutomationDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview"><Eye className="size-3.5 mr-1.5" />Apercu</TabsTrigger>
-          <TabsTrigger value="sequence"><Layers className="size-3.5 mr-1.5" />Sequence</TabsTrigger>
-          <TabsTrigger value="config"><Settings className="size-3.5 mr-1.5" />Parametres</TabsTrigger>
-          <TabsTrigger value="prospects"><Users className="size-3.5 mr-1.5" />Prospects</TabsTrigger>
-          <TabsTrigger value="activity"><Activity className="size-3.5 mr-1.5" />Activite</TabsTrigger>
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="overview"><Eye className="size-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Apercu</span></TabsTrigger>
+          <TabsTrigger value="sequence"><Layers className="size-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sequence</span></TabsTrigger>
+          <TabsTrigger value="config"><Settings className="size-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Parametres</span></TabsTrigger>
+          <TabsTrigger value="prospects"><Users className="size-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Prospects</span></TabsTrigger>
+          <TabsTrigger value="activity"><Activity className="size-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Activite</span></TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -872,9 +901,25 @@ export default function AutomationDetailPage() {
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <CardTitle className="text-base">Prospects inscrits</CardTitle>
-                  <CardDescription>{sequence.totalProspects} prospect{sequence.totalProspects > 1 ? "s" : ""} dans cette sequence</CardDescription>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <CardTitle className="text-base">Prospects inscrits</CardTitle>
+                    <CardDescription>{sequence.totalProspects} prospect{sequence.totalProspects > 1 ? "s" : ""} dans cette sequence</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSearchLinkedIn}
+                    disabled={isSearchingLinkedIn}
+                    className="shrink-0"
+                  >
+                    {isSearchingLinkedIn ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Linkedin className="size-4" />
+                    )}
+                    Rechercher les LinkedIn
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant={prospectStatusFilter === "all" ? "default" : "outline"} className="cursor-pointer text-xs" onClick={() => setProspectStatusFilter("all")}>
@@ -995,7 +1040,7 @@ export default function AutomationDetailPage() {
                   <p className="text-xs text-muted-foreground mt-1">Les actions de cette sequence apparaitront ici</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[500px]">
+                <ScrollArea className="max-h-[50vh] md:max-h-[500px]">
                   <div className="space-y-1">
                     {activity.map((log) => {
                       const logCfg = LOG_TYPE_CONFIG[log.action_type] || LOG_TYPE_CONFIG.view_profile;

@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PipelineValueCard } from "@/components/dashboard/PipelineValueCard";
-import { DealsWonLostChart } from "@/components/dashboard/DealsWonLostChart";
+import { DealsWonLostChartLazy } from "@/components/dashboard/DealsWonLostChartLazy";
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
 
 // --- Activity type icon map for upcoming activities ---
@@ -123,28 +123,202 @@ export default async function DashboardPage() {
     redirect("/onboarding");
   }
 
-  // --- Onboarding checklist data ---
-  const { count: prospectCount } = await supabase
-    .from("prospects")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId);
+  // --- Pre-compute date boundaries ---
+  const now = new Date();
 
-  const { count: emailAccountCount } = await supabase
-    .from("email_accounts")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId)
-    .eq("is_active", true);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
-  const { count: campaignCount } = await supabase
-    .from("campaigns")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId);
+  const lastMonthStart = new Date();
+  lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+  lastMonthStart.setDate(1);
+  lastMonthStart.setHours(0, 0, 0, 0);
 
-  const { count: linkedinAccountCount } = await supabase
-    .from("linkedin_accounts")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId);
+  const lastMonthEnd = new Date(monthStart);
+  lastMonthEnd.setMilliseconds(-1);
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+  weekStart.setHours(0, 0, 0, 0);
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  // --- Execute ALL independent queries in parallel ---
+  const [
+    { count: prospectCount },
+    { count: emailAccountCount },
+    { count: campaignCount },
+    { count: linkedinAccountCount },
+    { data: openDeals },
+    { count: wonThisMonth },
+    { count: wonLastMonth },
+    { count: overdueCount },
+    { count: overdueLastMonth },
+    { count: dueTodayCount },
+    { count: completedThisWeek },
+    { count: emailsSentThisMonth },
+    { count: emailsSentLastMonth },
+    { data: wonDeals },
+    { data: lostDeals },
+    { data: recentDeals },
+    { data: campaigns },
+    { data: upcomingActivities },
+    { data: overdueActivities },
+    { data: topProspectsRaw },
+  ] = await Promise.all([
+    // Onboarding checklist counts
+    supabase
+      .from("prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    supabase
+      .from("email_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true),
+    supabase
+      .from("campaigns")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    supabase
+      .from("linkedin_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    // Pipeline stats
+    supabase
+      .from("deals")
+      .select("value")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "open"),
+    // Won deals this month
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "won")
+      .gte("won_at", monthStart.toISOString()),
+    // Won deals last month (for trend)
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "won")
+      .gte("won_at", lastMonthStart.toISOString())
+      .lte("won_at", lastMonthEnd.toISOString()),
+    // Overdue activities
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .lt("due_date", now.toISOString()),
+    // Overdue activities last month (for trend)
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .lt("due_date", lastMonthEnd.toISOString()),
+    // Due today activities
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .gte("due_date", todayStart.toISOString())
+      .lte("due_date", todayEnd.toISOString()),
+    // Completed this week
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", true)
+      .gte("updated_at", weekStart.toISOString()),
+    // Emails sent this month (BUG FIX: added workspace_id filter)
+    supabase
+      .from("emails_sent")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", monthStart.toISOString()),
+    // Emails sent last month (BUG FIX: added workspace_id filter)
+    supabase
+      .from("emails_sent")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", lastMonthStart.toISOString())
+      .lte("created_at", lastMonthEnd.toISOString()),
+    // Deals won/lost by month for chart
+    supabase
+      .from("deals")
+      .select("won_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "won")
+      .gte("won_at", sixMonthsAgo.toISOString()),
+    supabase
+      .from("deals")
+      .select("lost_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "lost")
+      .gte("lost_at", sixMonthsAgo.toISOString()),
+    // Recent deals
+    supabase
+      .from("deals")
+      .select(
+        "id, title, value, status, created_at, prospects(first_name, last_name), pipeline_stages_config(name, color)"
+      )
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    // Campaign stats
+    supabase
+      .from("campaigns")
+      .select(
+        "total_sent, total_opened, total_clicked, total_replied, total_bounced, total_prospects, status"
+      )
+      .eq("workspace_id", workspaceId),
+    // Upcoming activities
+    supabase
+      .from("activities")
+      .select(
+        `id, activity_type, title, due_date, priority, prospect:prospects(id, first_name, last_name)`
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .gte("due_date", todayStart.toISOString())
+      .order("due_date", { ascending: true })
+      .limit(5),
+    // Overdue activities list
+    supabase
+      .from("activities")
+      .select(
+        `id, activity_type, title, due_date, priority, prospect:prospects(id, first_name, last_name)`
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .lt("due_date", todayStart.toISOString())
+      .order("due_date", { ascending: true })
+      .limit(5),
+    // Top prospects (BUG FIX: added workspace_id filter)
+    supabase
+      .from("emails_sent")
+      .select(
+        `to_email, sent_at, campaign_prospects!inner ( prospect_id, prospects ( id, first_name, last_name, company, email ) )`
+      )
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(500),
+  ]);
+
+  // --- Derive onboarding state ---
   const onboardingSteps = [
     {
       label: "Configurer un compte email",
@@ -175,129 +349,19 @@ export default async function DashboardPage() {
   const onboardingComplete = onboardingSteps.every((s) => s.done);
   const onboardingProgress = onboardingSteps.filter((s) => s.done).length;
 
-  // --- Pipeline stats ---
-  const { data: openDeals } = await supabase
-    .from("deals")
-    .select("value")
-    .eq("workspace_id", workspaceId || "")
-    .eq("status", "open");
-
+  // --- Derive pipeline stats ---
   const pipelineValue = (openDeals || []).reduce(
     (sum, d) => sum + (d.value || 0),
     0
   );
   const openDealsCount = (openDeals || []).length;
 
-  // --- Won deals this month ---
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-
-  const { count: wonThisMonth } = await supabase
-    .from("deals")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("status", "won")
-    .gte("won_at", monthStart.toISOString());
-
-  // --- Won deals LAST month (for trend) ---
-  const lastMonthStart = new Date();
-  lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
-  lastMonthStart.setDate(1);
-  lastMonthStart.setHours(0, 0, 0, 0);
-
-  const lastMonthEnd = new Date(monthStart);
-  lastMonthEnd.setMilliseconds(-1);
-
-  const { count: wonLastMonth } = await supabase
-    .from("deals")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("status", "won")
-    .gte("won_at", lastMonthStart.toISOString())
-    .lte("won_at", lastMonthEnd.toISOString());
-
-  // --- Overdue activities ---
-  const now = new Date();
-  const { count: overdueCount } = await supabase
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", false)
-    .lt("due_date", now.toISOString());
-
-  // --- Overdue activities LAST month (for trend) ---
-  const { count: overdueLastMonth } = await supabase
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", false)
-    .lt("due_date", lastMonthEnd.toISOString());
-
-  // --- Due today activities ---
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-
-  const { count: dueTodayCount } = await supabase
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", false)
-    .gte("due_date", todayStart.toISOString())
-    .lte("due_date", todayEnd.toISOString());
-
-  // --- Completed this week ---
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
-  weekStart.setHours(0, 0, 0, 0);
-
-  const { count: completedThisWeek } = await supabase
-    .from("activities")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", true)
-    .gte("updated_at", weekStart.toISOString());
-
-  // --- Emails sent this month vs last month (for trend) ---
-  const { count: emailsSentThisMonth } = await supabase
-    .from("emails_sent")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", monthStart.toISOString());
-
-  const { count: emailsSentLastMonth } = await supabase
-    .from("emails_sent")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", lastMonthStart.toISOString())
-    .lte("created_at", lastMonthEnd.toISOString());
-
-  // --- Deals won/lost by month for chart ---
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-  sixMonthsAgo.setDate(1);
-  sixMonthsAgo.setHours(0, 0, 0, 0);
-
-  const { data: wonDeals } = await supabase
-    .from("deals")
-    .select("won_at")
-    .eq("workspace_id", workspaceId || "")
-    .eq("status", "won")
-    .gte("won_at", sixMonthsAgo.toISOString());
-
-  const { data: lostDeals } = await supabase
-    .from("deals")
-    .select("lost_at")
-    .eq("workspace_id", workspaceId || "")
-    .eq("status", "lost")
-    .gte("lost_at", sixMonthsAgo.toISOString());
-
+  // --- Build chart data for the last 6 months ---
   const monthNames = [
     "Jan", "Fev", "Mar", "Avr", "Mai", "Jun",
     "Jul", "Aou", "Sep", "Oct", "Nov", "Dec",
   ];
 
-  // Build chart data for the last 6 months
   const chartData: { month: string; won: number; lost: number }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date();
@@ -324,24 +388,7 @@ export default async function DashboardPage() {
     });
   }
 
-  // --- Recent deals ---
-  const { data: recentDeals } = await supabase
-    .from("deals")
-    .select(
-      "id, title, value, status, created_at, prospects(first_name, last_name), pipeline_stages_config(name, color)"
-    )
-    .eq("workspace_id", workspaceId || "")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  // --- Campaign stats (existing) ---
-  const { data: campaigns } = await supabase
-    .from("campaigns")
-    .select(
-      "total_sent, total_opened, total_clicked, total_replied, total_bounced, total_prospects, status"
-    )
-    .eq("workspace_id", workspaceId || "");
-
+  // --- Derive campaign totals ---
   const totals = (campaigns || []).reduce(
     (acc, c) => ({
       sent: acc.sent + (c.total_sent || 0),
@@ -400,72 +447,13 @@ export default async function DashboardPage() {
     },
   ];
 
-  // --- Upcoming activities (next 5, combining overdue + future) ---
-  const { data: upcomingActivities } = await supabase
-    .from("activities")
-    .select(
-      `
-      id,
-      activity_type,
-      title,
-      due_date,
-      priority,
-      prospect:prospects(id, first_name, last_name)
-    `
-    )
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", false)
-    .gte("due_date", todayStart.toISOString())
-    .order("due_date", { ascending: true })
-    .limit(5);
-
-  const { data: overdueActivities } = await supabase
-    .from("activities")
-    .select(
-      `
-      id,
-      activity_type,
-      title,
-      due_date,
-      priority,
-      prospect:prospects(id, first_name, last_name)
-    `
-    )
-    .eq("workspace_id", workspaceId || "")
-    .eq("is_done", false)
-    .lt("due_date", todayStart.toISOString())
-    .order("due_date", { ascending: true })
-    .limit(5);
-
-  // Merge overdue + upcoming, limit to 5 total
+  // --- Merge overdue + upcoming activities, limit to 5 total ---
   const allUpcomingActivities = [
     ...(overdueActivities || []),
     ...(upcomingActivities || []),
   ].slice(0, 5);
 
-  // --- Top prospects (most emails sent) ---
-  const { data: topProspectsRaw } = await supabase
-    .from("emails_sent")
-    .select(
-      `
-      to_email,
-      sent_at,
-      campaign_prospects!inner (
-        prospect_id,
-        prospects (
-          id,
-          first_name,
-          last_name,
-          company,
-          email
-        )
-      )
-    `
-    )
-    .order("created_at", { ascending: false })
-    .limit(500);
-
-  // Aggregate top prospects by email count
+  // --- Aggregate top prospects by email count ---
   const prospectEmailCounts: Record<
     string,
     {
@@ -766,7 +754,7 @@ export default async function DashboardPage() {
       {/* Row 3: Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
-          <DealsWonLostChart data={chartData} />
+          <DealsWonLostChartLazy data={chartData} />
         </div>
         <div className="md:col-span-1">
           <ActivitySummaryCard
@@ -1065,6 +1053,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Briefcase className="size-8 text-slate-300 mb-2" />
                 <p className="text-sm text-muted-foreground">
                   Aucun deal pour le moment
                 </p>
