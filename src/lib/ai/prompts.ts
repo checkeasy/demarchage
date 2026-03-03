@@ -9,14 +9,20 @@ Notre solution est un outil SaaS concu pour simplifier et automatiser les proces
 Il permet aux entreprises de gagner du temps, reduire les erreurs et ameliorer leur productivite.
 `.trim();
 
+// Anti-hallucination guardrail appended to every product context
+const ANTI_HALLUCINATION_RULE = `
+
+REGLE ABSOLUE : Tu ne dois JAMAIS inventer, supposer ou halluciner des tarifs, des pourcentages, des statistiques ou des fonctionnalites qui ne figurent PAS explicitement dans le contexte produit ci-dessus. Si une information n'est pas disponible, ne la mentionne pas. Ne cite que les chiffres et faits fournis.`;
+
 /**
- * Build product context from workspace settings or use default
+ * Build product context from workspace settings or use default.
+ * Includes anti-hallucination guardrail to prevent AI from inventing pricing/features.
  */
 export function buildProductContext(workspaceContext?: string | null): string {
   if (workspaceContext && workspaceContext.trim().length > 0) {
-    return workspaceContext.trim();
+    return workspaceContext.trim() + ANTI_HALLUCINATION_RULE;
   }
-  return DEFAULT_PRODUCT_CONTEXT;
+  return DEFAULT_PRODUCT_CONTEXT + ANTI_HALLUCINATION_RULE;
 }
 
 // Keep backward compatibility
@@ -37,22 +43,15 @@ export function buildConnectionPrompt(ctx: WorkspaceAIContext = {}): string {
   const companyRef = ctx.companyName || "notre solution";
 
   return `
-Tu es un expert en prospection B2B en France, specialise dans la redaction de messages de connexion LinkedIn.
-Tu ecris des messages de prospection personnalises pour ${companyRef}.
+Tu ecris des messages de connexion LinkedIn pour ${companyRef}. Ton objectif : creer un vrai lien humain.
 
 ${productCtx}
 
-Regles strictes pour les messages de connexion LinkedIn :
-- Ecris en francais formel mais chaleureux
-- Utilise TOUJOURS le vouvoiement
-- Le message doit faire MAXIMUM 300 caracteres (contrainte LinkedIn)
-- Personnalise chaque message en fonction du profil du prospect (nom, poste, entreprise, secteur)
-- Ne sois JAMAIS insistant ou commercial dans le premier message
-- Ne mentionne PAS directement ${companyRef} dans le premier message de connexion
-- Privilegle la creation de relation et un interet sincere pour le travail du prospect
-- Fais reference a un point precis du profil ou de l'entreprise du prospect
-- Termine par une ouverture naturelle (question, interet commun)
-- Ne mets PAS de lien dans le message de connexion
+STYLE D'ECRITURE (TRES IMPORTANT) :
+Ecris comme un vrai humain qui envoie un message sympa a quelqu'un qui l'interesse. Pas de tirets, pas de listes, pas de structure rigide. Juste des phrases simples et naturelles, comme si tu tapais un message a un collegue. Le ton est chaleureux, decontracte mais respectueux (vouvoiement). On doit sentir une vraie personne derriere le message, pas un robot.
+
+Regles :
+Le message fait MAXIMUM 300 caracteres (contrainte LinkedIn). Tu personnalises en fonction du profil du prospect. Tu ne mentionnes PAS ${companyRef}. Tu fais reference a un truc precis de leur profil ou activite. Tu termines par une question ou une ouverture naturelle. Pas de lien, pas de pitch, juste de l'humain.
 
 Format de reponse obligatoire (JSON) :
 {
@@ -68,23 +67,20 @@ export function buildFollowupPrompt(ctx: WorkspaceAIContext = {}): string {
   const companyRef = ctx.companyName || "notre solution";
 
   return `
-Tu es un expert en prospection B2B en France, specialise dans la redaction de messages de suivi LinkedIn.
-Tu ecris des messages de follow-up personnalises pour ${companyRef}.
+Tu ecris des messages de suivi LinkedIn pour ${companyRef}. Tu fais progresser la relation naturellement.
 
 ${productCtx}
 
-Regles strictes pour les messages de suivi LinkedIn :
-- Ecris en francais formel mais chaleureux
-- Utilise TOUJOURS le vouvoiement
-- Prends en compte l'historique de la conversation (messages precedents)
-- Evolue progressivement vers la presentation de ${companyRef} de maniere naturelle
-- Follow-up 1 : Remerciement pour la connexion + question sur leur activite
-- Follow-up 2 : Apport de valeur (article, insight sectoriel) + mention legere de la thematique
-- Follow-up 3 : Presentation douce de ${companyRef} comme solution + proposition de demo/echange
-- Follow-up 4+ : Relance legere ou breakup message
-- Ne sois JAMAIS insistant ou agressif
-- Chaque message doit apporter de la valeur au prospect
-- Maximum 500 caracteres par message
+STYLE D'ECRITURE (TRES IMPORTANT) :
+Ecris comme une vraie personne, pas comme un commercial. Pas de tirets, pas de listes a puces, pas de formules toutes faites. Des phrases courtes, simples, humaines. Le ton est sympa et decontracte (mais vouvoiement). On doit avoir l'impression de lire un message ecrit par un pote professionnel, pas un template.
+
+Progression naturelle des follow-ups :
+Follow-up 1 : Tu remercies pour la connexion et tu poses une vraie question sur leur activite.
+Follow-up 2 : Tu apportes de la valeur (un insight, un constat sur leur secteur) et tu glisses la thematique.
+Follow-up 3 : Tu presentes ${companyRef} doucement, comme une suggestion, et tu proposes un echange rapide.
+Follow-up 4+ : Relance legere ou message de cloture sympa.
+
+Jamais insistant. Jamais agressif. Chaque message apporte quelque chose. Maximum 500 caracteres.
 
 Format de reponse obligatoire (JSON) :
 {
@@ -102,27 +98,21 @@ export function buildEmailSequencePrompt(ctx: WorkspaceAIContext = {}): string {
   const companyRef = ctx.companyName || "notre solution";
 
   return `
-Tu es un expert en email marketing B2B en France, specialise dans la redaction de sequences d'emails de prospection a froid.
-Tu ecris des sequences d'emails personnalises pour ${companyRef}.
+Tu rediges des sequences d'emails de prospection a froid pour ${companyRef}.
 
 ${productCtx}
 
-Regles strictes pour les sequences d'emails :
-- Ecris en francais formel mais chaleureux
-- Utilise TOUJOURS le vouvoiement
-- Chaque email doit avoir un objet accrocheur et personalise (max 60 caracteres)
-- Le corps de l'email doit etre concis (max 150 mots par email)
-- Structure de la sequence :
-  * Email 1 (Jour 0) : Introduction et accroche de valeur - identifie un probleme specifique du prospect
-  * Email 2 (Jour 3) : Preuve sociale / etude de cas pertinente pour leur secteur
-  * Email 3 (Jour 7) : Proposition directe de meeting/demo - benefices concrets chiffres
-  * Email 4 (Jour 14) : Breakup email - derniere tentative, ton decontracte
-  * Email 5+ (Jour 21+) : Emails supplementaires si demandes
-- Chaque email doit pouvoir fonctionner de maniere independante (le prospect n'a peut-etre pas lu les precedents)
-- Inclus TOUJOURS un CTA clair dans chaque email
-- N'utilise PAS de jargon marketing excessif
-- Personnalise avec le prenom, le nom de l'entreprise et le secteur
-- Le HTML doit etre simple et lisible (pas de templates complexes)
+STYLE D'ECRITURE (TRES IMPORTANT) :
+Tu ecris comme un vrai humain. Tes emails doivent ressembler a un message qu'on ecrirait a la main, pas a un template marketing. Pas de tirets, pas de listes a puces, pas de bullet points, pas de mise en forme "robot". Juste des paragraphes courts et naturels. Le ton est sympa, simple, direct, decontracte mais respectueux (vouvoiement). On doit se dire "tiens, c'est un vrai qui m'ecrit" en le lisant. Pas de jargon marketing, pas de flatterie, pas de formules clichees.
+
+Chaque email fait max 150 mots avec un objet court et accrocheur (max 60 caracteres). Personnalise avec le prenom, l'entreprise et le secteur. Chaque email fonctionne seul (le prospect n'a peut-etre pas lu les precedents). Le HTML est ultra simple (juste des <p>, pas de tables ni de mise en page complexe).
+
+Progression de la sequence :
+Email 1 (Jour 0) : Tu accroches avec un vrai probleme du prospect. Pas de pitch.
+Email 2 (Jour 3) : Tu partages un retour d'experience ou un constat pertinent pour leur secteur.
+Email 3 (Jour 7) : Tu proposes un echange avec des benefices concrets (UNIQUEMENT les chiffres du contexte produit).
+Email 4 (Jour 14) : Message de cloture decontracte, pas de pression.
+Email 5+ (Jour 21+) : Seulement si demandes.
 
 Format de reponse obligatoire (JSON) :
 {
@@ -145,20 +135,12 @@ export function buildIcebreakerPrompt(ctx: WorkspaceAIContext = {}): string {
   const companyRef = ctx.companyName || "notre solution";
 
   return `
-Tu es un expert en prospection B2B en France, specialise dans la creation de phrases d'accroche personnalisees.
-Tu ecris des icebreakers percutants pour engager la conversation avec des prospects pour ${companyRef}.
+Tu crees des phrases d'accroche personnalisees pour engager la conversation avec des prospects pour ${companyRef}.
 
 ${productCtx}
 
-Regles strictes pour les icebreakers :
-- Ecris en francais formel mais chaleureux
-- L'icebreaker doit faire 1 a 2 phrases maximum
-- Fais reference a quelque chose de TRES specifique sur le prospect ou son entreprise
-- Si des donnees de site web sont disponibles, utilise-les pour personnaliser l'accroche
-- L'icebreaker doit susciter la curiosite ou la reconnaissance
-- Ne mentionne PAS directement ${companyRef}
-- Utilise le vouvoiement
-- Sois authentique et specifique, jamais generique
+STYLE D'ECRITURE (TRES IMPORTANT) :
+Ecris comme un humain, pas comme un robot. Une ou deux phrases max, simples et naturelles. Le ton est sympa, curieux, authentique. Vouvoiement mais decontracte. Fais reference a un truc TRES specifique sur le prospect ou son entreprise. L'accroche doit faire sourire ou tilter le prospect, pas lui donner l'impression de lire un script. Ne mentionne pas ${companyRef}.
 
 Format de reponse obligatoire (JSON) :
 {

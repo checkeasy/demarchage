@@ -41,6 +41,8 @@ interface BuiltContext {
   performance: PerformanceContext;
   memory: MemoryEntry[];
   bookingUrl?: string | null;
+  workspaceProductContext?: string | null;
+  workspaceName?: string | null;
 }
 
 // ─── Helper: Safe JSON Parse ────────────────────────────────────────────────
@@ -232,9 +234,11 @@ export class AgentOrchestrator {
     const startTime = Date.now();
     const agentType: AgentType = 'response_handler';
 
+    const wsContext = await this.fetchWorkspaceProductContext(workspaceId);
     const { config, prompt } = await this.getAgentConfigAndPrompt(
       workspaceId,
-      agentType
+      agentType,
+      wsContext
     );
 
     const prospect = await this.fetchProspectContext(workspaceId, prospectId);
@@ -317,9 +321,11 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const startTime = Date.now();
     const agentType: AgentType = 'prospect_researcher';
 
+    const wsContext = await this.fetchWorkspaceProductContext(workspaceId);
     const { config, prompt } = await this.getAgentConfigAndPrompt(
       workspaceId,
-      agentType
+      agentType,
+      wsContext
     );
 
     const prospect = await this.fetchProspectContext(workspaceId, prospectId);
@@ -435,23 +441,42 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       this.fetchMemoryContext(task.workspaceId, task.prospectId),
     ]);
 
-    // Fetch booking URL from the campaign's email account
+    // Fetch workspace product context + booking URL in parallel
+    const supabase = createAdminClient();
     let bookingUrl: string | null = null;
+    let workspaceProductContext: string | null = null;
+    let workspaceName: string | null = null;
+
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uuidRegex.test(task.campaignId)) {
-      const supabase = createAdminClient();
-      const { data: campaignData } = await supabase
-        .from('campaigns')
-        .select('email_accounts!inner(booking_url)')
-        .eq('id', task.campaignId)
-        .single();
-      if (campaignData) {
-        const ea = campaignData.email_accounts as unknown as { booking_url: string | null };
-        bookingUrl = ea?.booking_url || null;
-      }
+
+    const [wsData, bookingData] = await Promise.all([
+      // Fetch workspace product context
+      supabase
+        .from('workspaces')
+        .select('name, ai_company_context')
+        .eq('id', task.workspaceId)
+        .single(),
+      // Fetch booking URL from campaign's email account
+      uuidRegex.test(task.campaignId)
+        ? supabase
+            .from('campaigns')
+            .select('email_accounts!inner(booking_url)')
+            .eq('id', task.campaignId)
+            .single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    if (wsData.data) {
+      workspaceProductContext = wsData.data.ai_company_context || null;
+      workspaceName = wsData.data.name || null;
     }
 
-    return { prospect, campaign, performance, memory, bookingUrl };
+    if (bookingData.data) {
+      const ea = bookingData.data.email_accounts as unknown as { booking_url: string | null };
+      bookingUrl = ea?.booking_url || null;
+    }
+
+    return { prospect, campaign, performance, memory, bookingUrl, workspaceProductContext, workspaceName };
   }
 
   // ─── Private: Strategy Management ───────────────────────────────────────
@@ -591,7 +616,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const agentType: AgentType = 'ceo';
     const { config, prompt } = await this.getAgentConfigAndPrompt(
       workspaceId,
-      agentType
+      agentType,
+      { productContext: context.workspaceProductContext, name: context.workspaceName }
     );
 
     const performanceSummary = this.buildPerformanceSummary(context.performance);
@@ -667,7 +693,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const agentType: AgentType = 'email_writer';
     const { config, prompt } = await this.getAgentConfigAndPrompt(
       task.workspaceId,
-      agentType
+      agentType,
+      { productContext: context.workspaceProductContext, name: context.workspaceName }
     );
 
     const strat = strategy.strategy;
@@ -762,7 +789,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const agentType: AgentType = 'linkedin_writer';
     const { config, prompt } = await this.getAgentConfigAndPrompt(
       task.workspaceId,
-      agentType
+      agentType,
+      { productContext: context.workspaceProductContext, name: context.workspaceName }
     );
 
     const strat = strategy.strategy;
@@ -1198,7 +1226,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
    */
   private async getAgentConfigAndPrompt(
     workspaceId: string,
-    agentType: AgentType
+    agentType: AgentType,
+    workspaceContext?: { productContext?: string | null; name?: string | null }
   ): Promise<{ config: AgentConfig; prompt: string }> {
     const config = await this.getAgentConfig(workspaceId, agentType);
 
@@ -1212,7 +1241,42 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       prompt = DEFAULT_PROMPTS[agentType];
     }
 
+    // Inject workspace product context into the system prompt so agents know
+    // the real product details (pricing, features, stats). This prevents
+    // hallucination of fake prices or made-up features.
+    if (workspaceContext?.productContext) {
+      const companyLabel = workspaceContext.name || 'notre solution';
+      prompt = `${prompt}
+
+---
+CONTEXTE PRODUIT DE ${companyLabel.toUpperCase()} (source de verite, ne PAS inventer d'autres informations) :
+${workspaceContext.productContext}
+
+REGLES ABSOLUES :
+1. Tu ne dois JAMAIS inventer des tarifs, pourcentages, statistiques ou fonctionnalites qui ne figurent PAS dans le contexte produit ci-dessus.
+2. STYLE HUMAIN OBLIGATOIRE : Tous les contenus destines aux prospects (emails, messages LinkedIn, reponses) doivent etre ecrits comme un vrai humain. Pas de tirets, pas de listes a puces, pas de bullet points. Des phrases simples et naturelles, un ton sympa et decontracte (vouvoiement). Le prospect doit sentir qu'une vraie personne lui ecrit.`;
+    }
+
     return { config, prompt };
+  }
+
+  /**
+   * Fetch workspace name and AI product context for injection into agent prompts.
+   */
+  private async fetchWorkspaceProductContext(
+    workspaceId: string
+  ): Promise<{ productContext: string | null; name: string | null }> {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from('workspaces')
+      .select('name, ai_company_context')
+      .eq('id', workspaceId)
+      .single();
+
+    return {
+      productContext: data?.ai_company_context || null,
+      name: data?.name || null,
+    };
   }
 
   /**

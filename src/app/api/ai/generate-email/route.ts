@@ -244,34 +244,28 @@ ${context || "Premier contact de prospection"}`;
 
     // Add rules
     const toneMap: Record<string, string> = {
-      formel: "tres professionnel et formel, vouvoiement strict",
+      formel: "respectueux et pro, vouvoiement, mais toujours humain et accessible",
       "semi-formel":
-        "professionnel mais chaleureux, vouvoiement avec touche humaine",
+        "sympa et chaleureux, vouvoiement, comme un message ecrit par un vrai humain",
       decontracte:
         "decontracte et direct, tutoiement possible si le secteur le permet",
     };
 
-    prompt += `\n\n## REGLES
-- Ton : ${toneMap[aiTone] || toneMap["semi-formel"]}
-- Ecris en francais naturel (pas de jargon marketing)
-- Sois concis (max 150 mots)
-- Commence par "Bonjour ${recipient.firstName || ""}"
-- Pose UNE question ouverte a la fin liee a un probleme concret du prospect
-- Pas de flatterie excessive
-- Propose de la valeur concrete et specifique
-- L'email doit donner l'impression d'etre ecrit a la main, pas genere par une IA
-- Si des donnees sur l'entreprise du prospect sont disponibles, utilise-les pour personnaliser le message
-- Le CTA doit etre simple (repondre a l'email, pas un lien)${bookingUrl ? `
-- IMPORTANT : Tu as un lien de prise de rendez-vous : ${bookingUrl}
-  Tu PEUX proposer ce lien dans l'email si c'est pertinent (ex: "Si vous souhaitez en discuter, voici un lien pour reserver un creneau : ${bookingUrl}")
-  Mais ne le force pas si ca ne colle pas avec le ton ou le contexte. Le lien doit paraitre naturel.` : ""}
+    prompt += `\n\n## STYLE D'ECRITURE (TRES IMPORTANT)
+Ecris comme un vrai humain. L'email doit ressembler a un message tape a la main, pas a un template marketing. INTERDIT d'utiliser des tirets (-), des listes a puces, des bullet points ou toute mise en forme "robot". Ecris en paragraphes courts et naturels. Le ton est ${toneMap[aiTone] || toneMap["semi-formel"]}.
+
+## REGLES
+Ecris en francais simple et naturel, pas de jargon marketing. Max 150 mots. Commence par "Bonjour ${recipient.firstName || ""}". Termine par UNE question ouverte liee a un vrai probleme du prospect. Pas de flatterie. Base-toi UNIQUEMENT sur les infos du contexte produit ci-dessus, ne cite JAMAIS de tarifs ou chiffres qui n'y figurent pas. Utilise les donnees du prospect pour personnaliser. Le CTA est simple : repondre a l'email.${bookingUrl ? `
+
+Tu as un lien de prise de rendez-vous : ${bookingUrl}
+Tu peux le glisser naturellement si ca colle (genre "Si ca vous dit d'en discuter, voici un lien pour caler un creneau : ${bookingUrl}"). Mais force pas.` : ""}
 
 Reponds UNIQUEMENT en JSON valide avec ce format :
 {"subject": "...", "body": "..."}`;
 
     const response = await getAnthropic().messages.create({
       model: CLAUDE_HAIKU,
-      system: "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire. Tu es le meilleur copywriter de cold email en France.",
+      system: "Tu reponds uniquement en JSON valide. Pas de markdown, pas de texte supplementaire. Tu ecris comme un vrai humain, jamais comme un robot. Tes emails sont simples, sympas, sans listes a puces ni tirets. Tu es le meilleur copywriter de cold email en France.",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 800,
