@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -39,8 +40,10 @@ import {
   Sparkles,
   Loader2,
   CheckCircle2,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import type { Campaign, SequenceStep } from "@/lib/types/database";
 
 interface ProspectInfo {
@@ -89,8 +92,11 @@ export function CampaignDetailTabs({
   steps,
   campaignProspects,
 }: CampaignDetailTabsProps) {
+  const router = useRouter();
+  const supabase = createClient();
+
   // Convert DB sequence steps to StepData for the SequenceEditor
-  const editorSteps: StepData[] = (steps as (typeof steps[number] & Record<string, unknown>)[]).map((s) => ({
+  const initialEditorSteps: StepData[] = (steps as (typeof steps[number] & Record<string, unknown>)[]).map((s) => ({
     id: s.id,
     step_order: s.step_order,
     step_type: s.step_type as StepData["step_type"],
@@ -103,6 +109,59 @@ export function CampaignDetailTabs({
     whatsapp_message: (s.whatsapp_message as string) ?? null,
     ab_enabled: s.ab_enabled,
   }));
+
+  const [editableSteps, setEditableSteps] = useState<StepData[]>(initialEditorSteps);
+  const [savingSequence, setSavingSequence] = useState(false);
+  const [sequenceDirty, setSequenceDirty] = useState(false);
+
+  const handleStepsChange = useCallback((newSteps: StepData[]) => {
+    setEditableSteps(newSteps);
+    setSequenceDirty(true);
+  }, []);
+
+  const handleSaveSequence = useCallback(async () => {
+    setSavingSequence(true);
+    try {
+      // Delete old steps and re-insert
+      const { error: deleteError } = await supabase
+        .from("sequence_steps")
+        .delete()
+        .eq("campaign_id", campaign.id);
+
+      if (deleteError) throw deleteError;
+
+      if (editableSteps.length > 0) {
+        const stepsToInsert = editableSteps.map((s) => ({
+          campaign_id: campaign.id,
+          step_order: s.step_order,
+          step_type: s.step_type,
+          delay_days: s.delay_days,
+          delay_hours: s.delay_hours,
+          subject: s.subject,
+          body_html: s.body_html,
+          body_text: s.body_text,
+          linkedin_message: s.linkedin_message,
+          whatsapp_message: s.whatsapp_message,
+          ab_enabled: s.ab_enabled,
+        }));
+
+        const { error: stepsError } = await supabase
+          .from("sequence_steps")
+          .insert(stepsToInsert);
+
+        if (stepsError) throw stepsError;
+      }
+
+      toast.success("Sequence sauvegardee");
+      setSequenceDirty(false);
+      router.refresh();
+    } catch (error) {
+      console.error("Error saving sequence:", error);
+      toast.error("Erreur lors de la sauvegarde");
+    } finally {
+      setSavingSequence(false);
+    }
+  }, [editableSteps, campaign.id, supabase, router]);
 
   const progress =
     campaign.total_prospects > 0
@@ -215,17 +274,17 @@ export function CampaignDetailTabs({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Sequence ({steps.length} etape{steps.length > 1 ? "s" : ""})
+              Sequence ({editableSteps.length} etape{editableSteps.length > 1 ? "s" : ""})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {steps.length === 0 ? (
+            {editableSteps.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Aucune etape configuree.
               </p>
             ) : (
               <div className="space-y-2">
-                {steps.map((step, idx) => {
+                {editableSteps.map((step, idx) => {
                   const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
                     email: Mail,
                     delay: Clock,
@@ -265,20 +324,38 @@ export function CampaignDetailTabs({
         </Card>
       </TabsContent>
 
-      {/* Sequence Tab - Read-only view */}
+      {/* Sequence Tab - Editable */}
       <TabsContent value="sequence" className="mt-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Sequence de la campagne</CardTitle>
-            <CardDescription>
-              Vue en lecture seule de la sequence configuree.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Sequence de la campagne</CardTitle>
+                <CardDescription>
+                  Cliquez sur une etape pour la modifier. Glissez pour reordonner.
+                </CardDescription>
+              </div>
+              {sequenceDirty && (
+                <Button
+                  size="sm"
+                  onClick={handleSaveSequence}
+                  disabled={savingSequence}
+                  className="gap-2"
+                >
+                  {savingSequence ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  Sauvegarder
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <SequenceEditor
-              steps={editorSteps}
-              onChange={() => {}}
-              readOnly
+              steps={editableSteps}
+              onChange={handleStepsChange}
             />
           </CardContent>
         </Card>
