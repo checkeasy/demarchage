@@ -40,7 +40,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
   return (
     <Card
-      className="cursor-pointer transition-shadow hover:shadow-md"
+      className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
       onClick={() => router.push(`/campaigns/${campaign.id}`)}
     >
       <CardHeader className="pb-3">

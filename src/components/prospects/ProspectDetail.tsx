@@ -568,7 +568,7 @@ export function ProspectDetail({
             </div>
           )}
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {cf.country && (
             <div className="flex items-center gap-2">
               <Flag className="size-4 text-muted-foreground" />

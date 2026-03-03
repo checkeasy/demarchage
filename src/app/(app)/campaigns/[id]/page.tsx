@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,6 +56,24 @@ export default async function CampaignDetailPage({
     .select("*")
     .eq("campaign_id", id)
     .order("step_order", { ascending: true });
+
+  // Fetch campaign prospects with prospect details (admin client bypasses RLS)
+  const adminSupabase = createAdminClient();
+  const { data: campaignProspects } = await adminSupabase
+    .from("campaign_prospects")
+    .select(`
+      id,
+      prospect_id,
+      status,
+      current_step_id,
+      next_send_at,
+      enrolled_at,
+      completed_at,
+      prospect:prospects(id, first_name, last_name, email, company, organization, nb_properties, lead_score, status)
+    `)
+    .eq("campaign_id", id)
+    .order("enrolled_at", { ascending: false })
+    .limit(500);
 
   const typedCampaign = campaign as Campaign;
   const typedSteps = (stepsData ?? []) as SequenceStep[];
@@ -190,7 +209,7 @@ export default async function CampaignDetailPage({
       </div>
 
       {/* Tabs */}
-      <CampaignDetailTabs campaign={typedCampaign} steps={typedSteps} />
+      <CampaignDetailTabs campaign={typedCampaign} steps={typedSteps} campaignProspects={campaignProspects ?? []} />
     </div>
   );
 }

@@ -102,8 +102,6 @@ export async function findOwner(
       if (pagesFound >= 5) break; // Limit to 5 pages
 
       const pageUrl = `${origin}${path}`;
-      console.log(`[OwnerFinder] Crawling ${pageUrl}...`);
-
       const html = await fetchPage(pageUrl);
       if (html) {
         const text = extractTextContent(html);
@@ -117,7 +115,6 @@ export async function findOwner(
     }
 
     if (allTexts.length === 0) {
-      console.log('[OwnerFinder] No content found on any page');
       return defaultResult;
     }
 
@@ -160,7 +157,6 @@ export async function findOwner(
 
     if (ownerFirstName && ownerLastName) {
       try {
-        console.log(`[OwnerFinder] Searching LinkedIn for ${ownerFirstName} ${ownerLastName} ${businessName}...`);
         const linkedinClient = getLinkedInClient();
         const searchResponse = await linkedinClient.searchPeople({
           keywords: `${ownerFirstName} ${ownerLastName} ${businessName}`,
@@ -180,12 +176,9 @@ export async function findOwner(
 
           if (bestMatch) {
             linkedinUrl = bestMatch.profileUrl;
-            console.log(`[OwnerFinder] LinkedIn match found: ${linkedinUrl}`);
           } else {
-            console.log('[OwnerFinder] No confident LinkedIn match (name mismatch)');
           }
         } else {
-          console.log('[OwnerFinder] No LinkedIn results found');
         }
       } catch (err) {
         // Don't fail the whole enrichment if LinkedIn search fails

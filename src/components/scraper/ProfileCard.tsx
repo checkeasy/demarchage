@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   MapPin,
   Building2,
@@ -125,10 +126,13 @@ export function ProfileCard({
           <div className="shrink-0">
             <div className="size-14 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-semibold text-lg overflow-hidden">
               {profile.profilePictureUrl || profile.avatarUrl ? (
-                <img
-                  src={profile.profilePictureUrl || profile.avatarUrl}
+                <Image
+                  src={profile.profilePictureUrl || profile.avatarUrl || ""}
                   alt={profile.fullName}
+                  width={56}
+                  height={56}
                   className="size-full object-cover"
+                  unoptimized
                 />
               ) : (
                 profile.fullName

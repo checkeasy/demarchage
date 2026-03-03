@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -263,7 +264,14 @@ export function AddDealDialog({
               Annuler
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creation..." : "Creer le deal"}
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Creation...
+                </>
+              ) : (
+                "Creer le deal"
+              )}
             </Button>
           </DialogFooter>
         </form>

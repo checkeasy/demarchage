@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS, BUSINESS_TYPES, SIZE_TIERS, TOURIST_ZONES, OTA_STRATEGIES, REVIEW_QUALITY } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { AddProspectDialog } from "@/components/prospects/AddProspectDialog";
 import { SmartCampaignDialog } from "@/components/campaigns/SmartCampaignDialog";
 
@@ -106,6 +117,14 @@ export function ProspectPageClient({
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [leadScoreFilter, setLeadScoreFilter] = useState<string>("all");
   const [emailQualityFilter, setEmailQualityFilter] = useState<string>("all");
+  const [businessTypeFilter, setBusinessTypeFilter] = useState<string>("all");
+  const [sizeTierFilter, setSizeTierFilter] = useState<string>("all");
+  const [zoneFilter, setZoneFilter] = useState<string>("all");
+  const [otaFilter, setOtaFilter] = useState<string>("all");
+  const [reviewFilter, setReviewFilter] = useState<string>("all");
+  const [emailTypeFilter, setEmailTypeFilter] = useState<string>("all");
+  const [contactableFilter, setContactableFilter] = useState<string>("all");
+  const [websiteFilter, setWebsiteFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [sortField, setSortField] = useState<string>("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
@@ -113,6 +132,7 @@ export function ProspectPageClient({
   const [page, setPage] = useState(1);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [smartCampaignOpen, setSmartCampaignOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Extract unique values from data for dynamic filters
   const availableCountries = useMemo(() => {
@@ -150,7 +170,11 @@ export function ProspectPageClient({
   const availableTags = useMemo(() => {
     const set = new Set<string>();
     for (const p of prospects) {
-      if (p.tags) for (const t of p.tags) set.add(t);
+      if (p.tags) for (const t of p.tags) {
+        // Skip structured tags that have dedicated filters
+        if (t.startsWith("secteur:") || t.startsWith("type:") || t.startsWith("taille:") || t.startsWith("source:")) continue;
+        set.add(t);
+      }
     }
     return Array.from(set).sort();
   }, [prospects]);
@@ -228,6 +252,46 @@ export function ProspectPageClient({
       result = result.filter((p) => p.tags?.includes(tagFilter));
     }
 
+    // Filter by business type (from tags)
+    if (businessTypeFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("type:" + businessTypeFilter));
+    }
+
+    // Filter by size tier (from tags)
+    if (sizeTierFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("taille:" + sizeTierFilter));
+    }
+
+    // Filter by zone touristique
+    if (zoneFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("zone:" + zoneFilter));
+    }
+
+    // Filter by OTA strategy
+    if (otaFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("ota_strat:" + otaFilter));
+    }
+
+    // Filter by review quality
+    if (reviewFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("avis:" + reviewFilter));
+    }
+
+    // Filter by email type
+    if (emailTypeFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("email_type:" + emailTypeFilter));
+    }
+
+    // Filter by contactable
+    if (contactableFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("contactable:" + contactableFilter));
+    }
+
+    // Filter by website presence
+    if (websiteFilter !== "all") {
+      result = result.filter((p) => p.tags?.includes("web:" + websiteFilter));
+    }
+
     // Filter by lead score range
     if (leadScoreFilter !== "all") {
       const range = LEAD_SCORE_RANGES[leadScoreFilter as keyof typeof LEAD_SCORE_RANGES];
@@ -296,7 +360,7 @@ export function ProspectPageClient({
     });
 
     return result;
-  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, departmentFilter, tagFilter, leadScoreFilter, emailQualityFilter, sortField, sortDirection]);
+  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, departmentFilter, tagFilter, leadScoreFilter, emailQualityFilter, businessTypeFilter, sizeTierFilter, zoneFilter, otaFilter, reviewFilter, emailTypeFilter, contactableFilter, websiteFilter, sortField, sortDirection]);
 
   // Stats
   const stats = useMemo(() => {
@@ -530,14 +594,16 @@ export function ProspectPageClient({
   function SortableHeader({
     field,
     label,
+    className: extraClassName,
   }: {
     field: string;
     label: string;
+    className?: string;
   }) {
     const isActive = sortField === field;
     return (
       <TableHead
-        className="cursor-pointer select-none hover:bg-slate-50"
+        className={`cursor-pointer select-none hover:bg-slate-50 ${extraClassName || ""}`}
         onClick={() => {
           if (isActive) {
             setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -564,7 +630,7 @@ export function ProspectPageClient({
     );
   }
 
-  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || departmentFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || search.trim() !== "";
+  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || departmentFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || businessTypeFilter !== "all" || sizeTierFilter !== "all" || zoneFilter !== "all" || otaFilter !== "all" || reviewFilter !== "all" || emailTypeFilter !== "all" || contactableFilter !== "all" || websiteFilter !== "all" || search.trim() !== "";
 
   const advancedFilterCount = [
     departmentFilter !== "all",
@@ -575,6 +641,14 @@ export function ProspectPageClient({
     tagFilter !== "all",
     leadScoreFilter !== "all",
     emailQualityFilter !== "all",
+    businessTypeFilter !== "all",
+    sizeTierFilter !== "all",
+    zoneFilter !== "all",
+    otaFilter !== "all",
+    reviewFilter !== "all",
+    emailTypeFilter !== "all",
+    contactableFilter !== "all",
+    websiteFilter !== "all",
   ].filter(Boolean).length;
 
   return (
@@ -608,7 +682,7 @@ export function ProspectPageClient({
         {/* Row 1: Search + Primary Filters + Actions */}
         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <div className="relative flex-1 w-full sm:min-w-[200px] sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               placeholder="Nom, email, entreprise, ville..."
@@ -714,10 +788,10 @@ export function ProspectPageClient({
 
         {/* Row 2: Advanced Filters (collapsible) */}
         {showAdvancedFilters && (
-          <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
             {/* Geographie */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Geo</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1 w-full sm:w-auto">Geo</span>
               <Select
                 value={countryFilter}
                 onValueChange={(value) => { setCountryFilter(value); setPage(1); }}
@@ -761,6 +835,23 @@ export function ProspectPageClient({
               )}
 
               <Select
+                value={zoneFilter}
+                onValueChange={(value) => { setZoneFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectValue placeholder="Zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes zones</SelectItem>
+                  {Object.entries(TOURIST_ZONES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
                 value={cityFilter}
                 onValueChange={(value) => { setCityFilter(value); setPage(1); }}
               >
@@ -778,16 +869,16 @@ export function ProspectPageClient({
               </Select>
             </div>
 
-            <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+            <div className="hidden lg:block w-px h-6 bg-slate-200 self-center mx-1" />
 
-            {/* Entreprise */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Entreprise</span>
+            {/* Segmentation */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1 w-full sm:w-auto">Segment</span>
               <Select
                 value={industryFilter}
                 onValueChange={(value) => { setIndustryFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[145px] h-8 text-xs">
+                <SelectTrigger className="w-[160px] h-8 text-xs">
                   <SelectValue placeholder="Secteur" />
                 </SelectTrigger>
                 <SelectContent>
@@ -796,7 +887,7 @@ export function ProspectPageClient({
                     const config = INDUSTRIES[ind];
                     return (
                       <SelectItem key={ind} value={ind}>
-                        {config?.label || ind}
+                        {config ? `${config.emoji} ${config.label}` : ind}
                       </SelectItem>
                     );
                   })}
@@ -804,28 +895,48 @@ export function ProspectPageClient({
               </Select>
 
               <Select
-                value={employeeCountFilter}
-                onValueChange={(value) => { setEmployeeCountFilter(value); setPage(1); }}
+                value={businessTypeFilter}
+                onValueChange={(value) => { setBusinessTypeFilter(value); setPage(1); }}
               >
-                <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectTrigger className="w-[155px] h-8 text-xs">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous types</SelectItem>
+                  {Object.entries(BUSINESS_TYPES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${config.color}`} />
+                        {config.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={sizeTierFilter}
+                onValueChange={(value) => { setSizeTierFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[130px] h-8 text-xs">
                   <SelectValue placeholder="Taille" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes tailles</SelectItem>
-                  {Object.entries(EMPLOYEE_COUNTS).map(([key, config]) => (
+                  {Object.entries(SIZE_TIERS).map(([key, config]) => (
                     <SelectItem key={key} value={key}>
-                      {config.label} emp.
+                      {config.label} ({config.range})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+            <div className="hidden lg:block w-px h-6 bg-slate-200 self-center mx-1" />
 
             {/* Qualite */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Qualite</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1 w-full sm:w-auto">Qualite</span>
               <Select
                 value={leadScoreFilter}
                 onValueChange={(value) => { setLeadScoreFilter(value); setPage(1); }}
@@ -874,10 +985,102 @@ export function ProspectPageClient({
               </Select>
             </div>
 
+            <div className="hidden lg:block w-px h-6 bg-slate-200 self-center mx-1" />
+
+            {/* OTA & Avis */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1 w-full sm:w-auto">OTA</span>
+              <Select
+                value={otaFilter}
+                onValueChange={(value) => { setOtaFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue placeholder="Strategie OTA" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes strategies</SelectItem>
+                  {Object.entries(OTA_STRATEGIES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={reviewFilter}
+                onValueChange={(value) => { setReviewFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <SelectValue placeholder="Avis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous avis</SelectItem>
+                  {Object.entries(REVIEW_QUALITY).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${config.color}`} />
+                        {config.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="hidden lg:block w-px h-6 bg-slate-200 self-center mx-1" />
+
+            {/* Contactabilite */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1 w-full sm:w-auto">Contact</span>
+              <Select
+                value={emailTypeFilter}
+                onValueChange={(value) => { setEmailTypeFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue placeholder="Type email" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous types</SelectItem>
+                  <SelectItem value="email_pro">Email pro</SelectItem>
+                  <SelectItem value="email_generique">Email generique</SelectItem>
+                  <SelectItem value="sans_email">Sans email</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={contactableFilter}
+                onValueChange={(value) => { setContactableFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[125px] h-8 text-xs">
+                  <SelectValue placeholder="Contactable" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="oui">Contactable</SelectItem>
+                  <SelectItem value="non">Non contactable</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={websiteFilter}
+                onValueChange={(value) => { setWebsiteFilter(value); setPage(1); }}
+              >
+                <SelectTrigger className="w-[120px] h-8 text-xs">
+                  <SelectValue placeholder="Site web" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="oui">Avec site</SelectItem>
+                  <SelectItem value="non">Sans site</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Tags (only if tags exist) */}
             {availableTags.length > 0 && (
               <>
-                <div className="w-px h-6 bg-slate-200 self-center mx-1" />
+                <div className="hidden lg:block w-px h-6 bg-slate-200 self-center mx-1" />
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium text-slate-500 uppercase tracking-wide mr-1">Tags</span>
                   <Select
@@ -949,7 +1152,20 @@ export function ProspectPageClient({
             )}
             {industryFilter !== "all" && (
               <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setIndustryFilter("all"); setPage(1); }}>
-                {INDUSTRIES[industryFilter]?.label || industryFilter}
+                {INDUSTRIES[industryFilter]?.emoji} {INDUSTRIES[industryFilter]?.label || industryFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {businessTypeFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setBusinessTypeFilter("all"); setPage(1); }}>
+                <span className={`size-2 rounded-full ${BUSINESS_TYPES[businessTypeFilter]?.color}`} />
+                {BUSINESS_TYPES[businessTypeFilter]?.label || businessTypeFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {sizeTierFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setSizeTierFilter("all"); setPage(1); }}>
+                {SIZE_TIERS[sizeTierFilter]?.label || sizeTierFilter}
                 <X className="size-3" />
               </Badge>
             )}
@@ -968,6 +1184,42 @@ export function ProspectPageClient({
             {emailQualityFilter !== "all" && (
               <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setEmailQualityFilter("all"); setPage(1); }}>
                 Email: {emailQualityFilter === "real" ? "Avec" : emailQualityFilter === "missing" ? "Sans" : emailQualityFilter === "verified_high" ? "70%+" : emailQualityFilter === "verified_low" ? "<70%" : "Non verifie"}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {zoneFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setZoneFilter("all"); setPage(1); }}>
+                {TOURIST_ZONES[zoneFilter]?.label || zoneFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {otaFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setOtaFilter("all"); setPage(1); }}>
+                {OTA_STRATEGIES[otaFilter]?.label || otaFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {reviewFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setReviewFilter("all"); setPage(1); }}>
+                Avis: {REVIEW_QUALITY[reviewFilter]?.label || reviewFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {emailTypeFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setEmailTypeFilter("all"); setPage(1); }}>
+                {emailTypeFilter === "email_pro" ? "Email pro" : emailTypeFilter === "email_generique" ? "Email generique" : "Sans email"}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {contactableFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setContactableFilter("all"); setPage(1); }}>
+                {contactableFilter === "oui" ? "Contactable" : "Non contactable"}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {websiteFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setWebsiteFilter("all"); setPage(1); }}>
+                {websiteFilter === "oui" ? "Avec site" : "Sans site"}
                 <X className="size-3" />
               </Badge>
             )}
@@ -998,6 +1250,14 @@ export function ProspectPageClient({
                 setTagFilter("all");
                 setLeadScoreFilter("all");
                 setEmailQualityFilter("all");
+                setBusinessTypeFilter("all");
+                setSizeTierFilter("all");
+                setZoneFilter("all");
+                setOtaFilter("all");
+                setReviewFilter("all");
+                setEmailTypeFilter("all");
+                setContactableFilter("all");
+                setWebsiteFilter("all");
                 setPage(1);
               }}
             >
@@ -1010,56 +1270,75 @@ export function ProspectPageClient({
 
       {/* Bulk actions */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
-          <span className="text-sm font-medium">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 bg-slate-100 rounded-lg">
+          <span className="text-sm font-medium w-full sm:w-auto">
             {selectedIds.size} prospect(s) selectionne(s)
             {hasActiveFilters && ` sur ${filteredProspects.length} filtres`}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50"
-            onClick={() => setSmartCampaignOpen(true)}
-          >
-            <Sparkles className="size-4" />
-            Creer campagne IA
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
-            onClick={handleEnrichSelected}
-            disabled={isEnriching}
-          >
-            {isEnriching ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Wand2 className="size-4" />
-            )}
-            {isEnriching ? "Enrichissement..." : "Enrichir avec IA"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
-            onClick={handleVerifyEmails}
-            disabled={isVerifying}
-          >
-            {isVerifying ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ShieldCheck className="size-4" />
-            )}
-            {isVerifying ? "Verification..." : "Verifier emails"}
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeleteSelected}
-          >
-            <Trash2 className="size-4" />
-            Supprimer
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50"
+              onClick={() => setSmartCampaignOpen(true)}
+            >
+              <Sparkles className="size-4" />
+              <span className="hidden sm:inline">Creer campagne IA</span>
+              <span className="sm:hidden">Campagne</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+              onClick={handleEnrichSelected}
+              disabled={isEnriching}
+            >
+              {isEnriching ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Wand2 className="size-4" />
+              )}
+              <span className="hidden sm:inline">{isEnriching ? "Enrichissement..." : "Enrichir avec IA"}</span>
+              <span className="sm:hidden">{isEnriching ? "..." : "Enrichir"}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-green-200 text-green-700 hover:bg-green-50"
+              onClick={handleVerifyEmails}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="size-4" />
+              )}
+              <span className="hidden sm:inline">{isVerifying ? "Verification..." : "Verifier emails"}</span>
+              <span className="sm:hidden">{isVerifying ? "..." : "Verifier"}</span>
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="size-4" />
+                  <span className="hidden sm:inline">Supprimer</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Supprimer {selectedIds.size} prospect(s)</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Cette action est irreversible. Les prospects selectionnes et leurs donnees associees seront definitivement supprimes.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={handleDeleteSelected}>
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       )}
 
@@ -1083,15 +1362,16 @@ export function ProspectPageClient({
                 />
               </TableHead>
               <SortableHeader field="first_name" label="Nom" />
-              <SortableHeader field="company" label="Entreprise" />
-              <SortableHeader field="nb_properties" label="Biens" />
-              <SortableHeader field="country" label="Pays" />
-              <SortableHeader field="pipeline_stage" label="Pipeline" />
-              <SortableHeader field="source" label="Source" />
-              <SortableHeader field="lead_score" label="Score IA" />
-              <SortableHeader field="email_validity_score" label="Fiabilité" />
-              <SortableHeader field="email" label="Email" />
-              <SortableHeader field="created_at" label="Date" />
+              <SortableHeader field="company" label="Entreprise" className="hidden sm:table-cell" />
+              <SortableHeader field="nb_properties" label="Biens" className="hidden xl:table-cell" />
+              <SortableHeader field="country" label="Pays" className="hidden xl:table-cell" />
+              <SortableHeader field="pipeline_stage" label="Pipeline" className="hidden md:table-cell" />
+              <SortableHeader field="status" label="Statut" />
+              <SortableHeader field="source" label="Source" className="hidden lg:table-cell" />
+              <SortableHeader field="lead_score" label="Score IA" className="hidden lg:table-cell" />
+              <SortableHeader field="email_validity_score" label="Fiabilité" className="hidden xl:table-cell" />
+              <SortableHeader field="email" label="Email" className="hidden md:table-cell" />
+              <SortableHeader field="created_at" label="Date" className="hidden xl:table-cell" />
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
@@ -1099,7 +1379,7 @@ export function ProspectPageClient({
             {paginatedProspects.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={12}
+                  colSpan={13}
                   className="h-32 text-center text-muted-foreground"
                 >
                   {prospects.length === 0
@@ -1131,7 +1411,7 @@ export function ProspectPageClient({
                           .join(" ") || "-"}
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <span className="inline-flex items-center">
                         {prospect.organization || prospect.company || "-"}
                         {cf.enriched_from_directory && (
@@ -1141,13 +1421,13 @@ export function ProspectPageClient({
                         )}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right text-sm tabular-nums">
+                    <TableCell className="hidden xl:table-cell text-right text-sm tabular-nums">
                       {prospect.nb_properties ?? "-"}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="hidden xl:table-cell text-sm">
                       {getCountryDisplay(prospect)}
                     </TableCell>
-                    <TableCell>{getPipelineBadge(prospect)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{getPipelineBadge(prospect)}</TableCell>
                     <TableCell>
                       {hasLossReason ? (
                         <Tooltip>
@@ -1164,8 +1444,8 @@ export function ProspectPageClient({
                         getCrmStatusBadge(prospect)
                       )}
                     </TableCell>
-                    <TableCell>{getSourceBadge(prospect.source)}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">{getSourceBadge(prospect.source)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {prospect.lead_score !== null && prospect.lead_score !== undefined ? (
                         <Badge
                           variant="secondary"
@@ -1181,7 +1461,7 @@ export function ProspectPageClient({
                         <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden xl:table-cell">
                       {prospect.email_validity_score !== null && prospect.email_validity_score !== undefined ? (
                         <Badge
                           variant="secondary"
@@ -1197,7 +1477,7 @@ export function ProspectPageClient({
                         <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                       {isPlaceholderEmail(prospect.email) ? (
                         <span className="text-orange-500 text-xs italic">
                           Pas d&apos;email
@@ -1206,7 +1486,7 @@ export function ProspectPageClient({
                         prospect.email
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="hidden xl:table-cell text-muted-foreground text-sm">
                       {formatDate(prospect.created_at)}
                     </TableCell>
                     <TableCell>
@@ -1227,7 +1507,7 @@ export function ProspectPageClient({
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
-                            onClick={() => handleDeleteOne(prospect.id)}
+                            onClick={() => setDeleteConfirmId(prospect.id)}
                           >
                             <Trash2 className="size-4" />
                             Supprimer
@@ -1244,29 +1524,53 @@ export function ProspectPageClient({
 
         {/* Pagination */}
         {filteredProspects.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t gap-2">
             <p className="text-sm text-muted-foreground">
               {(page - 1) * ITEMS_PER_PAGE + 1} -{" "}
               {Math.min(page * ITEMS_PER_PAGE, filteredProspects.length)} sur{" "}
               {filteredProspects.length} prospects
             </p>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
               >
                 <ChevronLeft className="size-4" />
-                Precedent
               </Button>
+              {totalPages <= 7 ? (
+                Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="icon-sm"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                ))
+              ) : (
+                <>
+                  {[1, 2].map((p) => (
+                    <Button key={p} variant={p === page ? "default" : "outline"} size="icon-sm" onClick={() => setPage(p)}>{p}</Button>
+                  ))}
+                  {page > 4 && <span className="px-1 text-muted-foreground text-xs">...</span>}
+                  {page > 3 && page < totalPages - 2 && (
+                    <Button variant="default" size="icon-sm">{page}</Button>
+                  )}
+                  {page < totalPages - 3 && <span className="px-1 text-muted-foreground text-xs">...</span>}
+                  {[totalPages - 1, totalPages].map((p) => (
+                    <Button key={p} variant={p === page ? "default" : "outline"} size="icon-sm" onClick={() => setPage(p)}>{p}</Button>
+                  ))}
+                </>
+              )}
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
               >
-                Suivant
                 <ChevronRight className="size-4" />
               </Button>
             </div>
@@ -1280,6 +1584,32 @@ export function ProspectPageClient({
         onOpenChange={setAddDialogOpen}
         workspaceId={workspaceId}
       />
+
+      {/* Single Prospect Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce prospect</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irreversible. Le prospect et ses donnees associees seront definitivement supprimes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirmId) {
+                  handleDeleteOne(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1323,10 +1324,12 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
               {/* QR Code display */}
               {whatsappStatus === "qr_pending" && whatsappQrCode && (
                 <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
-                  <img
+                  <Image
                     src={whatsappQrCode}
                     alt="QR Code WhatsApp"
-                    className="w-64 h-64"
+                    width={256}
+                    height={256}
+                    unoptimized
                   />
                   <p className="text-xs text-muted-foreground text-center">
                     Ouvrez WhatsApp sur votre telephone &gt; Menu &gt; Appareils connectes &gt; Connecter un appareil

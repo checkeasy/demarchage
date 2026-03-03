@@ -166,7 +166,6 @@ export async function findCompanyWebsite(
   }
 
   // Strategy 1: DuckDuckGo
-  console.log(`[CompanyFinder] Searching DuckDuckGo for "${companyName}"...`);
   const ddgResult = await findViaDuckDuckGo(companyName);
   if (ddgResult && isValidUrl(ddgResult)) {
     return {
@@ -180,7 +179,6 @@ export async function findCompanyWebsite(
   await sleep(1000);
 
   // Strategy 2: Domain guessing
-  console.log(`[CompanyFinder] Trying domain guessing for "${companyName}"...`);
   const domainResult = await findViaDomainGuess(companyName);
   if (domainResult) {
     return {

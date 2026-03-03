@@ -69,12 +69,15 @@ export function MobileNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${
+                className={`relative flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${
                   isActive
                     ? "text-blue-600"
                     : "text-slate-400 hover:text-slate-600"
                 }`}
               >
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-full" />
+                )}
                 <Icon className="size-5" />
                 <span className="text-[10px] font-medium">{item.label}</span>
               </Link>
@@ -99,7 +102,7 @@ export function MobileNav() {
               <SheetHeader>
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
-              <div className="grid grid-cols-4 gap-3 py-4">
+              <div className="grid grid-cols-3 gap-3 py-4">
                 {moreNavItems.map((item) => {
                   const isActive =
                     pathname === item.href ||

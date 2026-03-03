@@ -2,7 +2,15 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, RotateCcw, Home } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { AlertTriangle, RotateCcw, Home, Copy } from "lucide-react";
 import Link from "next/link";
 
 export default function AppError({
@@ -17,36 +25,67 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-6">
-        <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-red-50">
-          <AlertTriangle className="size-8 text-red-500" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Une erreur est survenue</h2>
-          <p className="text-sm text-muted-foreground">
-            Quelque chose s&apos;est mal passe. Essayez de recharger la page ou
-            de retourner au tableau de bord.
-          </p>
-          {error.digest && (
-            <p className="text-xs text-muted-foreground font-mono">
-              Code: {error.digest}
-            </p>
+    <div className="flex flex-1 items-center justify-center p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="size-7 text-destructive" />
+          </div>
+          <CardTitle className="text-xl">Une erreur est survenue</CardTitle>
+          <CardDescription>
+            Quelque chose s&apos;est mal passe. Vous pouvez reessayer ou
+            retourner au tableau de bord.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          {error.message && (
+            <div className="rounded-lg border bg-muted/50 p-3">
+              <p className="text-sm font-medium text-muted-foreground mb-1">
+                Details de l&apos;erreur
+              </p>
+              <p className="text-sm font-mono break-all">{error.message}</p>
+            </div>
           )}
-        </div>
-        <div className="flex items-center justify-center gap-3">
-          <Button onClick={reset} variant="outline" className="gap-2">
+
+          {error.digest && (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-0.5">
+                  Code de reference
+                </p>
+                <p className="text-xs font-mono text-muted-foreground">
+                  {error.digest}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => {
+                  navigator.clipboard.writeText(error.digest || "");
+                }}
+              >
+                <Copy className="size-3.5" />
+                <span className="sr-only">Copier le code</span>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Button onClick={reset} variant="outline" className="w-full sm:w-auto gap-2">
             <RotateCcw className="size-4" />
             Reessayer
           </Button>
-          <Button asChild className="gap-2">
+          <Button asChild className="w-full sm:w-auto gap-2">
             <Link href="/dashboard">
               <Home className="size-4" />
-              Tableau de bord
+              Retour au Dashboard
             </Link>
           </Button>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

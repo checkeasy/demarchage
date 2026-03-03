@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 function Skeleton({ className }: { className?: string }) {
-  return <div className={`animate-pulse bg-slate-200 rounded ${className || ""}`} />;
+  return <div className={`bg-muted rounded ${className || ""}`} />;
 }
 
 export default function DashboardLoading() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-pulse">
       <div>
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72 mt-2" />

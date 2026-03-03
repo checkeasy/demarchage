@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 
 function Skeleton({ className }: { className?: string }) {
-  return <div className={`animate-pulse bg-slate-200 rounded ${className || ""}`} />;
+  return <div className={`bg-muted rounded ${className || ""}`} />;
 }
 
 export default function ProspectsLoading() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-pulse">
       <div className="flex items-center justify-between">
         <Skeleton className="h-8 w-32" />
         <div className="flex gap-2">

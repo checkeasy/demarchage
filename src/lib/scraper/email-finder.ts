@@ -247,8 +247,6 @@ async function crawlKeyPages(
 
   for (const path of CONTACT_PATHS.slice(0, MAX_PAGES)) {
     const pageUrl = `${origin}${path}`;
-    console.log(`[EmailFinder] Crawling ${pageUrl}...`);
-
     const html = await fetchPage(pageUrl);
     if (html) {
       pagesScraped++;

@@ -88,21 +88,49 @@ export const SOURCE_LABELS = {
   api: { label: "API", className: "bg-purple-100 text-purple-700 border-purple-200" },
 } as const;
 
-// Industries / Secteurs
-export const INDUSTRIES: Record<string, { label: string }> = {
-  immobilier: { label: "Immobilier" },
-  saas: { label: "SaaS / Tech" },
-  construction: { label: "Construction / BTP" },
-  tourisme: { label: "Tourisme / Hotellerie" },
-  restauration: { label: "Restauration" },
-  commerce: { label: "Commerce / Retail" },
-  finance: { label: "Finance / Assurance" },
-  sante: { label: "Sante" },
-  education: { label: "Education" },
-  conseil: { label: "Conseil / Services" },
-  industrie: { label: "Industrie" },
-  transport: { label: "Transport / Logistique" },
-  autre: { label: "Autre" },
+// Industries / Secteurs (vacation rental market segmentation)
+export const INDUSTRIES: Record<string, { label: string; emoji: string }> = {
+  conciergerie: { label: "Conciergerie", emoji: "🏠" },
+  gestionnaire_locatif: { label: "Gestionnaire locatif", emoji: "📋" },
+  proprietaire_bailleur: { label: "Proprietaire bailleur", emoji: "🔑" },
+  location_vacances: { label: "Location vacances", emoji: "🌴" },
+  agence_immo: { label: "Agence immobiliere", emoji: "🏢" },
+  hotel: { label: "Hotel / Hostel", emoji: "🏨" },
+  villa_rental: { label: "Location villas", emoji: "🏡" },
+  gite: { label: "Gite / Insolite", emoji: "🏕" },
+  chateau_domaine: { label: "Chateau / Domaine", emoji: "🏰" },
+  residence: { label: "Residence / Aparthotel", emoji: "🏬" },
+  chalet: { label: "Chalet", emoji: "⛷" },
+  chambre_hote: { label: "Chambre d'hote", emoji: "🛏" },
+  camping: { label: "Camping", emoji: "⛺" },
+  gestion_locative: { label: "Gestion locative", emoji: "📊" },
+  maison_vacances: { label: "Maison de vacances", emoji: "🏘" },
+  non_classe: { label: "Non classe", emoji: "❓" },
+};
+
+// Business types (prospect relationship classification)
+export const BUSINESS_TYPES: Record<string, { label: string; color: string }> = {
+  client_potentiel: { label: "Client potentiel", color: "bg-green-500" },
+  partenaire_potentiel: { label: "Partenaire potentiel", color: "bg-blue-500" },
+  a_relancer: { label: "A relancer", color: "bg-amber-500" },
+  a_concurrent: { label: "A un concurrent", color: "bg-orange-500" },
+  trop_petit: { label: "Trop petit", color: "bg-slate-400" },
+  traditionnel: { label: "Traditionnel", color: "bg-yellow-500" },
+  sans_reponse: { label: "Sans reponse", color: "bg-gray-400" },
+  perdu: { label: "Perdu", color: "bg-red-500" },
+  mauvaise_cible: { label: "Mauvaise cible", color: "bg-red-300" },
+  fermee: { label: "Fermee", color: "bg-gray-300" },
+  donnees_invalides: { label: "Donnees invalides", color: "bg-gray-200" },
+};
+
+// Size tiers (based on nb_properties)
+export const SIZE_TIERS: Record<string, { label: string; range: string }> = {
+  micro: { label: "Micro", range: "1-5 biens" },
+  petit: { label: "Petit", range: "6-20 biens" },
+  moyen: { label: "Moyen", range: "21-50 biens" },
+  grand: { label: "Grand", range: "51-100 biens" },
+  tres_grand: { label: "Tres grand", range: "100+ biens" },
+  inconnu: { label: "Inconnu", range: "N/A" },
 };
 
 // Tailles d'entreprise
@@ -224,6 +252,48 @@ export const DEPARTMENTS: Record<string, { label: string; region: string }> = {
   "973": { label: "973 - Guyane", region: "DOM-TOM" },
   "974": { label: "974 - Reunion", region: "DOM-TOM" },
   "976": { label: "976 - Mayotte", region: "DOM-TOM" },
+};
+
+// Zones touristiques
+export const TOURIST_ZONES: Record<string, { label: string }> = {
+  cote_azur: { label: "Cote d'Azur" },
+  var_provence: { label: "Var / Provence" },
+  marseille_aix: { label: "Marseille / Aix" },
+  alpes_nord: { label: "Alpes du Nord" },
+  alpes_sud: { label: "Alpes du Sud" },
+  paris_idf: { label: "Paris / IDF" },
+  lyon_rhone: { label: "Lyon / Rhone" },
+  toulouse_occitanie: { label: "Toulouse / Occitanie" },
+  languedoc: { label: "Languedoc" },
+  pyrenees_orientales: { label: "Pyrenees Orientales" },
+  pays_basque: { label: "Pays Basque" },
+  bretagne: { label: "Bretagne" },
+  normandie: { label: "Normandie" },
+  bassin_arcachon: { label: "Bassin d'Arcachon" },
+  bordeaux_gironde: { label: "Bordeaux / Gironde" },
+  landes: { label: "Landes" },
+  corse: { label: "Corse" },
+  vendee_atlantique: { label: "Vendee / Atlantique" },
+  charentes: { label: "Charentes" },
+  ile_de_re_oleron: { label: "Ile de Re / Oleron" },
+  dordogne_lot: { label: "Dordogne / Lot" },
+};
+
+// OTA strategy
+export const OTA_STRATEGIES: Record<string, { label: string }> = {
+  multi_ota_avance: { label: "Multi OTA (3+)" },
+  multi_ota: { label: "Multi OTA (2)" },
+  mono_ota: { label: "Mono OTA" },
+  hors_ota: { label: "Hors OTA" },
+};
+
+// Review quality
+export const REVIEW_QUALITY: Record<string, { label: string; color: string }> = {
+  top_rated: { label: "Top rated (4.5+ & 10+ avis)", color: "bg-green-500" },
+  excellent: { label: "Excellent (4.5+)", color: "bg-emerald-500" },
+  bon: { label: "Bon (4-4.5)", color: "bg-blue-500" },
+  moyen: { label: "Moyen (3-4)", color: "bg-yellow-500" },
+  faible: { label: "Faible (<3)", color: "bg-red-500" },
 };
 
 // CRM Activity types

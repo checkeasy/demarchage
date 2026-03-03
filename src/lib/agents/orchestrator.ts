@@ -335,9 +335,34 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
         ? `\n\nDONNEES D'ENRICHISSEMENT :\n${JSON.stringify(prospect.enrichments, null, 2)}`
         : '';
 
+    // Extract website analysis from custom_fields for a dedicated section
+    const websiteAnalysis = prospect.custom_fields.website_analysis as Record<string, unknown> | undefined;
+    const websiteAnalysisText = websiteAnalysis
+      ? `\n\nANALYSE DU SITE WEB (donnees reelles scrapees) :
+- URL : ${websiteAnalysis.url || 'N/A'}
+- Titre : ${websiteAnalysis.title || 'N/A'}
+- Description de l'entreprise : ${websiteAnalysis.companyDescription || websiteAnalysis.description || 'N/A'}
+- Services/Produits : ${JSON.stringify(websiteAnalysis.services || [])}
+- Secteur : ${JSON.stringify(websiteAnalysis.industry || 'N/A')}
+- Taille estimee : ${websiteAnalysis.companySize || 'N/A'}
+- Maturite digitale : ${websiteAnalysis.digitalMaturity || 'N/A'}
+- Pain points identifies : ${JSON.stringify(websiteAnalysis.painPoints || [])}
+- Score de pertinence CheckEasy : ${websiteAnalysis.relevanceScore || 'N/A'}
+- Stack technique : ${JSON.stringify(websiteAnalysis.techStack || [])}
+- Langue : ${websiteAnalysis.language || 'N/A'}
+- Liens sociaux : ${JSON.stringify(websiteAnalysis.socialLinks || {})}
+- Emails de contact : ${JSON.stringify(websiteAnalysis.contactEmails || [])}`
+      : '';
+
+    // Filter out website_analysis from custom_fields to avoid duplication
+    const filteredCustomFields = { ...prospect.custom_fields };
+    delete filteredCustomFields.website_analysis;
+    delete filteredCustomFields.ai_research;
+    delete filteredCustomFields.ai_research_at;
+
     const customFieldsText =
-      Object.keys(prospect.custom_fields).length > 0
-        ? `\n\nCHAMPS PERSONNALISES :\n${JSON.stringify(prospect.custom_fields, null, 2)}`
+      Object.keys(filteredCustomFields).length > 0
+        ? `\n\nCHAMPS PERSONNALISES :\n${JSON.stringify(filteredCustomFields, null, 2)}`
         : '';
 
     const userMessage = `Analyse le profil suivant et produis un brief de recherche complet.
@@ -348,10 +373,16 @@ PROFIL DU PROSPECT :
 - Email : ${prospect.email}
 - Poste : ${prospect.job_title || 'Non renseigne'}
 - Entreprise : ${prospect.company || 'Non renseignee'}
+- Secteur : ${prospect.industry || 'Non renseigne'}
 - Localisation : ${prospect.location || 'Non renseignee'}
+- Ville : ${prospect.city || 'Non renseignee'}
 - Site web : ${prospect.website || 'Non renseigne'}
 - LinkedIn : ${prospect.linkedin_url || 'Non renseigne'}
-- Telephone : ${prospect.phone || 'Non renseigne'}${enrichmentText}${customFieldsText}
+- Telephone : ${prospect.phone || 'Non renseigne'}
+- Nombre de biens : ${prospect.lead_score !== null ? 'Score actuel: ' + prospect.lead_score : 'Non renseigne'}
+- Tags : ${prospect.tags.length > 0 ? prospect.tags.join(', ') : 'Aucun'}${websiteAnalysisText}${enrichmentText}${customFieldsText}
+
+IMPORTANT : Si des donnees du site web sont fournies ci-dessus, utilise-les pour enrichir ton analyse. Ces donnees sont reelles et fiables.
 
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
 

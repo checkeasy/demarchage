@@ -42,6 +42,12 @@ interface SidebarProps {
     avatar_url?: string;
     role?: "super_admin" | "user";
   };
+  counts?: {
+    campaigns?: number;
+    prospects?: number;
+    activities?: number;
+    deals?: number;
+  };
 }
 
 type NavGroup = "crm" | "outreach" | "tools" | "settings" | "admin";
@@ -84,7 +90,7 @@ const adminItem: NavItem = {
 
 const groupOrder: NavGroup[] = ["crm", "outreach", "tools", "settings", "admin"];
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, counts }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -104,8 +110,20 @@ export function Sidebar({ user }: SidebarProps) {
         .slice(0, 2)
     : user?.email?.charAt(0).toUpperCase() ?? "U";
 
+  // Map href to badge counts
+  const countMap: Record<string, number | undefined> = {
+    "/campaigns": counts?.campaigns,
+    "/prospects": counts?.prospects,
+    "/activities": counts?.activities,
+    "/deals": counts?.deals,
+  };
+
   const allItems = [
-    ...navItems,
+    ...navItems.map((item) => ({
+      ...item,
+      badgeCount: countMap[item.href],
+      badgeVariant: "secondary" as const,
+    })),
     ...(user?.role === "super_admin" ? [adminItem] : []),
   ];
 

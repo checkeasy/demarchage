@@ -63,9 +63,6 @@ export async function searchGoogleMaps(
   const encodedQuery = encodeURIComponent(fullQuery);
   const mapsUrl = `https://www.google.com/maps/search/${encodedQuery}`;
 
-  console.log(`[GoogleMapsScraper] Searching: "${fullQuery}"`);
-  console.log(`[GoogleMapsScraper] URL: ${mapsUrl}`);
-
   let browser;
   try {
     const puppeteer = await getPuppeteer();
@@ -120,7 +117,7 @@ export async function searchGoogleMaps(
 
     // Wait for results feed to appear
     await page.waitForSelector('[role="feed"], .Nv2PK, [role="article"]', { timeout: 15000 }).catch(() => {
-      console.log('[GoogleMapsScraper] Results feed not found, trying alternative selectors...');
+      // Results feed not found, trying alternative selectors
     });
 
     // Scroll the results panel to load more businesses
@@ -324,7 +321,6 @@ export async function searchGoogleMaps(
     // If detail pass yielded nothing, go back to results and try a simpler extraction
     if (enrichedBusinesses.length === 0 && businesses.length === 0) {
       // Final attempt: simple text extraction from the page
-      console.log('[GoogleMapsScraper] Trying simplified extraction...');
       await page.goto(mapsUrl, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT });
       await sleep(3000);
 
@@ -372,8 +368,6 @@ export async function searchGoogleMaps(
         });
       }
     }
-
-    console.log(`[GoogleMapsScraper] Found ${enrichedBusinesses.length} businesses`);
 
     return {
       query,

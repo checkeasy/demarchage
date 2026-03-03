@@ -141,14 +141,14 @@ export function CampaignActions({ campaignId, status }: CampaignActionsProps) {
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette campagne ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer la campagne</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irreversible. La campagne, ses etapes, ses prospects associes et tous les emails envoyes seront definitivement supprimes.
+              Cette action est irreversible. Tous les emails en attente seront annules.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteCampaign} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction variant="destructive" onClick={deleteCampaign}>
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>

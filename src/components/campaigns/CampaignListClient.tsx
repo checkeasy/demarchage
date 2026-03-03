@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Send } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CampaignCard } from "./CampaignCard";
 import type { Campaign } from "@/lib/types/database";
@@ -48,9 +49,15 @@ export function CampaignListClient({ campaigns }: CampaignListClientProps) {
 
       <TabsContent value={activeTab} className="mt-4">
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Aucune campagne dans cette categorie.
-          </p>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+              <Send className="size-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-slate-900">Aucune campagne</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {activeTab === "all" ? "Creez votre premiere campagne pour commencer." : "Aucune campagne dans cette categorie."}
+            </p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((campaign) => (

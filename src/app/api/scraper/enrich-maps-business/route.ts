@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
     // Step 1: Find emails from website (reuse existing email-finder)
     if (business.website) {
       try {
-        console.log(`[enrich-maps] Finding emails for ${business.website}...`);
         emails = await findEmailsForDomain(
           business.website,
           business.businessName
@@ -44,7 +43,6 @@ export async function POST(request: NextRequest) {
     // Step 2: Find owner name (via website + AI)
     if (business.website) {
       try {
-        console.log(`[enrich-maps] Finding owner for ${business.businessName}...`);
         ownerResult = await findOwner(business.website, business.businessName);
       } catch (err) {
         console.error('[enrich-maps] Owner finder error:', err);

@@ -36,6 +36,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/agents": "Agents IA",
   "/settings": "Parametres",
   "/admin": "Administration",
+  "/activities": "Activites",
+  "/automation": "Automation",
+  "/scraper": "Scraper",
+  "/maps-scraper": "Google Maps",
+  "/onboarding": "Onboarding",
 };
 
 function getPageTitle(pathname: string): string {

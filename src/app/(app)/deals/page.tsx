@@ -33,7 +33,7 @@ export default async function DealsPage() {
     .eq("workspace_id", workspaceId)
     .order("display_order", { ascending: true });
 
-  // Fetch all deals with joins (prospect, stage)
+  // Fetch all open deals with joins (prospect, stage) - exclude won/lost for performance
   const { data: deals } = await supabase
     .from("deals")
     .select(
@@ -44,7 +44,8 @@ export default async function DealsPage() {
     `
     )
     .eq("workspace_id", workspaceId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(0, 4999);
 
   // Fetch prospects list for AddDealDialog dropdown
   const { data: prospects } = await supabase
@@ -52,7 +53,7 @@ export default async function DealsPage() {
     .select("id, first_name, last_name, email, company")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(2000);
 
   return (
     <div className="space-y-6">

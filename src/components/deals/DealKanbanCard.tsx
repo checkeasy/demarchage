@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Calendar, User } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import type { Deal } from "@/lib/types/crm";
 
 interface DealKanbanCardProps {
   deal: Deal;
+  isDragOverlay?: boolean;
 }
 
 function formatCurrency(value: number | null): string {
@@ -39,7 +41,7 @@ function getProspectName(deal: Deal): string {
   return deal.prospect.company || deal.prospect.email || "";
 }
 
-export function DealKanbanCard({ deal }: DealKanbanCardProps) {
+export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
   const router = useRouter();
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -51,7 +53,7 @@ export function DealKanbanCard({ deal }: DealKanbanCardProps) {
   const style = useMemo(() => {
     if (!transform) return undefined;
     return {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      transform: CSS.Translate.toString(transform),
     };
   }, [transform]);
 
@@ -69,14 +71,18 @@ export function DealKanbanCard({ deal }: DealKanbanCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={isDragging ? "opacity-50 z-50" : ""}
+      className={`touch-none ${
+        isDragging ? "opacity-30 z-50" : ""
+      } ${isDragOverlay ? "shadow-xl" : ""}`}
     >
       <Card
-        className="cursor-grab active:cursor-grabbing py-3 gap-2 hover:shadow-md transition-shadow"
+        className={`py-3 gap-2 transition-all ${
+          isDragOverlay
+            ? "shadow-xl ring-2 ring-primary/20 cursor-grabbing"
+            : "cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5"
+        }`}
         onClick={(e) => {
-          // Don't navigate when dragging
-          if (isDragging) return;
-          // Don't navigate when clicking the drag handle
+          if (isDragging || isDragOverlay) return;
           const target = e.target as HTMLElement;
           if (target.closest("[data-drag-handle]")) return;
           router.push(`/deals/${deal.id}`);
@@ -87,7 +93,7 @@ export function DealKanbanCard({ deal }: DealKanbanCardProps) {
           <div className="flex items-start gap-1.5">
             <button
               data-drag-handle
-              className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+              className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
               {...attributes}
               {...listeners}
             >

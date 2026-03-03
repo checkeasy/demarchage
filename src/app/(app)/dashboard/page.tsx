@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +13,15 @@ import {
   Send,
   Trophy,
   Clock,
+  Briefcase,
+  Calendar,
+  Phone,
+  CheckSquare,
+  RefreshCw,
+  Monitor,
+  TrendingUp,
+  TrendingDown,
+  ArrowRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -25,6 +36,65 @@ import { Badge } from "@/components/ui/badge";
 import { PipelineValueCard } from "@/components/dashboard/PipelineValueCard";
 import { DealsWonLostChart } from "@/components/dashboard/DealsWonLostChart";
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
+
+// --- Activity type icon map for upcoming activities ---
+const ACTIVITY_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  call: Phone,
+  meeting: Calendar,
+  email: Mail,
+  task: CheckSquare,
+  follow_up: RefreshCw,
+  demo: Monitor,
+};
+
+// --- Helper: relative date formatting ---
+function formatRelativeDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays < 0) return `il y a ${Math.abs(diffDays)} jour${Math.abs(diffDays) > 1 ? "s" : ""}`;
+  if (diffDays === 0) return "aujourd'hui";
+  if (diffDays === 1) return "demain";
+  if (diffDays <= 7) return `dans ${diffDays} jours`;
+
+  return date.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// --- Helper: status dot color ---
+function getStatusDotColor(dateStr: string | null): string {
+  if (!dateStr) return "bg-gray-400";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays < 0) return "bg-red-500";
+  if (diffDays === 0) return "bg-orange-500";
+  return "bg-green-500";
+}
+
+// --- Helper: trend calculation ---
+function getTrend(
+  current: number,
+  previous: number
+): { percentage: number; isPositive: boolean } | null {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) return { percentage: 100, isPositive: true };
+  const diff = ((current - previous) / previous) * 100;
+  return { percentage: Math.abs(Math.round(diff)), isPositive: diff >= 0 };
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -74,6 +144,23 @@ export default async function DashboardPage() {
     .eq("status", "won")
     .gte("won_at", monthStart.toISOString());
 
+  // --- Won deals LAST month (for trend) ---
+  const lastMonthStart = new Date();
+  lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+  lastMonthStart.setDate(1);
+  lastMonthStart.setHours(0, 0, 0, 0);
+
+  const lastMonthEnd = new Date(monthStart);
+  lastMonthEnd.setMilliseconds(-1);
+
+  const { count: wonLastMonth } = await supabase
+    .from("deals")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId || "")
+    .eq("status", "won")
+    .gte("won_at", lastMonthStart.toISOString())
+    .lte("won_at", lastMonthEnd.toISOString());
+
   // --- Overdue activities ---
   const now = new Date();
   const { count: overdueCount } = await supabase
@@ -82,6 +169,14 @@ export default async function DashboardPage() {
     .eq("workspace_id", workspaceId || "")
     .eq("is_done", false)
     .lt("due_date", now.toISOString());
+
+  // --- Overdue activities LAST month (for trend) ---
+  const { count: overdueLastMonth } = await supabase
+    .from("activities")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId || "")
+    .eq("is_done", false)
+    .lt("due_date", lastMonthEnd.toISOString());
 
   // --- Due today activities ---
   const todayStart = new Date();
@@ -108,6 +203,18 @@ export default async function DashboardPage() {
     .eq("workspace_id", workspaceId || "")
     .eq("is_done", true)
     .gte("updated_at", weekStart.toISOString());
+
+  // --- Emails sent this month vs last month (for trend) ---
+  const { count: emailsSentThisMonth } = await supabase
+    .from("emails_sent")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", monthStart.toISOString());
+
+  const { count: emailsSentLastMonth } = await supabase
+    .from("emails_sent")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", lastMonthStart.toISOString())
+    .lte("created_at", lastMonthEnd.toISOString());
 
   // --- Deals won/lost by month for chart ---
   const sixMonthsAgo = new Date();
@@ -237,6 +344,124 @@ export default async function DashboardPage() {
     },
   ];
 
+  // --- Upcoming activities (next 5, combining overdue + future) ---
+  const { data: upcomingActivities } = await supabase
+    .from("activities")
+    .select(
+      `
+      id,
+      activity_type,
+      title,
+      due_date,
+      priority,
+      prospect:prospects(id, first_name, last_name)
+    `
+    )
+    .eq("workspace_id", workspaceId || "")
+    .eq("is_done", false)
+    .gte("due_date", todayStart.toISOString())
+    .order("due_date", { ascending: true })
+    .limit(5);
+
+  const { data: overdueActivities } = await supabase
+    .from("activities")
+    .select(
+      `
+      id,
+      activity_type,
+      title,
+      due_date,
+      priority,
+      prospect:prospects(id, first_name, last_name)
+    `
+    )
+    .eq("workspace_id", workspaceId || "")
+    .eq("is_done", false)
+    .lt("due_date", todayStart.toISOString())
+    .order("due_date", { ascending: true })
+    .limit(5);
+
+  // Merge overdue + upcoming, limit to 5 total
+  const allUpcomingActivities = [
+    ...(overdueActivities || []),
+    ...(upcomingActivities || []),
+  ].slice(0, 5);
+
+  // --- Top prospects (most emails sent) ---
+  const { data: topProspectsRaw } = await supabase
+    .from("emails_sent")
+    .select(
+      `
+      to_email,
+      sent_at,
+      campaign_prospects!inner (
+        prospect_id,
+        prospects (
+          id,
+          first_name,
+          last_name,
+          company,
+          email
+        )
+      )
+    `
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  // Aggregate top prospects by email count
+  const prospectEmailCounts: Record<
+    string,
+    {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      company: string | null;
+      email: string;
+      count: number;
+      lastSentAt: string | null;
+    }
+  > = {};
+
+  for (const row of topProspectsRaw || []) {
+    const cp = row.campaign_prospects as unknown as {
+      prospect_id: string;
+      prospects: {
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+        company: string | null;
+        email: string;
+      } | null;
+    };
+    if (!cp?.prospects) continue;
+    const p = cp.prospects;
+    if (!prospectEmailCounts[p.id]) {
+      prospectEmailCounts[p.id] = {
+        id: p.id,
+        firstName: p.first_name,
+        lastName: p.last_name,
+        company: p.company,
+        email: p.email,
+        count: 0,
+        lastSentAt: null,
+      };
+    }
+    prospectEmailCounts[p.id].count++;
+    if (
+      row.sent_at &&
+      (!prospectEmailCounts[p.id].lastSentAt ||
+        new Date(row.sent_at) >
+          new Date(prospectEmailCounts[p.id].lastSentAt!))
+    ) {
+      prospectEmailCounts[p.id].lastSentAt = row.sent_at;
+    }
+  }
+
+  const topProspects = Object.values(prospectEmailCounts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
   // --- Helper: format currency ---
   const formatEUR = (v: number) =>
     new Intl.NumberFormat("fr-FR", {
@@ -253,6 +478,46 @@ export default async function DashboardPage() {
     lost: { label: "Perdu", className: "bg-red-100 text-red-700" },
   };
 
+  // --- Compute trends ---
+  const wonTrend = getTrend(wonThisMonth ?? 0, wonLastMonth ?? 0);
+  // For overdue, lower is better so invert the "positive" logic
+  const overdueTrend = getTrend(overdueCount ?? 0, overdueLastMonth ?? 0);
+  const overdueTrendAdjusted = overdueTrend
+    ? { ...overdueTrend, isPositive: !overdueTrend.isPositive }
+    : null;
+  const emailTrend = getTrend(
+    emailsSentThisMonth ?? 0,
+    emailsSentLastMonth ?? 0
+  );
+
+  // Quick actions definition
+  const quickActions = [
+    {
+      label: "Nouveau prospect",
+      href: "/prospects",
+      icon: Plus,
+      color: "text-blue-600",
+    },
+    {
+      label: "Nouvelle campagne",
+      href: "/campaigns/new",
+      icon: Mail,
+      color: "text-indigo-600",
+    },
+    {
+      label: "Nouveau deal",
+      href: "/deals",
+      icon: Briefcase,
+      color: "text-emerald-600",
+    },
+    {
+      label: "Voir activites",
+      href: "/activities",
+      icon: Calendar,
+      color: "text-amber-600",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -263,7 +528,27 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Section 1: KPI Cards Row */}
+      {/* Row 1: Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <Button
+              key={action.href}
+              variant="outline"
+              className="h-auto py-3 px-4 justify-start gap-2"
+              asChild
+            >
+              <Link href={action.href}>
+                <Icon className={`size-4 ${action.color}`} />
+                <span className="text-sm font-medium">{action.label}</span>
+              </Link>
+            </Button>
+          );
+        })}
+      </div>
+
+      {/* Row 2: KPI Cards with Trends */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <PipelineValueCard value={pipelineValue} dealsCount={openDealsCount} />
         <Card>
@@ -274,6 +559,20 @@ export default async function DashboardPage() {
                   Deals gagnes ce mois
                 </p>
                 <p className="text-2xl font-bold">{wonThisMonth ?? 0}</p>
+                {wonTrend && (
+                  <div
+                    className={`flex items-center gap-0.5 text-xs ${
+                      wonTrend.isPositive ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {wonTrend.isPositive ? (
+                      <TrendingUp className="size-3" />
+                    ) : (
+                      <TrendingDown className="size-3" />
+                    )}
+                    <span>{wonTrend.percentage}%</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-50">
                 <Trophy className="size-5 text-green-600" />
@@ -289,6 +588,22 @@ export default async function DashboardPage() {
                   Activites en retard
                 </p>
                 <p className="text-2xl font-bold">{overdueCount ?? 0}</p>
+                {overdueTrendAdjusted && (
+                  <div
+                    className={`flex items-center gap-0.5 text-xs ${
+                      overdueTrendAdjusted.isPositive
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {overdueTrendAdjusted.isPositive ? (
+                      <TrendingDown className="size-3" />
+                    ) : (
+                      <TrendingUp className="size-3" />
+                    )}
+                    <span>{overdueTrendAdjusted.percentage}%</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-50">
                 <Clock className="size-5 text-red-600" />
@@ -306,6 +621,22 @@ export default async function DashboardPage() {
                 <p className="text-2xl font-bold">
                   {rate(totals.replied, totals.sent)}
                 </p>
+                {emailTrend && (
+                  <div
+                    className={`flex items-center gap-0.5 text-xs ${
+                      emailTrend.isPositive
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {emailTrend.isPositive ? (
+                      <TrendingUp className="size-3" />
+                    ) : (
+                      <TrendingDown className="size-3" />
+                    )}
+                    <span>{emailTrend.percentage}% emails</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50">
                 <Reply className="size-5 text-amber-600" />
@@ -315,7 +646,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Section 2: Chart + Activity Summary */}
+      {/* Row 3: Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
           <DealsWonLostChart data={chartData} />
@@ -329,8 +660,169 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Section 3: Email Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Row 4: Upcoming Activities + Top Prospects */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Upcoming Activities */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Prochaines activites</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/activities">
+                  Voir tout
+                  <ArrowRight className="size-3.5 ml-1" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {allUpcomingActivities.length > 0 ? (
+              <div className="space-y-1">
+                {allUpcomingActivities.map((activity) => {
+                  const IconComponent =
+                    ACTIVITY_ICON_MAP[activity.activity_type] || CheckSquare;
+                  const prospectRaw = activity.prospect as unknown;
+                  const prospect = Array.isArray(prospectRaw)
+                    ? (prospectRaw[0] as {
+                        id: string;
+                        first_name: string | null;
+                        last_name: string | null;
+                      } | undefined) ?? null
+                    : (prospectRaw as {
+                        id: string;
+                        first_name: string | null;
+                        last_name: string | null;
+                      } | null);
+                  const prospectName = prospect
+                    ? `${prospect.first_name || ""} ${prospect.last_name || ""}`.trim()
+                    : null;
+
+                  return (
+                    <div
+                      key={activity.id}
+                      className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-slate-50 transition-colors"
+                    >
+                      <span
+                        className={`flex-shrink-0 w-2 h-2 rounded-full ${getStatusDotColor(
+                          activity.due_date
+                        )}`}
+                      />
+                      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-slate-100">
+                        <IconComponent className="size-4 text-slate-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {activity.title}
+                        </p>
+                        {prospectName && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            {prospectName}
+                          </p>
+                        )}
+                      </div>
+                      <span className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                        {formatRelativeDate(activity.due_date)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Calendar className="size-8 text-slate-300 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Aucune activite a venir
+                </p>
+                <Button variant="outline" size="sm" className="mt-3" asChild>
+                  <Link href="/activities">
+                    <Plus className="size-4 mr-1" />
+                    Creer une activite
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top Prospects */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Top prospects</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/prospects">
+                  Voir tout
+                  <ArrowRight className="size-3.5 ml-1" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {topProspects.length > 0 ? (
+              <div className="space-y-1">
+                {topProspects.map((prospect, index) => (
+                  <div
+                    key={prospect.id}
+                    className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        <Link
+                          href={`/prospects/${prospect.id}`}
+                          className="hover:text-blue-600"
+                        >
+                          {prospect.company ||
+                            `${prospect.firstName || ""} ${prospect.lastName || ""}`.trim() ||
+                            prospect.email}
+                        </Link>
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {prospect.company
+                          ? `${prospect.firstName || ""} ${prospect.lastName || ""}`.trim() ||
+                            prospect.email
+                          : prospect.email}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="flex items-center gap-1 text-xs font-medium text-slate-700">
+                        <Mail className="size-3" />
+                        {prospect.count}
+                      </div>
+                      {prospect.lastSentAt && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(prospect.lastSentAt).toLocaleDateString(
+                            "fr-FR",
+                            { day: "numeric", month: "short" }
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Users className="size-8 text-slate-300 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Aucun email envoye pour le moment
+                </p>
+                <Button variant="outline" size="sm" className="mt-3" asChild>
+                  <Link href="/campaigns/new">
+                    <Plus className="size-4 mr-1" />
+                    Lancer une campagne
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section 5: Email Metrics Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
         {emailStats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -355,7 +847,7 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      {/* Section 4: Recent Deals + Campaign Summary */}
+      {/* Section 6: Recent Deals + Campaign Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Recent Deals Table */}
         <Card className="md:col-span-2">
