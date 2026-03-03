@@ -45,12 +45,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("workspace_id", workspaceId)
-    .select(
-      `
-      *,
-      author:profiles!notes_created_by_fkey(id, full_name)
-    `
-    )
+    .select("*")
     .single();
 
   if (error) {

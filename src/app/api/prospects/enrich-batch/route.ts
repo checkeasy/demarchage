@@ -93,7 +93,7 @@ Informations disponibles:
 Reponds UNIQUEMENT en JSON valide: {"industry": "...", "employee_count": "...", "lead_score": 0}`;
 
           const response = await getAnthropic().messages.create({
-            model: 'claude-opus-4-6',
+            model: 'claude-haiku-4-5-20251001',
             max_tokens: 200,
             temperature: 0.3,
             messages: [{ role: 'user', content: prompt }],

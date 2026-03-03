@@ -1,10 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  SYSTEM_PROMPT_CONNECTION,
-  SYSTEM_PROMPT_FOLLOWUP,
-  SYSTEM_PROMPT_EMAIL,
-  SYSTEM_PROMPT_ICEBREAKER,
-  SYSTEM_PROMPT_ANALYSIS,
+  buildConnectionPrompt,
+  buildFollowupPrompt,
+  buildEmailSequencePrompt,
+  buildIcebreakerPrompt,
+  buildAnalysisPrompt,
+  type WorkspaceAIContext,
 } from '@/lib/ai/prompts';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const CLAUDE_MODEL = 'claude-opus-4-6';
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
 // ─── Helper: Build Profile Description ──────────────────────────────────────
 
@@ -153,7 +154,7 @@ function buildProfileDescription(profile: ProspectProfile): string {
 function buildContextDescription(context: MessageContext): string {
   const parts: string[] = [];
 
-  parts.push(`Produit: ${context.productName || 'CheckEasy'}`);
+  parts.push(`Produit: ${context.productName || 'notre solution'}`);
 
   if (context.campaignTone)
     parts.push(`Ton de la campagne: ${context.campaignTone}`);
@@ -184,14 +185,15 @@ function extractResponseText(response: Anthropic.Message): string {
  */
 export async function generateConnectionMessage(
   profile: ProspectProfile,
-  context: MessageContext = {}
+  context: MessageContext = {},
+  wsCtx: WorkspaceAIContext = {}
 ): Promise<ConnectionMessageResult> {
   const profileDesc = buildProfileDescription(profile);
   const contextDesc = buildContextDescription(context);
 
   const response = await getAnthropic().messages.create({
     model: CLAUDE_MODEL,
-    system: SYSTEM_PROMPT_CONNECTION,
+    system: buildConnectionPrompt(wsCtx),
     messages: [
       {
         role: 'user',
@@ -227,7 +229,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
 export async function generateFollowUpMessage(
   profile: ProspectProfile,
   context: MessageContext = {},
-  previousMessages: PreviousMessage[] = []
+  previousMessages: PreviousMessage[] = [],
+  wsCtx: WorkspaceAIContext = {}
 ): Promise<FollowUpMessageResult> {
   const profileDesc = buildProfileDescription(profile);
   const contextDesc = buildContextDescription(context);
@@ -248,7 +251,7 @@ export async function generateFollowUpMessage(
 
   const response = await getAnthropic().messages.create({
     model: CLAUDE_MODEL,
-    system: SYSTEM_PROMPT_FOLLOWUP,
+    system: buildFollowupPrompt(wsCtx),
     messages: [
       {
         role: 'user',
@@ -280,7 +283,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
 export async function generateEmailSequence(
   profile: ProspectProfile,
   context: MessageContext = {},
-  numSteps: number = 4
+  numSteps: number = 4,
+  wsCtx: WorkspaceAIContext = {}
 ): Promise<EmailSequenceResult> {
   const profileDesc = buildProfileDescription(profile);
   const contextDesc = buildContextDescription(context);
@@ -290,7 +294,7 @@ export async function generateEmailSequence(
 
   const response = await getAnthropic().messages.create({
     model: CLAUDE_MODEL,
-    system: SYSTEM_PROMPT_EMAIL,
+    system: buildEmailSequencePrompt(wsCtx),
     messages: [
       {
         role: 'user',
@@ -326,7 +330,8 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
  */
 export async function generateIcebreaker(
   profile: ProspectProfile,
-  websiteData?: WebsiteDataForIcebreaker
+  websiteData?: WebsiteDataForIcebreaker,
+  wsCtx: WorkspaceAIContext = {}
 ): Promise<IcebreakerResult> {
   const profileDesc = buildProfileDescription(profile);
 
@@ -349,7 +354,7 @@ export async function generateIcebreaker(
 
   const response = await getAnthropic().messages.create({
     model: CLAUDE_MODEL,
-    system: SYSTEM_PROMPT_ICEBREAKER,
+    system: buildIcebreakerPrompt(wsCtx),
     messages: [
       {
         role: 'user',
@@ -372,17 +377,19 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie dans les instructions
  * Analyze a prospect profile and return outreach recommendations
  */
 export async function analyzeProfileForOutreach(
-  profile: ProspectProfile
+  profile: ProspectProfile,
+  wsCtx: WorkspaceAIContext = {}
 ): Promise<ProfileAnalysisResult> {
   const profileDesc = buildProfileDescription(profile);
+  const companyRef = wsCtx.companyName || 'notre solution';
 
   const response = await getAnthropic().messages.create({
     model: CLAUDE_MODEL,
-    system: SYSTEM_PROMPT_ANALYSIS,
+    system: buildAnalysisPrompt(wsCtx),
     messages: [
       {
         role: 'user',
-        content: `Analyse ce profil de prospect et fournis tes recommandations pour la prospection avec CheckEasy.
+        content: `Analyse ce profil de prospect et fournis tes recommandations pour la prospection avec ${companyRef}.
 
 PROFIL DU PROSPECT :
 ${profileDesc}

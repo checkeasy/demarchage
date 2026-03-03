@@ -347,7 +347,7 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
 - Taille estimee : ${websiteAnalysis.companySize || 'N/A'}
 - Maturite digitale : ${websiteAnalysis.digitalMaturity || 'N/A'}
 - Pain points identifies : ${JSON.stringify(websiteAnalysis.painPoints || [])}
-- Score de pertinence CheckEasy : ${websiteAnalysis.relevanceScore || 'N/A'}
+- Score de pertinence : ${websiteAnalysis.relevanceScore || 'N/A'}
 - Stack technique : ${JSON.stringify(websiteAnalysis.techStack || [])}
 - Langue : ${websiteAnalysis.language || 'N/A'}
 - Liens sociaux : ${JSON.stringify(websiteAnalysis.socialLinks || {})}

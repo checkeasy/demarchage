@@ -36,12 +36,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("notes")
-    .select(
-      `
-      *,
-      author:profiles!notes_created_by_fkey(id, full_name)
-    `
-    )
+    .select("*")
     .eq("workspace_id", workspaceId)
     .order("is_pinned", { ascending: false })
     .order("created_at", { ascending: false });
@@ -109,12 +104,7 @@ export async function POST(request: NextRequest) {
       is_pinned: is_pinned ?? false,
       created_by: user.id,
     })
-    .select(
-      `
-      *,
-      author:profiles!notes_created_by_fkey(id, full_name)
-    `
-    )
+    .select("*")
     .single();
 
   if (error) {

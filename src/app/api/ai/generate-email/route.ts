@@ -12,7 +12,7 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const CLAUDE_MODEL = "claude-opus-4-6";
+const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 
 interface PerformanceStats {
   totalSent: number;

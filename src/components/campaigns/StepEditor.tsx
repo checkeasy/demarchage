@@ -18,9 +18,39 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailComposer } from "./EmailComposer";
 import { STEP_TYPES } from "@/lib/constants";
 import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
-import { useAIGeneration } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
 import type { StepData } from "./types";
+
+// Hook for template generation (no prospect needed)
+function useTemplateGeneration() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const generate = async (params: {
+    channel: "email" | "linkedin" | "whatsapp";
+    stepNumber: number;
+    linkedinMessageType?: string;
+  }) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/ai/generate-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur de generation");
+      return data.result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error(msg);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return { generate, isLoading };
+}
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   email: Mail,
@@ -128,17 +158,18 @@ function EmailStepEditor({
   const [subject, setSubject] = useState(step.subject ?? "");
   const [body, setBody] = useState(step.body_html ?? "");
   const [abEnabled, setAbEnabled] = useState(step.ab_enabled ?? false);
-  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+  const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
   const handleAIGenerate = async () => {
-    const result = await generateOutreach({
+    const result = await generate({
       channel: "email",
       stepNumber: step.step_order,
     });
     if (result?.content) {
-      const content = result.content as { subject?: string; body_html?: string };
+      const content = result.content as { subject?: string; body_html?: string; body_text?: string };
       if (content.subject) setSubject(content.subject);
       if (content.body_html) setBody(content.body_html);
+      else if (content.body_text) setBody(content.body_text);
       toast.success("Email genere par l'IA");
     }
   };
@@ -285,10 +316,10 @@ function LinkedInConnectEditor({
 }) {
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const maxChars = 300;
-  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+  const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
   const handleAIGenerate = async () => {
-    const result = await generateOutreach({
+    const result = await generate({
       channel: "linkedin",
       stepNumber: step.step_order,
       linkedinMessageType: "connection",
@@ -365,10 +396,10 @@ function LinkedInMessageEditor({
 }) {
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+  const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
   const handleAIGenerate = async () => {
-    const result = await generateOutreach({
+    const result = await generate({
       channel: "linkedin",
       stepNumber: step.step_order,
       linkedinMessageType: "followup",
@@ -471,16 +502,16 @@ function WhatsAppMessageEditor({
 }) {
   const [message, setMessage] = useState(step.whatsapp_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const { generateOutreach, isLoading: aiLoading } = useAIGeneration();
+  const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
   const handleAIGenerate = async () => {
-    const result = await generateOutreach({
-      channel: "email",
+    const result = await generate({
+      channel: "whatsapp",
       stepNumber: step.step_order,
     });
     if (result?.content) {
-      const content = result.content as { body_text?: string };
-      if (content.body_text) setMessage(content.body_text);
+      const content = result.content as { message?: string };
+      if (content.message) setMessage(content.message);
       toast.success("Message WhatsApp genere par l'IA");
     }
   };

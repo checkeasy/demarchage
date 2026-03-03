@@ -50,9 +50,9 @@ export interface WebsiteAnalysis {
     pain_points: Array<{
       pain_point: string;
       severity: 'high' | 'medium' | 'low';
-      checkeasy_solution: string;
+      solution: string;
     }>;
-    checkeasy_relevance: {
+    relevance: {
       score: number;
       use_cases: string[];
       potential_roi: string;
@@ -82,7 +82,7 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const CLAUDE_MODEL = 'claude-opus-4-6';
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
