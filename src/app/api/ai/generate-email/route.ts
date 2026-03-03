@@ -255,10 +255,10 @@ ${context || "Premier contact de prospection"}`;
 Ecris comme un vrai humain. L'email doit ressembler a un message tape a la main, pas a un template marketing. INTERDIT d'utiliser des tirets (-), des listes a puces, des bullet points ou toute mise en forme "robot". Ecris en paragraphes courts et naturels. Le ton est ${toneMap[aiTone] || toneMap["semi-formel"]}.
 
 ## REGLES
-Ecris en francais simple et naturel, pas de jargon marketing. Max 150 mots. Commence par "Bonjour ${recipient.firstName || ""}". Termine par UNE question ouverte liee a un vrai probleme du prospect. Pas de flatterie. Base-toi UNIQUEMENT sur les infos du contexte produit ci-dessus, ne cite JAMAIS de tarifs ou chiffres qui n'y figurent pas. Utilise les donnees du prospect pour personnaliser. Le CTA est simple : repondre a l'email.${bookingUrl ? `
+Ecris en francais simple et naturel, pas de jargon marketing. Max 150 mots. Commence par "Bonjour ${recipient.firstName || ""}". Termine par UNE question ouverte liee a un vrai probleme du prospect. Pas de flatterie. Base-toi UNIQUEMENT sur les infos du contexte produit ci-dessus, ne cite JAMAIS de tarifs ou chiffres qui n'y figurent pas. Utilise les donnees du prospect pour personnaliser. Le CTA est simple : repondre a l'email ou prendre rendez-vous si un lien est fourni.${bookingUrl ? `
 
 Tu as un lien de prise de rendez-vous : ${bookingUrl}
-Tu peux le glisser naturellement si ca colle (genre "Si ca vous dit d'en discuter, voici un lien pour caler un creneau : ${bookingUrl}"). Mais force pas.` : ""}
+Propose-le quand c'est pertinent (relances, quand le prospect semble interesse). Pas besoin de le mettre a chaque email, reste naturel. Quand tu l'inclus, glisse-le en fin de message (ex: "Si ca vous dit d'en discuter, voici un lien pour caler un creneau : ${bookingUrl}").` : ""}
 
 Reponds UNIQUEMENT en JSON valide avec ce format :
 {"subject": "...", "body": "..."}`;

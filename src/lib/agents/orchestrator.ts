@@ -731,8 +731,7 @@ ${context.performance.avoidSubjects.length > 0 ? `- Objets a eviter : ${context.
 
 ${memoryContext}
 ${context.bookingUrl ? `LIEN DE PRISE DE RENDEZ-VOUS : ${context.bookingUrl}
-Tu PEUX proposer ce lien dans l'email si c'est pertinent (ex: "Si vous souhaitez en discuter, voici un lien pour reserver un creneau : ${context.bookingUrl}").
-Le lien doit paraitre naturel, ne le force pas si ca ne colle pas.` : ''}
+Propose ce lien quand c'est pertinent, notamment dans les relances ou quand le prospect semble interesse. Ne le mets pas systematiquement dans chaque email pour rester naturel. Quand tu l'inclus, integre-le de facon fluide en fin de message (ex: "Si ca vous dit d'en parler, voici un lien pour caler un creneau : ${context.bookingUrl}").` : ''}
 ${task.abTestVariant ? `VARIANTE A/B : ${task.abTestVariant} - Propose une approche differente.` : ''}
 
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
