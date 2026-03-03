@@ -55,20 +55,8 @@ class WhatsAppClientWrapper {
 
     try {
       // Trouver le chemin vers Chromium
-      const chromiumResult = await findChromiumPath();
-      console.log(`[WhatsApp ${this._userId}] Chromium path: ${chromiumResult?.executablePath || 'bundled'}`);
-
-      const defaultArgs = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--no-first-run',
-      ];
+      const chromiumPath = findChromiumPath();
+      console.log(`[WhatsApp ${this._userId}] Chromium path: ${chromiumPath || 'puppeteer bundled'}`);
 
       this.client = new WAClient({
         authStrategy: new LocalAuth({
@@ -77,9 +65,19 @@ class WhatsAppClientWrapper {
         }),
         puppeteer: {
           headless: true,
-          args: chromiumResult?.args ? [...chromiumResult.args, ...defaultArgs] : defaultArgs,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--no-first-run',
+          ],
           env: { ...process.env, XDG_CONFIG_HOME: '/tmp' },
-          ...(chromiumResult?.executablePath ? { executablePath: chromiumResult.executablePath } : {}),
+          ...(chromiumPath ? { executablePath: chromiumPath } : {}),
         },
       });
 
@@ -345,10 +343,10 @@ export async function disconnectWhatsAppClient(userId: string): Promise<void> {
 // Utilitaires
 // -----------------------------------------------------------------------------
 
-async function findChromiumPath(): Promise<{ executablePath: string; args?: string[] } | undefined> {
+function findChromiumPath(): string | undefined {
   // 1. Variable d'environnement
   if (process.env.CHROMIUM_PATH) {
-    return { executablePath: process.env.CHROMIUM_PATH };
+    return process.env.CHROMIUM_PATH;
   }
 
   // 2. Chemins communs sur Linux
@@ -363,23 +361,12 @@ async function findChromiumPath(): Promise<{ executablePath: string; args?: stri
   for (const p of commonPaths) {
     try {
       fs.accessSync(p);
-      return { executablePath: p };
+      return p;
     } catch {
       // Pas a ce chemin
     }
   }
 
-  // 3. Utiliser @sparticuz/chromium (fonctionne sur Railway/serverless)
-  try {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    const execPath = await chromium.executablePath();
-    if (execPath) {
-      return { executablePath: execPath, args: chromium.args };
-    }
-  } catch {
-    // Pas disponible
-  }
-
-  // 4. Laisser Puppeteer trouver tout seul
+  // 3. Laisser Puppeteer utiliser son Chrome bundled (installe via Dockerfile)
   return undefined;
 }

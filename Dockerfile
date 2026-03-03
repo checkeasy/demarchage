@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install ALL Chrome/Puppeteer system dependencies
+# Install Chrome system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
@@ -31,21 +31,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install dependencies
+# Install deps - let puppeteer postinstall download Chrome
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
-
-# Download Puppeteer Chrome
-RUN npx puppeteer browsers install chrome
+RUN npm ci
 
 # Copy source and build
 COPY . .
 RUN npm run build
 
-# Runtime config
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV XDG_CONFIG_HOME=/tmp
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
