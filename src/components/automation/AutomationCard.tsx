@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   Play,
   Pause,
@@ -64,6 +65,7 @@ export function AutomationCard({
   onResume,
   onStop,
 }: AutomationCardProps) {
+  const router = useRouter();
   const statusConfig = STATUS_CONFIG[sequence.status];
   const progressPercent =
     sequence.totalProspects > 0
@@ -73,7 +75,10 @@ export function AutomationCard({
       : 0;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card
+      className="cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+      onClick={() => router.push(`/automation/${sequence.id}`)}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{sequence.name}</CardTitle>
@@ -146,7 +151,7 @@ export function AutomationCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onPause(sequence.id)}
+              onClick={(e) => { e.stopPropagation(); onPause(sequence.id); }}
               className="flex-1"
             >
               <Pause className="size-3.5" />
@@ -157,7 +162,7 @@ export function AutomationCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onResume(sequence.id)}
+              onClick={(e) => { e.stopPropagation(); onResume(sequence.id); }}
               className="flex-1"
             >
               <Play className="size-3.5" />
@@ -168,7 +173,7 @@ export function AutomationCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onStop(sequence.id)}
+              onClick={(e) => { e.stopPropagation(); onStop(sequence.id); }}
               className="text-red-600 hover:text-red-700 hover:bg-red-50"
             >
               <Square className="size-3.5" />
