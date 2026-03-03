@@ -1,6 +1,7 @@
 // =============================================================================
 // GET/POST /api/settings/whatsapp
 // Gestion de la connexion WhatsApp (QR code, statut, deconnexion)
+// Per-user : chaque utilisateur a sa propre session WhatsApp
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,27 +12,19 @@ import {
   disconnectWhatsAppClient,
 } from '@/lib/whatsapp/client';
 
-async function getWorkspaceId(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function getUserId(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('current_workspace_id')
-    .eq('id', user.id)
-    .single();
-
-  return profile?.current_workspace_id || null;
+  return user?.id || null;
 }
 
 export async function GET() {
   const supabase = await createClient();
-  const workspaceId = await getWorkspaceId(supabase);
-  if (!workspaceId) {
+  const userId = await getUserId(supabase);
+  if (!userId) {
     return NextResponse.json({ error: 'Non authentifie' }, { status: 401 });
   }
 
-  const info = getWhatsAppClientStatus(workspaceId);
+  const info = getWhatsAppClientStatus(userId);
 
   return NextResponse.json({
     status: info.status,
@@ -43,8 +36,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  const workspaceId = await getWorkspaceId(supabase);
-  if (!workspaceId) {
+  const userId = await getUserId(supabase);
+  if (!userId) {
     return NextResponse.json({ error: 'Non authentifie' }, { status: 401 });
   }
 
@@ -53,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   if (action === 'initialize') {
     try {
-      const info = await initializeWhatsAppClient(workspaceId);
+      const info = await initializeWhatsAppClient(userId);
       return NextResponse.json({
         success: true,
         ...info,
@@ -68,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'disconnect') {
-    await disconnectWhatsAppClient(workspaceId);
+    await disconnectWhatsAppClient(userId);
     return NextResponse.json({
       success: true,
       status: 'disconnected',

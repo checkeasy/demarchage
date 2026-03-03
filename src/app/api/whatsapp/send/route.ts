@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Envoyer le message ---
-    const client = await getWhatsAppClient(workspace_id);
+    // --- Envoyer le message (per-user WhatsApp) ---
+    const client = await getWhatsAppClient(user.id);
     const result = await client.sendMessage(phone_number, message);
 
     // --- Enregistrer l'action ---

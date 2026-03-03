@@ -10,9 +10,11 @@ import {
   type PreviousMessage,
   type WebsiteDataForIcebreaker,
 } from '@/lib/ai/message-generator';
+import type { WorkspaceAIContext } from '@/lib/ai/prompts';
 
 interface GenerateMessageRequest {
   type: 'connection' | 'followup' | 'email_sequence' | 'icebreaker';
+  workspace_id?: string;
   profile: ProspectProfile;
   context?: MessageContext;
   options?: {
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: GenerateMessageRequest = await request.json();
-    const { type, profile, context = {}, options = {} } = body;
+    const { type, workspace_id, profile, context = {}, options = {} } = body;
 
     // Validate required fields
     if (!type) {
@@ -56,12 +58,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Load workspace AI context
+    // ai_company_context is a column on workspaces table
+    // ai_tone, ai_target_audience are inside settings JSONB
+    let wsCtx: WorkspaceAIContext = {};
+    if (workspace_id) {
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('name, ai_company_context, settings')
+        .eq('id', workspace_id)
+        .single();
+      if (ws) {
+        const s = (ws.settings || {}) as Record<string, unknown>;
+        wsCtx = {
+          companyName: ws.name || undefined,
+          companyContext: (ws as Record<string, unknown>).ai_company_context as string || undefined,
+          aiTone: (s.ai_tone as string) || undefined,
+          targetAudience: (s.ai_target_audience as string) || undefined,
+        };
+      }
+    }
+
     // Route to the appropriate generator
     let result: unknown;
 
     switch (type) {
       case 'connection': {
-        result = await generateConnectionMessage(profile, context);
+        result = await generateConnectionMessage(profile, context, wsCtx);
         break;
       }
 
@@ -69,7 +92,8 @@ export async function POST(request: NextRequest) {
         result = await generateFollowUpMessage(
           profile,
           context,
-          options.previousMessages || []
+          options.previousMessages || [],
+          wsCtx
         );
         break;
       }
@@ -78,7 +102,8 @@ export async function POST(request: NextRequest) {
         result = await generateEmailSequence(
           profile,
           context,
-          options.numSteps || 4
+          options.numSteps || 4,
+          wsCtx
         );
         break;
       }
@@ -86,7 +111,8 @@ export async function POST(request: NextRequest) {
       case 'icebreaker': {
         result = await generateIcebreaker(
           profile,
-          options.websiteData
+          options.websiteData,
+          wsCtx
         );
         break;
       }

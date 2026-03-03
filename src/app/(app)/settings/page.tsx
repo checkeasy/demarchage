@@ -165,7 +165,8 @@ export default function SettingsPage() {
       .select(
         "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, booking_url"
       )
-      .eq("workspace_id", profile.current_workspace_id);
+      .eq("workspace_id", profile.current_workspace_id)
+      .eq("user_id", user.id);
 
     setEmailAccounts(accounts || []);
 
@@ -290,6 +291,7 @@ export default function SettingsPage() {
 
     const { error } = await supabase.from("email_accounts").insert({
       workspace_id: profile.current_workspace_id,
+      user_id: user.id,
       email_address: newAccount.email_address,
       display_name: newAccount.display_name || null,
       provider: newAccount.provider,

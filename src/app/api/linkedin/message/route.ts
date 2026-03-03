@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { getLinkedInClientForUser } from '@/lib/linkedin/client';
 import { canPerformAction, recordAction, logLinkedInAction } from '@/lib/linkedin/rate-limiter';
 import { LinkedInActionType, LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
 
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Vérifier que la personne est une connexion de 1er degré ---
-    const client = await getLinkedInClientForWorkspace(workspace_id);
+    const client = await getLinkedInClientForUser(user.id, workspace_id);
 
     if (public_id) {
       try {

@@ -8,7 +8,7 @@ function maskValue(value: string): string {
   return value.slice(0, 6) + '...' + value.slice(-4);
 }
 
-async function getWorkspaceId(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function getUserAndWorkspace(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -18,26 +18,32 @@ async function getWorkspaceId(supabase: Awaited<ReturnType<typeof createClient>>
     .eq('id', user.id)
     .single();
 
-  return profile?.current_workspace_id || null;
+  if (!profile?.current_workspace_id) return null;
+
+  return { userId: user.id, workspaceId: profile.current_workspace_id };
 }
 
 export async function GET() {
   const supabase = await createClient();
-  const workspaceId = await getWorkspaceId(supabase);
-  if (!workspaceId) {
+  const ctx = await getUserAndWorkspace(supabase);
+  if (!ctx) {
     return NextResponse.json({ error: 'Non authentifie' }, { status: 401 });
   }
 
   const admin = createAdminClient();
-  const { data: workspace } = await admin
-    .from('workspaces')
-    .select('settings')
-    .eq('id', workspaceId)
+
+  // Lire depuis linkedin_accounts filtre par user_id
+  const { data: account } = await admin
+    .from('linkedin_accounts')
+    .select('li_at_cookie, jsessionid_cookie')
+    .eq('user_id', ctx.userId)
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('is_active', true)
+    .limit(1)
     .single();
 
-  const settings = (workspace?.settings || {}) as Record<string, unknown>;
-  const liAt = (settings.linkedin_li_at as string) || '';
-  const jsessionId = (settings.linkedin_jsessionid as string) || '';
+  const liAt = account?.li_at_cookie || '';
+  const jsessionId = account?.jsessionid_cookie || '';
 
   return NextResponse.json({
     configured: !!(liAt && jsessionId),
@@ -48,8 +54,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  const workspaceId = await getWorkspaceId(supabase);
-  if (!workspaceId) {
+  const ctx = await getUserAndWorkspace(supabase);
+  if (!ctx) {
     return NextResponse.json({ error: 'Non authentifie' }, { status: 401 });
   }
 
@@ -90,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Save cookies
+  // Save cookies → linkedin_accounts per user
   const liAt = body.li_at as string;
   const jsessionId = body.jsessionid as string;
 
@@ -98,28 +104,48 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Les deux cookies sont requis' }, { status: 400 });
   }
 
-  // Get current settings to merge
-  const { data: workspace } = await admin
-    .from('workspaces')
-    .select('settings')
-    .eq('id', workspaceId)
+  // Check if user already has a linkedin account for this workspace
+  const { data: existing } = await admin
+    .from('linkedin_accounts')
+    .select('id')
+    .eq('user_id', ctx.userId)
+    .eq('workspace_id', ctx.workspaceId)
+    .limit(1)
     .single();
 
-  const currentSettings = (workspace?.settings || {}) as Record<string, unknown>;
+  if (existing) {
+    // Update existing
+    const { error } = await admin
+      .from('linkedin_accounts')
+      .update({
+        li_at_cookie: liAt,
+        jsessionid_cookie: jsessionId,
+        session_valid: true,
+        session_checked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
 
-  const { error } = await admin
-    .from('workspaces')
-    .update({
-      settings: {
-        ...currentSettings,
-        linkedin_li_at: liAt,
-        linkedin_jsessionid: jsessionId,
-      },
-    })
-    .eq('id', workspaceId);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  } else {
+    // Insert new
+    const { error } = await admin
+      .from('linkedin_accounts')
+      .insert({
+        workspace_id: ctx.workspaceId,
+        user_id: ctx.userId,
+        name: 'Compte principal',
+        li_at_cookie: liAt,
+        jsessionid_cookie: jsessionId,
+        session_valid: true,
+        session_checked_at: new Date().toISOString(),
+      });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true });

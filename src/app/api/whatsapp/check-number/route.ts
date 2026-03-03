@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = await getWhatsAppClient(workspace_id);
+    const client = await getWhatsAppClient(user.id);
     const registered = await client.checkNumberRegistered(phone_number);
     const formatted = formatPhoneNumber(phone_number).replace('@c.us', '');
 

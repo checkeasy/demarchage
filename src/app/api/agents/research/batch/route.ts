@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
               industry: analysis.aiAnalysis?.industry || null,
               companyDescription: analysis.aiAnalysis?.company_description || null,
               painPoints: analysis.aiAnalysis?.pain_points || [],
-              relevanceScore: analysis.aiAnalysis?.checkeasy_relevance?.score || null,
+              relevanceScore: analysis.aiAnalysis?.relevance?.score || null,
               companySize: analysis.aiAnalysis?.company_info?.estimated_size || null,
               digitalMaturity: analysis.aiAnalysis?.company_info?.digital_maturity || null,
               techStack: analysis.scrapedData?.techStackIndicators || [],

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { getLinkedInClientForUser } from '@/lib/linkedin/client';
 import { canPerformAction, recordAction, logLinkedInAction } from '@/lib/linkedin/rate-limiter';
 import { LinkedInActionType, LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
 
@@ -78,7 +78,7 @@ export async function GET(
     }
 
     // --- Récupérer le profil ---
-    const client = await getLinkedInClientForWorkspace(workspaceId);
+    const client = await getLinkedInClientForUser(user.id, workspaceId);
 
     // Enregistrer une vue de profil d'abord (warm-up)
     try {

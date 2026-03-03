@@ -448,6 +448,16 @@ async function handleWhatsAppStep(
 ) {
   const workspaceId = item.workspace_id as string;
   const prospectId = item.prospect_id as string;
+  const campaignId = item.campaign_id as string;
+
+  // Get campaign creator for per-user WhatsApp
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("created_by")
+    .eq("id", campaignId)
+    .single();
+
+  const userId = campaign?.created_by || workspaceId;
 
   // Get prospect phone number
   const { data: prospect } = await supabase
@@ -470,9 +480,9 @@ async function handleWhatsAppStep(
   }
 
   // Check rate limit
-  const allowed = await canWhatsApp(workspaceId, WhatsAppActionType.MESSAGE);
+  const allowed = await canWhatsApp(userId, WhatsAppActionType.MESSAGE);
   if (!allowed) {
-    console.log(`[WhatsApp] Rate limit reached for workspace ${workspaceId}`);
+    console.log(`[WhatsApp] Rate limit reached for user ${userId}`);
     await logWhatsAppAction({
       workspaceId,
       prospectId,
@@ -484,12 +494,12 @@ async function handleWhatsAppStep(
     return;
   }
 
-  // Get WhatsApp client
+  // Get WhatsApp client (per-user)
   let client;
   try {
-    client = await getWhatsAppClient(workspaceId);
+    client = await getWhatsAppClient(userId);
   } catch {
-    console.error(`[WhatsApp] Client not initialized for workspace ${workspaceId}`);
+    console.error(`[WhatsApp] Client not initialized for user ${userId}`);
     await logWhatsAppAction({
       workspaceId,
       prospectId,

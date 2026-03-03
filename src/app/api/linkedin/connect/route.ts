@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getLinkedInClientForWorkspace } from '@/lib/linkedin/client';
+import { getLinkedInClientForUser } from '@/lib/linkedin/client';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { LinkedInError, LinkedInErrorType } from '@/lib/linkedin/types';
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       workspaceId = ws?.id;
     }
 
-    const client = await getLinkedInClientForWorkspace(workspaceId || '');
+    const client = await getLinkedInClientForUser(user.id, workspaceId || '');
 
     // Extraire le publicIdentifier depuis profileUrl ou profileId
     let publicId = profileId;

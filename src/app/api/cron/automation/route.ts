@@ -314,7 +314,7 @@ async function executeAction(
       const sequenceId = item.sequence_id as string;
       const { data: seq } = await supabase
         .from("automation_sequences")
-        .select("workspace_id")
+        .select("workspace_id, created_by")
         .eq("id", sequenceId)
         .single();
 
@@ -322,12 +322,18 @@ async function executeAction(
         return { success: false, error: "Sequence introuvable" };
       }
 
-      // Get the first active email account for this workspace
-      const { data: emailAccount } = await supabase
+      // Get the email account for the sequence creator (per-user)
+      let emailQuery = supabase
         .from("email_accounts")
         .select("*")
         .eq("workspace_id", seq.workspace_id)
-        .eq("is_active", true)
+        .eq("is_active", true);
+
+      if (seq.created_by) {
+        emailQuery = emailQuery.eq("user_id", seq.created_by);
+      }
+
+      const { data: emailAccount } = await emailQuery
         .limit(1)
         .single();
 

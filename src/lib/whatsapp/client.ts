@@ -20,7 +20,7 @@ const SESSION_PATH =
   process.env.WHATSAPP_SESSION_PATH ||
   `${process.cwd()}/.whatsapp_auth`;
 
-// Singleton Map : workspaceId → WhatsAppClientWrapper
+// Singleton Map : userId → WhatsAppClientWrapper
 const clientInstances = new Map<string, WhatsAppClientWrapper>();
 
 // -----------------------------------------------------------------------------
@@ -35,11 +35,11 @@ class WhatsAppClientWrapper {
   private _qrDataUrl: string | null = null;
   private _phoneNumber: string | null = null;
   private _lastError: string | null = null;
-  private _workspaceId: string;
+  private _userId: string;
   private _initializing = false;
 
-  constructor(workspaceId: string) {
-    this._workspaceId = workspaceId;
+  constructor(userId: string) {
+    this._userId = userId;
   }
 
   /**
@@ -59,7 +59,7 @@ class WhatsAppClientWrapper {
 
       this.client = new WAClient({
         authStrategy: new LocalAuth({
-          clientId: this._workspaceId,
+          clientId: this._userId,
           dataPath: SESSION_PATH,
         }),
         puppeteer: {
@@ -98,14 +98,14 @@ class WhatsAppClientWrapper {
       } catch {
         this._qrDataUrl = null;
       }
-      console.log(`[WhatsApp ${this._workspaceId}] QR code genere - en attente du scan`);
+      console.log(`[WhatsApp ${this._userId}] QR code genere - en attente du scan`);
     });
 
     this.client.on('authenticated', () => {
       this._status = 'authenticating';
       this._qrCode = null;
       this._qrDataUrl = null;
-      console.log(`[WhatsApp ${this._workspaceId}] Authentifie`);
+      console.log(`[WhatsApp ${this._userId}] Authentifie`);
     });
 
     this.client.on('ready', () => {
@@ -119,21 +119,21 @@ class WhatsAppClientWrapper {
       } catch {
         // Pas critique
       }
-      console.log(`[WhatsApp ${this._workspaceId}] Pret - numero: ${this._phoneNumber}`);
+      console.log(`[WhatsApp ${this._userId}] Pret - numero: ${this._phoneNumber}`);
     });
 
     this.client.on('auth_failure', (msg: string) => {
       this._status = 'error';
       this._lastError = `Echec authentification: ${msg}`;
       this._initializing = false;
-      console.error(`[WhatsApp ${this._workspaceId}] Auth failure:`, msg);
+      console.error(`[WhatsApp ${this._userId}] Auth failure:`, msg);
     });
 
     this.client.on('disconnected', (reason: string) => {
       this._status = 'disconnected';
       this._lastError = reason;
       this._initializing = false;
-      console.warn(`[WhatsApp ${this._workspaceId}] Deconnecte:`, reason);
+      console.warn(`[WhatsApp ${this._userId}] Deconnecte:`, reason);
     });
   }
 
@@ -255,11 +255,11 @@ export function formatPhoneNumber(phone: string): string {
 // -----------------------------------------------------------------------------
 
 /**
- * Obtient le client WhatsApp pour un workspace (le cree si necessaire)
+ * Obtient le statut WhatsApp pour un utilisateur
  * Ne l'initialise PAS automatiquement - utilisez initializeWhatsAppClient()
  */
-export function getWhatsAppClientStatus(workspaceId: string): WhatsAppClientInfo {
-  const existing = clientInstances.get(workspaceId);
+export function getWhatsAppClientStatus(userId: string): WhatsAppClientInfo {
+  const existing = clientInstances.get(userId);
   if (!existing) {
     return { status: 'disconnected' };
   }
@@ -267,10 +267,10 @@ export function getWhatsAppClientStatus(workspaceId: string): WhatsAppClientInfo
 }
 
 /**
- * Initialise le client WhatsApp (lance Chromium + genere QR)
+ * Initialise le client WhatsApp pour un utilisateur (lance Chromium + genere QR)
  */
-export async function initializeWhatsAppClient(workspaceId: string): Promise<WhatsAppClientInfo> {
-  let wrapper = clientInstances.get(workspaceId);
+export async function initializeWhatsAppClient(userId: string): Promise<WhatsAppClientInfo> {
+  let wrapper = clientInstances.get(userId);
 
   if (wrapper) {
     const info = wrapper.getInfo();
@@ -281,13 +281,13 @@ export async function initializeWhatsAppClient(workspaceId: string): Promise<Wha
     await wrapper.destroy();
   }
 
-  wrapper = new WhatsAppClientWrapper(workspaceId);
-  clientInstances.set(workspaceId, wrapper);
+  wrapper = new WhatsAppClientWrapper(userId);
+  clientInstances.set(userId, wrapper);
 
   // Lancer l'initialisation en arriere-plan (ne pas await)
   // Le QR code sera disponible via getWhatsAppClientStatus()
   wrapper.initialize().catch((err) => {
-    console.error(`[WhatsApp] Erreur init workspace ${workspaceId}:`, err);
+    console.error(`[WhatsApp] Erreur init user ${userId}:`, err);
   });
 
   // Attendre un peu que le QR soit genere
@@ -299,8 +299,8 @@ export async function initializeWhatsAppClient(workspaceId: string): Promise<Wha
 /**
  * Obtient le client WhatsApp pret pour envoyer des messages
  */
-export async function getWhatsAppClient(workspaceId: string): Promise<WhatsAppClientWrapper> {
-  const wrapper = clientInstances.get(workspaceId);
+export async function getWhatsAppClient(userId: string): Promise<WhatsAppClientWrapper> {
+  const wrapper = clientInstances.get(userId);
 
   if (!wrapper) {
     throw new WhatsAppError(
@@ -323,13 +323,13 @@ export async function getWhatsAppClient(workspaceId: string): Promise<WhatsAppCl
 }
 
 /**
- * Deconnecte le client WhatsApp d'un workspace
+ * Deconnecte le client WhatsApp d'un utilisateur
  */
-export async function disconnectWhatsAppClient(workspaceId: string): Promise<void> {
-  const wrapper = clientInstances.get(workspaceId);
+export async function disconnectWhatsAppClient(userId: string): Promise<void> {
+  const wrapper = clientInstances.get(userId);
   if (wrapper) {
     await wrapper.destroy();
-    clientInstances.delete(workspaceId);
+    clientInstances.delete(userId);
   }
 }
 

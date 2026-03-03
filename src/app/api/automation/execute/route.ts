@@ -62,31 +62,34 @@ export async function POST() {
         const isEmailAction = actionType === "email";
         const isWhatsAppAction = actionType === "whatsapp";
 
-        // Load LinkedIn cookies from workspace settings in DB
+        // Load LinkedIn cookies from user's linkedin_accounts (per-user)
         let liAt = "";
         let jsessionId = "";
 
         if (!isEmailAction && !isWhatsAppAction) {
           const { data: seqForCookies } = await supabase
             .from("automation_sequences")
-            .select("workspace_id")
+            .select("workspace_id, created_by")
             .eq("id", item.sequence_id as string)
             .single();
 
-          if (seqForCookies?.workspace_id) {
-            const { data: ws } = await supabase
-              .from("workspaces")
-              .select("settings")
-              .eq("id", seqForCookies.workspace_id)
+          if (seqForCookies?.created_by && seqForCookies?.workspace_id) {
+            // Per-user: chercher dans linkedin_accounts du createur
+            const { data: liAccount } = await supabase
+              .from("linkedin_accounts")
+              .select("li_at_cookie, jsessionid_cookie")
+              .eq("user_id", seqForCookies.created_by)
+              .eq("workspace_id", seqForCookies.workspace_id)
+              .eq("is_active", true)
+              .limit(1)
               .single();
 
-            const settings = (ws?.settings || {}) as Record<string, string>;
-            liAt = settings.linkedin_li_at || "";
-            jsessionId = settings.linkedin_jsessionid || "";
+            liAt = liAccount?.li_at_cookie || "";
+            jsessionId = liAccount?.jsessionid_cookie || "";
           }
 
           if (!liAt || !jsessionId) {
-            logs.push(`Skipped: No LinkedIn cookies configured in workspace settings`);
+            logs.push(`Skipped: No LinkedIn cookies configured for sequence creator`);
             continue;
           }
         }
@@ -370,10 +373,10 @@ export async function POST() {
           }
 
           case "whatsapp": {
-            // Get workspace ID for the sequence
+            // Get sequence creator for per-user WhatsApp
             const { data: seqForWa } = await supabase
               .from("automation_sequences")
-              .select("workspace_id")
+              .select("workspace_id, created_by")
               .eq("id", item.sequence_id)
               .single();
 
@@ -383,6 +386,7 @@ export async function POST() {
             }
 
             const waWorkspaceId = seqForWa.workspace_id;
+            const waUserId = seqForWa.created_by || waWorkspaceId;
 
             // Get prospect phone
             const prospectPhone = item.phone as string;
@@ -417,7 +421,7 @@ export async function POST() {
             // Get client
             let waClient;
             try {
-              waClient = await getWhatsAppClient(waWorkspaceId);
+              waClient = await getWhatsAppClient(waUserId);
             } catch {
               logMessage = "Client WhatsApp non connecte";
               await logWhatsAppAction({

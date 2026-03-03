@@ -963,7 +963,38 @@ export function createLinkedInClient(config: LinkedInAccountConfig): LinkedInCli
 }
 
 /**
- * Crée un client LinkedIn en lisant les cookies depuis le workspace en BDD.
+ * Crée un client LinkedIn en lisant les cookies de l'utilisateur depuis linkedin_accounts.
+ * Fallback sur getLinkedInClientForWorkspace puis les variables d'environnement.
+ */
+export async function getLinkedInClientForUser(userId: string, workspaceId: string): Promise<LinkedInClient> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const supabase = createAdminClient();
+
+    const { data: account } = await supabase
+      .from('linkedin_accounts')
+      .select('li_at_cookie, jsessionid_cookie')
+      .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (account?.li_at_cookie && account?.jsessionid_cookie) {
+      return new LinkedInClient({
+        liAt: account.li_at_cookie,
+        jsessionId: account.jsessionid_cookie,
+      });
+    }
+  } catch {
+    // Fallback
+  }
+
+  return getLinkedInClientForWorkspace(workspaceId);
+}
+
+/**
+ * Crée un client LinkedIn en lisant les cookies depuis linkedin_accounts pour le workspace.
  * Fallback sur les variables d'environnement si rien en BDD.
  */
 export async function getLinkedInClientForWorkspace(workspaceId: string): Promise<LinkedInClient> {
@@ -971,6 +1002,23 @@ export async function getLinkedInClientForWorkspace(workspaceId: string): Promis
     const { createAdminClient } = await import('@/lib/supabase/admin');
     const supabase = createAdminClient();
 
+    // Chercher dans linkedin_accounts d'abord
+    const { data: account } = await supabase
+      .from('linkedin_accounts')
+      .select('li_at_cookie, jsessionid_cookie')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (account?.li_at_cookie && account?.jsessionid_cookie) {
+      return new LinkedInClient({
+        liAt: account.li_at_cookie,
+        jsessionId: account.jsessionid_cookie,
+      });
+    }
+
+    // Fallback: lire depuis workspaces.settings (legacy)
     const { data: workspace } = await supabase
       .from('workspaces')
       .select('settings')
