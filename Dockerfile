@@ -1,0 +1,54 @@
+FROM node:20-slim
+
+# Install ALL Chrome/Puppeteer system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    libxshmfence1 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+
+# Download Puppeteer Chrome
+RUN npx puppeteer browsers install chrome
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# Runtime config
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV XDG_CONFIG_HOME=/tmp
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
