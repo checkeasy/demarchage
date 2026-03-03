@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailComposer } from "./EmailComposer";
 import { STEP_TYPES } from "@/lib/constants";
 import { Mail, Clock, UserPlus, MessageSquare, Phone, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
@@ -83,15 +82,14 @@ export function StepEditor({
 }: StepEditorProps) {
   if (!step) return null;
 
+  const Icon = STEP_ICONS[step.step_type] ?? Clock;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0">
-        <SheetHeader className="p-4 border-b">
+      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col">
+        <SheetHeader className="p-4 border-b shrink-0">
           <div className="flex items-center gap-2">
-            {(() => {
-              const Icon = STEP_ICONS[step.step_type] ?? Clock;
-              return <Icon className="size-5 text-blue-600" />;
-            })()}
+            <Icon className="size-5 text-blue-600" />
             <div>
               <SheetTitle>
                 {STEP_TYPES[step.step_type]?.label ?? "Etape"}
@@ -103,11 +101,9 @@ export function StepEditor({
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 h-[calc(100vh-10rem)]">
-          <div className="p-4">
-            <StepEditorContent step={step} onSave={onSave} />
-          </div>
-        </ScrollArea>
+        <div className="flex-1 overflow-y-auto p-4">
+          <StepEditorContent key={step.id} step={step} onSave={onSave} />
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -159,6 +155,13 @@ function EmailStepEditor({
   const [body, setBody] = useState(step.body_html ?? "");
   const [abEnabled, setAbEnabled] = useState(step.ab_enabled ?? false);
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
+
+  // Sync state when step changes (key prop forces remount, but just in case)
+  useEffect(() => {
+    setSubject(step.subject ?? "");
+    setBody(step.body_html ?? "");
+    setAbEnabled(step.ab_enabled ?? false);
+  }, [step.id, step.subject, step.body_html, step.ab_enabled]);
 
   const handleAIGenerate = async () => {
     const result = await generate({
@@ -241,6 +244,11 @@ function DelayStepEditor({
   const [days, setDays] = useState(step.delay_days ?? 1);
   const [hours, setHours] = useState(step.delay_hours ?? 0);
 
+  useEffect(() => {
+    setDays(step.delay_days ?? 1);
+    setHours(step.delay_hours ?? 0);
+  }, [step.id, step.delay_days, step.delay_hours]);
+
   const handleSave = () => {
     onSave({ ...step, delay_days: days, delay_hours: hours });
   };
@@ -317,6 +325,10 @@ function LinkedInConnectEditor({
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const maxChars = 300;
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
+
+  useEffect(() => {
+    setMessage(step.linkedin_message ?? "");
+  }, [step.id, step.linkedin_message]);
 
   const handleAIGenerate = async () => {
     const result = await generate({
@@ -397,6 +409,10 @@ function LinkedInMessageEditor({
   const [message, setMessage] = useState(step.linkedin_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
+
+  useEffect(() => {
+    setMessage(step.linkedin_message ?? "");
+  }, [step.id, step.linkedin_message]);
 
   const handleAIGenerate = async () => {
     const result = await generate({
@@ -503,6 +519,10 @@ function WhatsAppMessageEditor({
   const [message, setMessage] = useState(step.whatsapp_message ?? "");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
+
+  useEffect(() => {
+    setMessage(step.whatsapp_message ?? "");
+  }, [step.id, step.whatsapp_message]);
 
   const handleAIGenerate = async () => {
     const result = await generate({

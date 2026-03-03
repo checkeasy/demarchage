@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -40,7 +40,6 @@ import {
   Sparkles,
   Loader2,
   CheckCircle2,
-  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -112,17 +111,12 @@ export function CampaignDetailTabs({
 
   const [editableSteps, setEditableSteps] = useState<StepData[]>(initialEditorSteps);
   const [savingSequence, setSavingSequence] = useState(false);
-  const [sequenceDirty, setSequenceDirty] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleStepsChange = useCallback((newSteps: StepData[]) => {
-    setEditableSteps(newSteps);
-    setSequenceDirty(true);
-  }, []);
-
-  const handleSaveSequence = useCallback(async () => {
+  // Auto-save to DB when steps change (debounced 1s)
+  const saveToDb = useCallback(async (stepsToSave: StepData[]) => {
     setSavingSequence(true);
     try {
-      // Delete old steps and re-insert
       const { error: deleteError } = await supabase
         .from("sequence_steps")
         .delete()
@@ -130,8 +124,8 @@ export function CampaignDetailTabs({
 
       if (deleteError) throw deleteError;
 
-      if (editableSteps.length > 0) {
-        const stepsToInsert = editableSteps.map((s) => ({
+      if (stepsToSave.length > 0) {
+        const stepsToInsert = stepsToSave.map((s) => ({
           campaign_id: campaign.id,
           step_order: s.step_order,
           step_type: s.step_type,
@@ -153,15 +147,22 @@ export function CampaignDetailTabs({
       }
 
       toast.success("Sequence sauvegardee");
-      setSequenceDirty(false);
-      router.refresh();
     } catch (error) {
       console.error("Error saving sequence:", error);
       toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSavingSequence(false);
     }
-  }, [editableSteps, campaign.id, supabase, router]);
+  }, [campaign.id, supabase]);
+
+  const handleStepsChange = useCallback((newSteps: StepData[]) => {
+    setEditableSteps(newSteps);
+    // Debounce auto-save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveToDb(newSteps);
+    }, 1000);
+  }, [saveToDb]);
 
   const progress =
     campaign.total_prospects > 0
@@ -335,20 +336,11 @@ export function CampaignDetailTabs({
                   Cliquez sur une etape pour la modifier. Glissez pour reordonner.
                 </CardDescription>
               </div>
-              {sequenceDirty && (
-                <Button
-                  size="sm"
-                  onClick={handleSaveSequence}
-                  disabled={savingSequence}
-                  className="gap-2"
-                >
-                  {savingSequence ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  Sauvegarder
-                </Button>
+              {savingSequence && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  Sauvegarde...
+                </div>
               )}
             </div>
           </CardHeader>
