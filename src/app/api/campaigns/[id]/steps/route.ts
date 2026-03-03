@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // PUT /api/campaigns/[id]/steps — Save sequence steps for a campaign
 export async function PUT(
@@ -41,8 +42,30 @@ export async function PUT(
       return NextResponse.json({ error: "Aucune etape fournie" }, { status: 400 });
     }
 
+    // Use admin client to bypass RLS for FK nullification
+    const adminSupabase = createAdminClient();
+
+    // Nullify current_step_id on campaign_prospects (FK blocks delete otherwise)
+    await adminSupabase
+      .from("campaign_prospects")
+      .update({ current_step_id: null })
+      .eq("campaign_id", campaignId);
+
+    // Nullify step_id on emails_sent
+    const { data: cpIds } = await adminSupabase
+      .from("campaign_prospects")
+      .select("id")
+      .eq("campaign_id", campaignId);
+
+    if (cpIds && cpIds.length > 0) {
+      await adminSupabase
+        .from("emails_sent")
+        .update({ step_id: null })
+        .in("campaign_prospect_id", cpIds.map((cp: { id: string }) => cp.id));
+    }
+
     // Delete existing steps for this campaign
-    await supabase
+    await adminSupabase
       .from("sequence_steps")
       .delete()
       .eq("campaign_id", campaignId);

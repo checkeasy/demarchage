@@ -164,41 +164,16 @@ export default function EditCampaignPage() {
 
       if (updateError) throw updateError;
 
-      // Nullify current_step_id on campaign_prospects before deleting steps
-      // (FK constraint blocks deletion otherwise)
-      await supabase
-        .from("campaign_prospects")
-        .update({ current_step_id: null })
-        .eq("campaign_id", campaignId);
+      // Save steps via server-side API (uses admin client to handle FK constraints)
+      const stepsRes = await fetch(`/api/campaigns/${campaignId}/steps`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ steps }),
+      });
 
-      // Delete old steps and re-insert
-      const { error: deleteError } = await supabase
-        .from("sequence_steps")
-        .delete()
-        .eq("campaign_id", campaignId);
-
-      if (deleteError) throw deleteError;
-
-      if (steps.length > 0) {
-        const stepsToInsert = steps.map((s) => ({
-          campaign_id: campaignId,
-          step_order: s.step_order,
-          step_type: s.step_type,
-          delay_days: s.delay_days,
-          delay_hours: s.delay_hours,
-          subject: s.subject,
-          body_html: s.body_html,
-          body_text: s.body_text,
-          linkedin_message: s.linkedin_message,
-          whatsapp_message: s.whatsapp_message,
-          ab_enabled: s.ab_enabled,
-        }));
-
-        const { error: stepsError } = await supabase
-          .from("sequence_steps")
-          .insert(stepsToInsert);
-
-        if (stepsError) throw stepsError;
+      if (!stepsRes.ok) {
+        const err = await stepsRes.json();
+        throw new Error(err.error || "Failed to save steps");
       }
 
       toast.success("Campagne mise a jour avec succes !");
