@@ -959,6 +959,7 @@ export default function AutomationDetailPage() {
                       <TableRow>
                         <TableHead>Prospect</TableHead>
                         <TableHead className="hidden sm:table-cell">Entreprise</TableHead>
+                        <TableHead className="hidden sm:table-cell">LinkedIn</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead className="hidden md:table-cell">Etape actuelle</TableHead>
                         <TableHead className="hidden lg:table-cell">Prochaine action</TableHead>
@@ -968,7 +969,7 @@ export default function AutomationDetailPage() {
                     <TableBody>
                       {filteredProspects.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                          <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                             Aucun prospect ne correspond a votre recherche.
                           </TableCell>
                         </TableRow>
@@ -990,6 +991,32 @@ export default function AutomationDetailPage() {
                                 </div>
                               </TableCell>
                               <TableCell className="hidden sm:table-cell text-sm">{company || "-"}</TableCell>
+                              <TableCell className="hidden sm:table-cell">
+                                {p.linkedin_url ? (
+                                  <a
+                                    href={p.linkedin_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5"
+                                  >
+                                    <Linkedin className="size-4 text-[#0A66C2]" />
+                                    <Badge
+                                      variant="secondary"
+                                      className={`text-[10px] ${
+                                        cp.status === "connected" ? "bg-green-100 text-green-700" :
+                                        cp.status === "replied" ? "bg-purple-100 text-purple-700" :
+                                        "bg-blue-100 text-blue-700"
+                                      }`}
+                                    >
+                                      {cp.status === "connected" ? "Connecte" :
+                                       cp.status === "replied" ? "Repondu" :
+                                       "Profil"}
+                                    </Badge>
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <Badge variant="secondary" className={`text-xs ${statusCfg?.color || ""}`}>{statusCfg?.label || cp.status}</Badge>
                               </TableCell>
