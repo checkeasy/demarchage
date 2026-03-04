@@ -55,6 +55,7 @@ interface ProspectInfo {
   nb_properties: number | null;
   lead_score: number | null;
   status: string;
+  email_validity_score: number | null;
 }
 
 interface CampaignProspect {
@@ -605,6 +606,7 @@ function CampaignProspectsTab({
                   <TableRow>
                     <TableHead>Prospect</TableHead>
                     <TableHead className="hidden sm:table-cell">Entreprise</TableHead>
+                    <TableHead className="hidden md:table-cell">Fiabilite email</TableHead>
                     <TableHead className="hidden md:table-cell">Score IA</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead className="hidden md:table-cell">Etape actuelle</TableHead>
@@ -616,7 +618,7 @@ function CampaignProspectsTab({
                 <TableBody>
                   {paginated.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                         Aucun prospect ne correspond a votre recherche.
                       </TableCell>
                     </TableRow>
@@ -641,6 +643,22 @@ function CampaignProspectsTab({
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-sm">
                             {company || "-"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {p.email_validity_score !== null && p.email_validity_score !== undefined ? (
+                              <Badge
+                                variant="secondary"
+                                className={`text-xs text-white ${
+                                  p.email_validity_score >= 70 ? "bg-green-500" :
+                                  p.email_validity_score >= 40 ? "bg-yellow-500" :
+                                  p.email_validity_score > 0 ? "bg-orange-500" : "bg-red-500"
+                                }`}
+                              >
+                                {p.email_validity_score}%
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Non verifie</span>
+                            )}
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
                             {p.lead_score !== null && p.lead_score !== undefined ? (
