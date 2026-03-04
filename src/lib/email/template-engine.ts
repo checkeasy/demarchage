@@ -11,9 +11,18 @@ interface TemplateData {
   [key: string]: string | null | undefined;
 }
 
+// French aliases for template variables
+const VARIABLE_ALIASES: Record<string, string> = {
+  prenom: "firstName",
+  nom: "lastName",
+  entreprise: "company",
+  poste: "jobTitle",
+};
+
 /**
  * Replace template variables in text.
  * Supports: {firstName}, {lastName}, {company}, {jobTitle}, {email}, etc.
+ * Also supports French aliases: {prenom}, {nom}, {entreprise}, {poste}
  * Also supports conditionals: {#if company}at {company}{/if}
  */
 export function mergeTemplate(
@@ -26,9 +35,9 @@ export function mergeTemplate(
   result = result.replace(
     /\{#if\s+(\w+)\}([\s\S]*?)\{\/if\}/g,
     (_match, varName: string, content: string) => {
-      const value = data[varName];
+      const resolvedName = VARIABLE_ALIASES[varName] || varName;
+      const value = data[resolvedName];
       if (value && value.trim() !== "") {
-        // Recursively process the content inside the conditional
         return mergeTemplate(content, data);
       }
       return "";
@@ -37,9 +46,23 @@ export function mergeTemplate(
 
   // Replace simple variables: {variableName}
   result = result.replace(/\{(\w+)\}/g, (_match, varName: string) => {
-    const value = data[varName];
+    const resolvedName = VARIABLE_ALIASES[varName] || varName;
+    const value = data[resolvedName];
     return value ?? "";
   });
+
+  // Clean up artifacts from empty variables:
+  // - Leading comma+space: ", le piege" -> "Le piege"
+  // - Double spaces
+  // - Leading/trailing whitespace
+  result = result.replace(/^[\s,]+/, ""); // leading commas/spaces
+  result = result.replace(/\s{2,}/g, " "); // double spaces
+  result = result.trim();
+
+  // Capitalize first letter if it was lowered after cleanup
+  if (result.length > 0 && result[0] !== result[0].toUpperCase() && /^[a-zàâäéèêëïîôùûüÿç]/.test(result)) {
+    result = result[0].toUpperCase() + result.slice(1);
+  }
 
   return result;
 }

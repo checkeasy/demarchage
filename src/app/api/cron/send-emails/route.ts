@@ -317,6 +317,17 @@ export async function POST(request: NextRequest) {
           ? mergeTemplate(bodyText, templateData)
           : undefined;
 
+        // Safety: skip if subject is empty after merge (missing variables)
+        if (!mergedSubject || mergedSubject.trim().length < 3) {
+          console.warn(`[SendEmails] Skipping email for prospect ${item.prospect_email}: subject too short after merge ("${mergedSubject}"). Original: "${subject}"`);
+          await supabase
+            .from("campaign_prospects")
+            .update({ next_send_at: null, status: "error" })
+            .eq("id", item.campaign_prospect_id);
+          skippedCount++;
+          continue;
+        }
+
         // Append signature if present
         if (item.signature_html) {
           mergedBody += `<br/><br/>${item.signature_html}`;
@@ -641,17 +652,15 @@ async function handleWhatsAppStep(
     return;
   }
 
-  // Merge template variables
-  let messageText = (step.whatsapp_message as string) || "";
-  messageText = messageText
-    .replace(/\{firstName\}/g, prospect.first_name || "")
-    .replace(/\{prenom\}/g, prospect.first_name || "")
-    .replace(/\{lastName\}/g, prospect.last_name || "")
-    .replace(/\{nom\}/g, prospect.last_name || "")
-    .replace(/\{company\}/g, prospect.company || "")
-    .replace(/\{entreprise\}/g, prospect.company || "")
-    .replace(/\{jobTitle\}/g, prospect.job_title || "")
-    .replace(/\{poste\}/g, prospect.job_title || "");
+  // Merge template variables using template engine
+  const whatsappTemplateData = prospectToTemplateData({
+    email: "",
+    first_name: prospect.first_name,
+    last_name: prospect.last_name,
+    company: prospect.company,
+    job_title: prospect.job_title,
+  });
+  let messageText = mergeTemplate((step.whatsapp_message as string) || "", whatsappTemplateData);
 
   if (!messageText.trim()) {
     console.log(`[WhatsApp] Empty message for step ${step.id}, skipping`);
