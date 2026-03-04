@@ -385,6 +385,7 @@ export default function AutomationDetailPage() {
   // Prospect filters
   const [prospectSearch, setProspectSearch] = useState("");
   const [prospectStatusFilter, setProspectStatusFilter] = useState("all");
+  const [linkedinFilter, setLinkedinFilter] = useState<"all" | "with" | "without">("all");
 
   const loadSequence = useCallback(async () => {
     try {
@@ -524,6 +525,8 @@ export default function AutomationDetailPage() {
       const p = getProspectData(cp);
       if (!p) return false;
       if (prospectStatusFilter !== "all" && cp.status !== prospectStatusFilter) return false;
+      if (linkedinFilter === "with" && !p.linkedin_url) return false;
+      if (linkedinFilter === "without" && p.linkedin_url) return false;
       if (prospectSearch.trim()) {
         const q = prospectSearch.toLowerCase();
         const name = [p.first_name, p.last_name].filter(Boolean).join(" ").toLowerCase();
@@ -532,7 +535,7 @@ export default function AutomationDetailPage() {
       }
       return true;
     });
-  }, [prospects, prospectSearch, prospectStatusFilter]);
+  }, [prospects, prospectSearch, prospectStatusFilter, linkedinFilter]);
 
   const prospectStatusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -540,6 +543,17 @@ export default function AutomationDetailPage() {
       counts[cp.status] = (counts[cp.status] || 0) + 1;
     }
     return counts;
+  }, [prospects]);
+
+  const linkedinCounts = useMemo(() => {
+    let withLinkedin = 0;
+    let withoutLinkedin = 0;
+    for (const cp of prospects) {
+      const p = getProspectData(cp);
+      if (p?.linkedin_url) withLinkedin++;
+      else withoutLinkedin++;
+    }
+    return { with: withLinkedin, without: withoutLinkedin };
   }, [prospects]);
 
   if (loading) {
@@ -942,9 +956,31 @@ export default function AutomationDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="relative mb-4 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input placeholder="Rechercher un prospect..." value={prospectSearch} onChange={(e) => setProspectSearch(e.target.value)} className="pl-10 h-9" />
+              <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input placeholder="Rechercher un prospect..." value={prospectSearch} onChange={(e) => setProspectSearch(e.target.value)} className="pl-10 h-9" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Linkedin className="size-4 text-[#0A66C2]" />
+                  <Badge variant={linkedinFilter === "all" ? "default" : "outline"} className="cursor-pointer text-xs" onClick={() => setLinkedinFilter("all")}>
+                    Tous
+                  </Badge>
+                  <Badge
+                    variant={linkedinFilter === "with" ? "default" : "outline"}
+                    className={`cursor-pointer text-xs ${linkedinFilter !== "with" ? "bg-green-100 text-green-700" : ""}`}
+                    onClick={() => setLinkedinFilter(linkedinFilter === "with" ? "all" : "with")}
+                  >
+                    Avec LinkedIn ({linkedinCounts.with})
+                  </Badge>
+                  <Badge
+                    variant={linkedinFilter === "without" ? "default" : "outline"}
+                    className={`cursor-pointer text-xs ${linkedinFilter !== "without" ? "bg-red-100 text-red-700" : ""}`}
+                    onClick={() => setLinkedinFilter(linkedinFilter === "without" ? "all" : "without")}
+                  >
+                    Sans LinkedIn ({linkedinCounts.without})
+                  </Badge>
+                </div>
               </div>
 
               {prospects.length === 0 ? (
