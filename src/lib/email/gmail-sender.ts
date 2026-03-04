@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ export interface SendEmailResult {
 
 // ─── Gmail Transporter ──────────────────────────────────────────────────────
 
+// Singleton - recreated on config change (server restart)
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter(): nodemailer.Transporter {
@@ -32,12 +34,18 @@ function getTransporter(): nodemailer.Transporter {
       );
     }
 
+    // Force IPv4 globally for this process - VPS has no IPv6 connectivity
+    dns.setDefaultResultOrder('ipv4first');
+
     transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
       secure: false,
       auth: { user, pass },
-    });
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 30000,
+    } as Record<string, unknown>);
   }
   return transporter;
 }
