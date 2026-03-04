@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Sparkles,
   Trash2,
+  UserMinus,
   Plus,
   ChevronLeft,
   ChevronUp,
@@ -66,6 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // --- Types ---
 interface SequenceStep {
@@ -387,6 +389,10 @@ export default function AutomationDetailPage() {
   const [prospectStatusFilter, setProspectStatusFilter] = useState("all");
   const [linkedinFilter, setLinkedinFilter] = useState<"all" | "with" | "without">("all");
 
+  // Prospect selection & removal
+  const [selectedProspectIds, setSelectedProspectIds] = useState<Set<string>>(new Set());
+  const [isRemoving, setIsRemoving] = useState(false);
+
   const loadSequence = useCallback(async () => {
     try {
       const res = await fetch(`/api/automation/sequences/${id}`);
@@ -555,6 +561,30 @@ export default function AutomationDetailPage() {
     }
     return { with: withLinkedin, without: withoutLinkedin };
   }, [prospects]);
+
+  async function removeProspects(prospectIdsToRemove: string[]) {
+    if (prospectIdsToRemove.length === 0) return;
+    setIsRemoving(true);
+    try {
+      const res = await fetch(`/api/automation/sequences/${id}/prospects`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectIds: prospectIdsToRemove }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
+      toast.success(`${data.removed} prospect${data.removed > 1 ? "s" : ""} retire${data.removed > 1 ? "s" : ""} de la sequence`);
+      setProspects((prev) => prev.filter((cp) => !prospectIdsToRemove.includes(getProspectData(cp)?.id || "")));
+      setSelectedProspectIds(new Set());
+      if (sequence) {
+        setSequence({ ...sequence, totalProspects: sequence.totalProspects - data.removed });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de la suppression");
+    } finally {
+      setIsRemoving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -983,6 +1013,39 @@ export default function AutomationDetailPage() {
                 </div>
               </div>
 
+              {/* Bulk action bar */}
+              {selectedProspectIds.size > 0 && (
+                <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedProspectIds.size} prospect{selectedProspectIds.size > 1 ? "s" : ""} selectionne{selectedProspectIds.size > 1 ? "s" : ""}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setSelectedProspectIds(new Set())}
+                    >
+                      Deselectionner
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="text-xs"
+                      disabled={isRemoving}
+                      onClick={() => removeProspects(Array.from(selectedProspectIds))}
+                    >
+                      {isRemoving ? (
+                        <Loader2 className="size-3.5 animate-spin mr-1" />
+                      ) : (
+                        <UserMinus className="size-3.5 mr-1" />
+                      )}
+                      Retirer {selectedProspectIds.size} prospect{selectedProspectIds.size > 1 ? "s" : ""}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {prospects.length === 0 ? (
                 <div className="text-center py-12">
                   <Users className="size-10 text-muted-foreground mx-auto mb-3" />
@@ -993,19 +1056,39 @@ export default function AutomationDetailPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={filteredProspects.length > 0 && filteredProspects.slice(0, 50).every((cp) => {
+                              const p = getProspectData(cp);
+                              return p ? selectedProspectIds.has(p.id) : true;
+                            })}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                const ids = new Set(selectedProspectIds);
+                                filteredProspects.slice(0, 50).forEach((cp) => {
+                                  const p = getProspectData(cp);
+                                  if (p) ids.add(p.id);
+                                });
+                                setSelectedProspectIds(ids);
+                              } else {
+                                setSelectedProspectIds(new Set());
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>Prospect</TableHead>
                         <TableHead className="hidden sm:table-cell">Entreprise</TableHead>
                         <TableHead className="hidden sm:table-cell">LinkedIn</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead className="hidden md:table-cell">Etape actuelle</TableHead>
                         <TableHead className="hidden lg:table-cell">Prochaine action</TableHead>
-                        <TableHead className="w-[50px]" />
+                        <TableHead className="w-[80px]" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredProspects.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                          <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                             Aucun prospect ne correspond a votre recherche.
                           </TableCell>
                         </TableRow>
@@ -1019,7 +1102,18 @@ export default function AutomationDetailPage() {
                           const currentStep = cp.current_step_id ? sequence.steps.find((s) => s.id === cp.current_step_id) : null;
 
                           return (
-                            <TableRow key={cp.id}>
+                            <TableRow key={cp.id} className={selectedProspectIds.has(p.id) ? "bg-blue-50/50" : ""}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedProspectIds.has(p.id)}
+                                  onCheckedChange={(checked) => {
+                                    const ids = new Set(selectedProspectIds);
+                                    if (checked) ids.add(p.id);
+                                    else ids.delete(p.id);
+                                    setSelectedProspectIds(ids);
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell>
                                 <div>
                                   <Link href={`/prospects/${p.id}`} className="text-sm font-medium hover:underline">{name}</Link>
@@ -1072,9 +1166,21 @@ export default function AutomationDetailPage() {
                                 ) : "-"}
                               </TableCell>
                               <TableCell>
-                                <Button variant="ghost" size="sm" className="size-8 p-0" asChild>
-                                  <Link href={`/prospects/${p.id}`}><ExternalLink className="size-3.5" /></Link>
-                                </Button>
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="size-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    disabled={isRemoving}
+                                    onClick={() => removeProspects([p.id])}
+                                    title="Retirer de la sequence"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="size-8 p-0" asChild>
+                                    <Link href={`/prospects/${p.id}`}><ExternalLink className="size-3.5" /></Link>
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
