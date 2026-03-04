@@ -20,7 +20,7 @@ import {
 import { WhatsAppActionType } from "@/lib/whatsapp/types";
 
 const BATCH_SIZE = 10;
-const MIN_EMAIL_SCORE = 40; // Ne pas envoyer aux emails avec score < 40
+const MIN_EMAIL_SCORE = 75; // Ne pas envoyer aux emails avec score < 75
 
 export async function POST(request: NextRequest) {
   // Verify cron secret
@@ -223,6 +223,7 @@ export async function POST(request: NextRequest) {
         // Skip prospects with low email validity score
         const emailScore = item.email_validity_score as number | null;
         if (emailScore !== null && emailScore < MIN_EMAIL_SCORE) {
+          console.log(`[SendEmails] Skipping ${item.prospect_email}: email score ${emailScore}% < ${MIN_EMAIL_SCORE}%`);
           skippedCount++;
           continue;
         }
