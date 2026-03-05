@@ -103,6 +103,8 @@ function createDefaultStep(
       type === "linkedin_connect" || type === "linkedin_message" ? "" : null,
     whatsapp_message: type === "whatsapp" ? "" : null,
     ab_enabled: false,
+    use_ai_generation: false,
+    ai_prompt_context: null,
   };
 }
 

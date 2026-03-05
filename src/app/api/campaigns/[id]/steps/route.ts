@@ -83,6 +83,8 @@ export async function PUT(
       delay_days: step.delay_days || 0,
       delay_hours: step.delay_hours || 0,
       ab_enabled: step.ab_enabled || false,
+      use_ai_generation: step.use_ai_generation || false,
+      ai_prompt_context: step.ai_prompt_context || null,
       is_active: true,
     }));
 

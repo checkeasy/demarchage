@@ -321,6 +321,8 @@ export default function NewCampaignPage() {
           linkedin_message: s.linkedin_message,
           whatsapp_message: s.whatsapp_message,
           ab_enabled: s.ab_enabled,
+          use_ai_generation: s.use_ai_generation || false,
+          ai_prompt_context: s.ai_prompt_context || null,
         }));
 
         const { error: stepsError } = await supabase

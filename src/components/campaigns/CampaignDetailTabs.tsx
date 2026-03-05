@@ -110,6 +110,8 @@ export function CampaignDetailTabs({
     whatsapp_message: (s.whatsapp_message as string) ?? null,
     ab_enabled: s.ab_enabled,
     ab_variants: s.ab_variants || undefined,
+    use_ai_generation: s.use_ai_generation ?? false,
+    ai_prompt_context: s.ai_prompt_context ?? null,
   }));
 
   const [editableSteps, setEditableSteps] = useState<StepData[]>(initialEditorSteps);

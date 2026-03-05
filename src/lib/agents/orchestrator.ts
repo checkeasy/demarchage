@@ -700,6 +700,41 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     const strat = strategy.strategy;
     const memoryContext = this.buildMemoryContext(context.memory);
 
+    // Build custom fields block for subtle personalization
+    const cf = context.prospect.custom_fields || {};
+    const customFieldLines: string[] = [];
+    if (cf.ota_listings && typeof cf.ota_listings === 'object') {
+      const listings = cf.ota_listings as Record<string, number>;
+      const parts = Object.entries(listings).map(([platform, count]) => `${platform} (${count})`);
+      if (parts.length > 0) customFieldLines.push(`- Annonces OTA : ${parts.join(', ')}`);
+    }
+    if (cf.nb_properties) customFieldLines.push(`- Nombre de biens : ${cf.nb_properties}`);
+    if (cf.review_score || cf.review_count) {
+      const score = cf.review_score ? `${cf.review_score}/5` : '';
+      const count = cf.review_count ? `${cf.review_count} avis` : '';
+      customFieldLines.push(`- Avis : ${[score, count].filter(Boolean).join(' - ')}`);
+    }
+    if (cf.employee_count) customFieldLines.push(`- Employes : ~${cf.employee_count}`);
+    if (cf.revenue_range) customFieldLines.push(`- Tranche CA : ${cf.revenue_range}`);
+    if (cf.tech_stack) customFieldLines.push(`- Stack technique : ${cf.tech_stack}`);
+    const customFieldsBlock = customFieldLines.length > 0
+      ? `\nDONNEES METIER :\n${customFieldLines.join('\n')}`
+      : '';
+
+    const notesBlock = context.prospect.notes
+      ? `\nNOTES DU COMMERCIAL :\n${context.prospect.notes}`
+      : '';
+
+    // Summarize enrichments concisely
+    const enrichmentsBlock = context.prospect.enrichments.length > 0
+      ? `\nENRICHISSEMENTS IA :\n${JSON.stringify(context.prospect.enrichments, null, 2)}`
+      : '';
+
+    // AI prompt context from step config
+    const aiPromptContextBlock = task.aiPromptContext
+      ? `\nINSTRUCTIONS SPECIFIQUES DU COMMERCIAL :\n${task.aiPromptContext}`
+      : '';
+
     const userMessage = `Redige un email de prospection (etape ${task.stepNumber} sur ${strat.sequence_length}).
 ${task.previousSubjects && task.previousSubjects.length > 0 ? `
 OBJETS DEJA UTILISES DANS LES ETAPES PRECEDENTES (tu DOIS utiliser un objet COMPLETEMENT DIFFERENT) :
@@ -715,16 +750,23 @@ BRIEF STRATEGIQUE :
 - Style CTA : ${strat.email_guidelines.cta_style}
 - A eviter : ${strat.avoid.length > 0 ? strat.avoid.join(', ') : 'Rien de specifique'}
 
-PROFIL DU PROSPECT :
+INTELLIGENCE CONTEXTUELLE (TRES IMPORTANT) :
+Tu as acces a des informations sur le prospect ci-dessous. Tu dois les utiliser pour ADAPTER
+ton angle, ton pain point, et ton approche. Mais tu ne dois JAMAIS les citer explicitement.
+Ne dis JAMAIS "j'ai vu que", "j'ai remarque que", "selon votre site", "d'apres vos annonces".
+Utilise ces infos pour comprendre leur realite et ecrire un email qui RESONNE avec leur
+situation, comme si tu connaissais bien leur metier. Le prospect doit se dire "tiens, il
+comprend vraiment mon quotidien" sans jamais sentir qu'on l'a "stalke".
+
+DONNEES PROSPECT (ne pas citer, utiliser pour adapter l'angle) :
 - Prenom : ${context.prospect.first_name || 'Non renseigne'}
 - Nom : ${context.prospect.last_name || 'Non renseigne'}
 - Email : ${context.prospect.email}
 - Poste : ${context.prospect.job_title || 'Non renseigne'}
 - Entreprise : ${context.prospect.company || 'Non renseignee'}
-- Secteur : ${(context.prospect.custom_fields?.industry as string) || 'Non renseigne'}
-- Localisation : ${context.prospect.location || 'Non renseignee'}
-- Site web : ${context.prospect.website || 'Non renseigne'}
-${context.prospect.enrichments.length > 0 ? `\nENRICHISSEMENTS :\n${JSON.stringify(context.prospect.enrichments, null, 2)}` : ''}
+- Secteur : ${context.prospect.industry || (cf.industry as string) || 'Non renseigne'}
+- Ville : ${context.prospect.city || context.prospect.location || 'Non renseignee'}
+- Site web : ${context.prospect.website || 'Non renseigne'}${customFieldsBlock}${notesBlock}${enrichmentsBlock}
 
 PERFORMANCES :
 - Taux d'ouverture : ${(context.performance.openRate * 100).toFixed(1)}%
@@ -735,7 +777,7 @@ ${context.performance.avoidSubjects.length > 0 ? `- Objets a eviter : ${context.
 ${memoryContext}
 ${context.bookingUrl ? `LIEN DE PRISE DE RENDEZ-VOUS : ${context.bookingUrl}
 Propose ce lien quand c'est pertinent, notamment dans les relances ou quand le prospect semble interesse. Ne le mets pas systematiquement dans chaque email pour rester naturel. Quand tu l'inclus, integre-le de facon fluide en fin de message (ex: "Si ca vous dit d'en parler, voici un lien pour caler un creneau : ${context.bookingUrl}").` : ''}
-${task.abTestVariant ? `VARIANTE A/B : ${task.abTestVariant} - Propose une approche differente.` : ''}
+${task.abTestVariant ? `VARIANTE A/B : ${task.abTestVariant} - Propose une approche differente.` : ''}${aiPromptContextBlock}
 
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
 

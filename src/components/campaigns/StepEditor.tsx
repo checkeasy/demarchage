@@ -161,6 +161,8 @@ function EmailStepEditor({
   const [subjectB, setSubjectB] = useState(existingB?.subject || "");
   const [bodyB, setBodyB] = useState(existingB?.body_html || "");
   const [weightA, setWeightA] = useState(existingA?.weight ?? 50);
+  const [useAiGeneration, setUseAiGeneration] = useState(step.use_ai_generation ?? false);
+  const [aiPromptContext, setAiPromptContext] = useState(step.ai_prompt_context ?? "");
   const { generate, isLoading: aiLoading } = useTemplateGeneration();
 
   useEffect(() => {
@@ -172,7 +174,9 @@ function EmailStepEditor({
     setSubjectB(b?.subject || "");
     setBodyB(b?.body_html || "");
     setWeightA(a?.weight ?? 50);
-  }, [step.id, step.subject, step.body_html, step.ab_enabled, step.ab_variants]);
+    setUseAiGeneration(step.use_ai_generation ?? false);
+    setAiPromptContext(step.ai_prompt_context ?? "");
+  }, [step.id, step.subject, step.body_html, step.ab_enabled, step.ab_variants, step.use_ai_generation, step.ai_prompt_context]);
 
   const handleAIGenerate = async (variant: "A" | "B" = "A") => {
     const result = await generate({
@@ -227,11 +231,40 @@ function EmailStepEditor({
       body_text: body.replace(/<[^>]*>/g, ""),
       ab_enabled: abEnabled,
       ab_variants: variants,
+      use_ai_generation: useAiGeneration,
+      ai_prompt_context: aiPromptContext || null,
     });
   };
 
   return (
     <div className="space-y-5">
+      {/* AI personalization toggle */}
+      <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+        <div>
+          <p className="text-sm font-medium">Personnaliser par IA</p>
+          <p className="text-xs text-muted-foreground">
+            L&apos;IA adapte le contenu a chaque prospect en se basant sur ses donnees
+          </p>
+        </div>
+        <Switch checked={useAiGeneration} onCheckedChange={setUseAiGeneration} />
+      </div>
+      {useAiGeneration && (
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Instructions supplementaires (optionnel) : angle, ton, points a aborder..."
+            value={aiPromptContext}
+            onChange={(e) => setAiPromptContext(e.target.value)}
+            rows={3}
+            className="text-sm"
+          />
+          {(subject || body) && (
+            <p className="text-xs text-muted-foreground">
+              Le template ci-dessous sert de fallback si l&apos;IA est indisponible.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* A/B test toggle */}
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div>

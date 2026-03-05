@@ -235,6 +235,7 @@ export interface OutreachTask {
   linkedinMessageType?: 'connection' | 'followup' | 'inmail';
   abTestVariant?: string;
   previousSubjects?: string[];
+  aiPromptContext?: string;
 }
 
 export interface GeneratedEmail {

@@ -120,6 +120,8 @@ export default function EditCampaignPage() {
             linkedin_message: s.linkedin_message,
             whatsapp_message: (s.whatsapp_message as string) ?? null,
             ab_enabled: s.ab_enabled,
+            use_ai_generation: (s.use_ai_generation as boolean) ?? false,
+            ai_prompt_context: (s.ai_prompt_context as string) ?? null,
           }))
         );
       } catch (err) {

@@ -18,6 +18,7 @@ import {
   logWhatsAppAction,
 } from "@/lib/whatsapp/rate-limiter";
 import { WhatsAppActionType } from "@/lib/whatsapp/types";
+import { getOrchestrator } from "@/lib/agents/orchestrator";
 
 const BATCH_SIZE = 10;
 const MIN_EMAIL_SCORE = 75; // Ne pas envoyer aux emails avec score < 75
@@ -296,27 +297,78 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Merge template variables (use view column aliases)
-        const templateData = prospectToTemplateData({
-          email: item.prospect_email,
-          first_name: item.prospect_first_name,
-          last_name: item.prospect_last_name,
-          company: item.prospect_company,
-          custom_fields: item.custom_fields,
-        });
+        // --- AI Generation (if enabled on this step) ---
+        let aiGenerated = false;
+        if (step.use_ai_generation) {
+          try {
+            const orchestrator = getOrchestrator();
 
-        // Add booking URL from email account
-        const bookingUrl = (item as Record<string, unknown>).booking_url as string | null;
-        if (bookingUrl) {
-          templateData.bookingUrl = bookingUrl;
-          templateData.bookingLink = `<a href="${bookingUrl}" target="_blank">Reserver un creneau</a>`;
+            // Fetch subjects of previous emails for this prospect in this campaign
+            const { data: prevEmails } = await supabase
+              .from("emails_sent")
+              .select("subject")
+              .eq("campaign_prospect_id", item.campaign_prospect_id as string)
+              .order("sent_at", { ascending: true });
+
+            const previousSubjects = (prevEmails || [])
+              .map((e) => e.subject as string)
+              .filter(Boolean);
+
+            const generated = await orchestrator.generateOutreach({
+              workspaceId: item.workspace_id as string,
+              prospectId: item.prospect_id as string,
+              campaignId: item.campaign_id as string,
+              channel: 'email',
+              stepNumber: (step.step_order as number) || 1,
+              previousSubjects,
+              aiPromptContext: (step.ai_prompt_context as string) || undefined,
+            });
+
+            const aiEmail = generated.content as Record<string, unknown>;
+            if (aiEmail.subject) subject = aiEmail.subject as string;
+            if (aiEmail.body_html) bodyHtml = aiEmail.body_html as string;
+            if (aiEmail.body_text) bodyText = aiEmail.body_text as string;
+            aiGenerated = true;
+
+            console.log(`[SendEmails] AI generated email for ${item.prospect_email} (cost: $${generated.metadata.costUsd.toFixed(4)})`);
+          } catch (err) {
+            // Fallback: send the static template (aiGenerated stays false)
+            console.error(`[SendEmails] AI generation failed for ${item.prospect_email}, using template:`, err);
+          }
         }
 
-        const mergedSubject = mergeTemplate(subject, templateData);
-        let mergedBody = mergeTemplate(bodyHtml, templateData);
-        const mergedText = bodyText
-          ? mergeTemplate(bodyText, templateData)
-          : undefined;
+        // Merge template variables only for static templates (AI content is already personalized)
+        let mergedSubject: string;
+        let mergedBody: string;
+        let mergedText: string | undefined;
+
+        if (aiGenerated) {
+          // AI already personalized — skip template merge to avoid stripping {words}
+          mergedSubject = subject;
+          mergedBody = bodyHtml;
+          mergedText = bodyText || undefined;
+        } else {
+          const templateData = prospectToTemplateData({
+            email: item.prospect_email,
+            first_name: item.prospect_first_name,
+            last_name: item.prospect_last_name,
+            company: item.prospect_company,
+            custom_fields: item.custom_fields,
+          });
+
+          // Add booking URL from email account
+          const bookingUrl = (item as Record<string, unknown>).booking_url as string | null;
+          if (bookingUrl) {
+            templateData.bookingUrl = bookingUrl;
+            templateData.bookingLink = `<a href="${bookingUrl}" target="_blank">Reserver un creneau</a>`;
+          }
+
+          mergedSubject = mergeTemplate(subject, templateData);
+          mergedBody = mergeTemplate(bodyHtml, templateData);
+          mergedText = bodyText
+            ? mergeTemplate(bodyText, templateData)
+            : undefined;
+        }
 
         // Safety: skip if subject is empty after merge (missing variables)
         if (!mergedSubject || mergedSubject.trim().length < 3) {

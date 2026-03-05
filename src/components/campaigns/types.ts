@@ -26,4 +26,6 @@ export interface StepData {
   whatsapp_message: string | null;
   ab_enabled: boolean;
   ab_variants?: ABVariant[];
+  use_ai_generation: boolean;
+  ai_prompt_context: string | null;
 }
