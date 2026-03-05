@@ -1187,6 +1187,8 @@ export function ProspectDetail({
         open={showAddActivity}
         onOpenChange={setShowAddActivity}
         prospectId={prospect.id}
+        prospectName={[prospect.first_name, prospect.last_name].filter(Boolean).join(' ') || undefined}
+        prospectCompany={prospect.company || undefined}
         onActivityAdded={handleActivityRefresh}
       />
       <ImportCrmHistoryDialog

@@ -11,6 +11,7 @@ import {
   Eye,
   AlertTriangle,
   ChevronDown,
+  ChevronRight,
   Linkedin,
   Phone,
   PhoneCall,
@@ -20,9 +21,22 @@ import {
   ArrowRightLeft,
   Bot,
   Search,
+  Mic,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+export interface TimelineEventMetadata {
+  has_recording?: boolean;
+  audio_url?: string;
+  audio_duration_seconds?: number;
+  audio_mime_type?: string;
+  transcription?: string;
+  summary?: string;
+  key_points?: string[];
+  action_items?: string[];
+  recorded_at?: string;
+}
 
 export interface TimelineEvent {
   id: string;
@@ -40,6 +54,7 @@ export interface TimelineEvent {
   description: string;
   detail?: string;
   date: string;
+  metadata?: TimelineEventMetadata;
 }
 
 const EVENT_CONFIG: Record<string, { icon: React.ElementType; color: string; bgColor: string; label: string }> = {
@@ -143,10 +158,30 @@ export function ProspectTimeline({ events }: ProspectTimelineProps) {
             <div className="flex-1 pb-4 min-w-0">
               <div className="flex items-start gap-2">
                 <p className="text-sm text-slate-900 flex-1">{event.description}</p>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 h-5">
-                  {config.label}
-                </Badge>
+                <div className="flex items-center gap-1 shrink-0">
+                  {event.metadata?.has_recording && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 gap-0.5">
+                      <Mic className="size-2.5" />
+                      {event.metadata.audio_duration_seconds != null && (
+                        <span>
+                          {Math.floor(event.metadata.audio_duration_seconds / 60)}:{Math.floor(event.metadata.audio_duration_seconds % 60).toString().padStart(2, "0")}
+                        </span>
+                      )}
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                    {config.label}
+                  </Badge>
+                </div>
               </div>
+
+              {/* Audio player for recordings */}
+              {event.metadata?.has_recording && event.metadata.audio_url && (
+                <div className="mt-1.5">
+                  <audio controls src={event.metadata.audio_url} className="w-full h-8" preload="none" />
+                </div>
+              )}
+
               {event.detail && (
                 <div
                   className={`mt-1 text-xs text-muted-foreground bg-slate-50 rounded px-2 py-1.5 border border-slate-100 ${
@@ -165,6 +200,29 @@ export function ProspectTimeline({ events }: ProspectTimelineProps) {
                   Voir plus...
                 </button>
               )}
+
+              {/* Transcription toggle for recordings */}
+              {event.metadata?.has_recording && event.metadata.transcription && (
+                <div className="mt-1">
+                  <button
+                    onClick={() => toggleExpand(`${event.id}-transcript`)}
+                    className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                  >
+                    {expandedIds.has(`${event.id}-transcript`) ? (
+                      <ChevronDown className="size-3" />
+                    ) : (
+                      <ChevronRight className="size-3" />
+                    )}
+                    Voir la transcription
+                  </button>
+                  {expandedIds.has(`${event.id}-transcript`) && (
+                    <div className="mt-1 text-xs text-muted-foreground bg-slate-50 rounded px-2 py-1.5 border border-slate-100 max-h-48 overflow-y-auto">
+                      <span className="whitespace-pre-wrap">{event.metadata.transcription}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <p className="text-[10px] text-muted-foreground mt-1">
                 {new Date(event.date).toLocaleDateString("fr-FR", {
                   day: "2-digit",

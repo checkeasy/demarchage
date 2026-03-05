@@ -158,6 +158,7 @@ export default async function ProspectPage({ params }: ProspectPageProps) {
       description: activity.subject || activity.activity_type,
       detail: activity.body || undefined,
       date: activity.created_at,
+      metadata: activity.metadata || undefined,
     };
   });
 
