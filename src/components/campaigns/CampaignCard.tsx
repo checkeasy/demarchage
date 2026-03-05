@@ -61,31 +61,31 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
       <CardContent className="space-y-4">
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Mail className="size-3.5" />
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <Mail className="size-3.5 shrink-0" />
             <span className="font-medium text-foreground">
               {campaign.total_sent}
             </span>
-            <span className="text-xs">envoy.</span>
+            <span className="text-[11px] leading-none">envoy.</span>
           </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Eye className="size-3.5" />
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <Eye className="size-3.5 shrink-0" />
             <span className="font-medium text-foreground">{openRate}%</span>
-            <span className="text-xs">ouvert.</span>
+            <span className="text-[11px] leading-none">ouvert.</span>
           </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Reply className="size-3.5" />
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <Reply className="size-3.5 shrink-0" />
             <span className="font-medium text-foreground">{replyRate}%</span>
-            <span className="text-xs">rep.</span>
+            <span className="text-[11px] leading-none">rep.</span>
           </div>
         </div>
 
         {/* Progress bar */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Progression</span>
-            <span>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="shrink-0">Progression</span>
+            <span className="truncate text-right">
               {campaign.total_sent} / {campaign.total_prospects} prospects
             </span>
           </div>
@@ -99,8 +99,8 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
         {/* Created date */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t">
-          <Calendar className="size-3" />
-          <span>Creee le {createdDate}</span>
+          <Calendar className="size-3 shrink-0" />
+          <span className="truncate">Creee le {createdDate}</span>
         </div>
       </CardContent>
     </Card>
