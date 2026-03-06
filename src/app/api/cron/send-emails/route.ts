@@ -189,6 +189,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Bulk-fetch previous email subjects for AI generation (avoid N+1) ---
+    const aiEnabledStepIds = [...stepsMap.values()]
+      .filter((s) => s.use_ai_generation)
+      .map((s) => s.id as string);
+
+    const prevSubjectsByProspect = new Map<string, string[]>();
+    if (aiEnabledStepIds.length > 0) {
+      const aiProspectIds = queue
+        .filter((q) => aiEnabledStepIds.includes(q.current_step_id as string))
+        .map((q) => ({ campaignProspectId: q.campaign_prospect_id as string, prospectId: q.prospect_id as string }));
+
+      if (aiProspectIds.length > 0) {
+        const cpIds = aiProspectIds.map((p) => p.campaignProspectId);
+        const { data: prevEmails } = await supabase
+          .from("emails_sent")
+          .select("campaign_prospect_id, subject")
+          .in("campaign_prospect_id", cpIds)
+          .order("sent_at", { ascending: true });
+
+        if (prevEmails) {
+          for (const e of prevEmails) {
+            const cpId = e.campaign_prospect_id as string;
+            if (!prevSubjectsByProspect.has(cpId)) {
+              prevSubjectsByProspect.set(cpId, []);
+            }
+            if (e.subject) prevSubjectsByProspect.get(cpId)!.push(e.subject as string);
+          }
+        }
+      }
+    }
+
     let sentCount = 0;
     let errorCount = 0;
     let skippedCount = 0;
@@ -303,16 +334,8 @@ export async function POST(request: NextRequest) {
           try {
             const orchestrator = getOrchestrator();
 
-            // Fetch subjects of previous emails for this prospect in this campaign
-            const { data: prevEmails } = await supabase
-              .from("emails_sent")
-              .select("subject")
-              .eq("campaign_prospect_id", item.campaign_prospect_id as string)
-              .order("sent_at", { ascending: true });
-
-            const previousSubjects = (prevEmails || [])
-              .map((e) => e.subject as string)
-              .filter(Boolean);
+            // Use pre-fetched subjects (bulk-loaded above)
+            const previousSubjects = prevSubjectsByProspect.get(item.campaign_prospect_id as string) || [];
 
             const generated = await orchestrator.generateOutreach({
               workspaceId: item.workspace_id as string,

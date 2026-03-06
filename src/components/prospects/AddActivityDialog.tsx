@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { PhoneCall, CalendarCheck, StickyNote, Mail, MessageSquare, ArrowRightLeft, Mic, Loader2 } from "lucide-react";
 
@@ -23,7 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AudioRecorder } from "@/components/audio/AudioRecorder";
+
+const AudioRecorder = dynamic(
+  () => import("@/components/audio/AudioRecorder").then((m) => m.AudioRecorder),
+  { ssr: false }
+);
 
 const ACTIVITY_TYPES = [
   { value: "call_logged", label: "Appel telephone", icon: PhoneCall, channel: "phone" },
