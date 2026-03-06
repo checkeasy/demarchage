@@ -40,6 +40,7 @@ import { Progress } from "@/components/ui/progress";
 import { PipelineValueCard } from "@/components/dashboard/PipelineValueCard";
 import { DealsWonLostChartLazy } from "@/components/dashboard/DealsWonLostChartLazy";
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
+import { TodayCockpit } from "@/components/dashboard/TodayCockpit";
 
 // --- Activity type icon map for upcoming activities ---
 const ACTIVITY_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -174,6 +175,12 @@ export default async function DashboardPage() {
     { data: upcomingActivities },
     { data: overdueActivities },
     { data: topProspectsRaw },
+    // Cockpit queries
+    { count: cockpitToContact },
+    { count: cockpitReplies },
+    { count: cockpitFollowUps },
+    { count: cockpitActivities },
+    { data: cockpitHotProspects },
   ] = await Promise.all([
     // Onboarding checklist counts
     supabase
@@ -316,6 +323,43 @@ export default async function DashboardPage() {
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(500),
+    // Cockpit: Prospects to contact
+    supabase
+      .from("prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .eq("pipeline_stage", "to_contact"),
+    // Cockpit: Unhandled replies (warm/hot prospects needing attention)
+    supabase
+      .from("prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .in("status", ["warm", "hot"]),
+    // Cockpit: Follow-ups due today
+    supabase
+      .from("campaign_prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active")
+      .gte("next_send_at", todayStart.toISOString())
+      .lte("next_send_at", todayEnd.toISOString()),
+    // Cockpit: Activities due today (calls/meetings)
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("is_done", false)
+      .in("activity_type", ["call", "meeting"])
+      .gte("due_date", todayStart.toISOString())
+      .lte("due_date", todayEnd.toISOString()),
+    // Cockpit: Hot/warm prospects
+    supabase
+      .from("prospects")
+      .select("id, first_name, last_name, company, status")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["hot", "warm"])
+      .order("updated_at", { ascending: false })
+      .limit(10),
   ]);
 
   // --- Derive onboarding state ---
@@ -571,6 +615,15 @@ export default async function DashboardPage() {
           Vue d&apos;ensemble de votre CRM et de vos campagnes
         </p>
       </div>
+
+      {/* Today's Cockpit */}
+      <TodayCockpit
+        prospectsToContact={cockpitToContact ?? 0}
+        repliesToHandle={cockpitReplies ?? 0}
+        followUpsDue={cockpitFollowUps ?? 0}
+        activitiesDue={cockpitActivities ?? 0}
+        hotProspects={(cockpitHotProspects || []) as { id: string; first_name: string | null; last_name: string | null; company: string | null; status: string }[]}
+      />
 
       {/* Onboarding Checklist */}
       {!onboardingComplete && (

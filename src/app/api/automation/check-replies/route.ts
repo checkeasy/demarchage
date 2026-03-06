@@ -102,6 +102,21 @@ export async function POST() {
             .eq('id', activity.prospect_id);
         }
 
+        // Auto-log meeting suggestion for hot prospects with meeting intent
+        if (intent === 'meeting_request' || (intent === 'interested' && newStatus === 'hot')) {
+          await supabase.from('prospect_activities').insert({
+            prospect_id: activity.prospect_id,
+            workspace_id: activity.workspace_id,
+            activity_type: 'meeting_suggested',
+            metadata: {
+              trigger: 'auto_analysis',
+              intent,
+              sentiment,
+              message: 'Prospect chaud detecte - RDV recommande',
+            },
+          });
+        }
+
         analyzed++;
       } catch (err) {
         console.error(`[CheckReplies] Error analyzing activity ${activity.id}:`, err);

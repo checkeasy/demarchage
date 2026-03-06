@@ -428,6 +428,201 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     return result;
   }
 
+  // ─── Public: Generate Meeting Message ────────────────────────────────────
+
+  /**
+   * Generate a meeting booking message for a hot prospect.
+   */
+  async generateMeetingMessage(
+    workspaceId: string,
+    prospectId: string,
+    channel: 'email' | 'linkedin' = 'email',
+    bookingUrl?: string
+  ): Promise<GenerationResult> {
+    const startTime = Date.now();
+    const agentType: AgentType = 'email_writer';
+
+    const wsContext = await this.fetchWorkspaceProductContext(workspaceId);
+    const { config, prompt } = await this.getAgentConfigAndPrompt(
+      workspaceId,
+      agentType,
+      wsContext
+    );
+
+    const prospect = await this.fetchProspectContext(workspaceId, prospectId);
+
+    // Resolve booking URL from email_accounts if not provided
+    let resolvedBookingUrl = bookingUrl || '';
+    if (!resolvedBookingUrl) {
+      const supabase = createAdminClient();
+      const { data } = await supabase
+        .from('email_accounts')
+        .select('booking_url')
+        .eq('workspace_id', workspaceId)
+        .not('booking_url', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      resolvedBookingUrl = (data?.booking_url as string) || '';
+    }
+
+    // Fetch recent interactions for context
+    const supabase = createAdminClient();
+    const { data: recentActivities } = await supabase
+      .from('prospect_activities')
+      .select('activity_type, subject, body, created_at')
+      .eq('prospect_id', prospectId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const recentHistory = (recentActivities || [])
+      .map(a => `[${a.activity_type}] ${a.subject || ''}: ${(a.body || '').slice(0, 200)}`)
+      .join('\n');
+
+    const bookingLine = resolvedBookingUrl
+      ? `\nINTEGRE naturellement ce lien de reservation dans le message : ${resolvedBookingUrl}`
+      : '\nNe mets PAS de lien de reservation, propose simplement un appel.';
+
+    const userMessage = `Genere un message court pour proposer un rendez-vous a un prospect CHAUD qui a montre de l'interet.
+
+CANAL : ${channel === 'email' ? 'Email' : 'LinkedIn'}
+${channel === 'email' ? 'Genere aussi un objet d\'email (subject).' : ''}
+
+PROFIL DU PROSPECT :
+- Prenom : ${prospect.first_name || ''}
+- Nom : ${prospect.last_name || ''}
+- Entreprise : ${prospect.company || 'Non renseignee'}
+- Secteur : ${prospect.industry || (prospect.custom_fields?.industry as string) || 'Non renseigne'}
+- Poste : ${prospect.job_title || 'Non renseigne'}
+
+HISTORIQUE RECENT :
+${recentHistory || 'Aucune interaction recente.'}
+${bookingLine}
+
+REGLES :
+- Maximum 4 phrases
+- Ton chaleureux mais professionnel
+- Pas de pression, pas de pitch
+- Fais reference a leur interet ou dernier echange
+- Termine par une question ouverte
+
+Reponds en JSON : { "subject": "...", "message": "...", "personalization_hooks": ["..."] }`;
+
+    const response = await getAnthropic().messages.create({
+      model: config.model,
+      max_tokens: config.max_tokens,
+      temperature: config.temperature,
+      system: prompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    const text = extractClaudeText(response);
+    const parsed = safeJsonParse<Record<string, unknown>>(text, {
+      subject: '',
+      message: text,
+      personalization_hooks: [],
+    });
+
+    return {
+      content: parsed,
+      metadata: {
+        agentType,
+        model: config.model,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        costUsd: computeCost(config.model, response.usage.input_tokens, response.usage.output_tokens),
+        personalizationScore: 0,
+        generationDurationMs: Date.now() - startTime,
+        strategyId: null,
+        promptVersionId: config.active_prompt_version_id,
+        cacheHit: false,
+      },
+    };
+  }
+
+  // ─── Public: Generate Value Response ───────────────────────────────────
+
+  /**
+   * Generate a helpful value response (mini-audit) for a prospect who replied positively.
+   */
+  async generateValueResponse(
+    workspaceId: string,
+    prospectId: string,
+    replyText: string,
+    replyAnalysis: Record<string, unknown>
+  ): Promise<GenerationResult> {
+    const startTime = Date.now();
+    const agentType: AgentType = 'email_writer';
+
+    const wsContext = await this.fetchWorkspaceProductContext(workspaceId);
+    const { config, prompt } = await this.getAgentConfigAndPrompt(
+      workspaceId,
+      agentType,
+      wsContext
+    );
+
+    const prospect = await this.fetchProspectContext(workspaceId, prospectId);
+
+    // Get AI research data if available
+    const aiResearch = prospect.custom_fields?.ai_research as Record<string, unknown> | undefined;
+
+    const userMessage = `Un prospect a repondu POSITIVEMENT. Genere une REPONSE DE VALEUR : un mini-audit ou conseil concret et actionnable.
+
+PROFIL DU PROSPECT :
+- Prenom : ${prospect.first_name || ''}
+- Nom : ${prospect.last_name || ''}
+- Entreprise : ${prospect.company || 'Non renseignee'}
+- Secteur : ${aiResearch?.industry || prospect.industry || (prospect.custom_fields?.industry as string) || 'Non renseigne'}
+- Points de douleur : ${JSON.stringify(aiResearch?.pain_points || [])}
+- Description entreprise : ${(aiResearch?.company_description as string) || ''}
+
+LEUR REPONSE :
+"${replyText}"
+
+ANALYSE : sentiment=${replyAnalysis.sentiment || 'positive'}, intent=${replyAnalysis.intent || 'interested'}
+
+REGLES :
+- PAS un pitch commercial — donne de la valeur reelle
+- UNE recommandation concrete qu'ils peuvent appliquer immediatement
+- Maximum 150 mots
+- Ton expert mais accessible
+- Montre que tu comprends leur metier
+- Termine par une ouverture naturelle vers un echange plus approfondi
+
+Reponds en JSON : { "subject": "...", "value_insight": "Le conseil principal en 1 phrase", "full_response": "Le message complet", "personalization_hooks": ["..."] }`;
+
+    const response = await getAnthropic().messages.create({
+      model: config.model,
+      max_tokens: config.max_tokens,
+      temperature: config.temperature,
+      system: prompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    const text = extractClaudeText(response);
+    const parsed = safeJsonParse<Record<string, unknown>>(text, {
+      subject: '',
+      value_insight: '',
+      full_response: text,
+      personalization_hooks: [],
+    });
+
+    return {
+      content: parsed,
+      metadata: {
+        agentType,
+        model: config.model,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        costUsd: computeCost(config.model, response.usage.input_tokens, response.usage.output_tokens),
+        personalizationScore: 0,
+        generationDurationMs: Date.now() - startTime,
+        strategyId: null,
+        promptVersionId: config.active_prompt_version_id,
+        cacheHit: false,
+      },
+    };
+  }
+
   // ─── Private: Build Context ─────────────────────────────────────────────
 
   /**

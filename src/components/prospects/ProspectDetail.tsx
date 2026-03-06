@@ -63,6 +63,8 @@ import {
 import { ProspectTimeline, type TimelineEvent } from "./ProspectTimeline";
 import { AIResearchCard } from "./AIResearchCard";
 import { AISuggestedReplyCard } from "./AISuggestedReplyCard";
+import { AIValueResponseCard } from "./AIValueResponseCard";
+import { HotProspectBanner } from "./HotProspectBanner";
 import { NoteList } from "@/components/notes/NoteList";
 import { AddActivityDialog } from "./AddActivityDialog";
 import { ImportCrmHistoryDialog } from "./ImportCrmHistoryDialog";
@@ -815,6 +817,9 @@ export function ProspectDetail({
         );
       })()}
 
+      {/* Hot Prospect Banner */}
+      <HotProspectBanner prospect={prospect} />
+
       {/* AI Research Card */}
       <AIResearchCard prospect={prospect} />
 
@@ -840,6 +845,31 @@ export function ProspectDetail({
             prospect={prospect}
             lastReplyText={replyText}
             previousInteractions={prevInteractions}
+          />
+        );
+      })()}
+
+      {/* AI Value Response (only for positive/interested replies) */}
+      {(() => {
+        const lastReply = timelineEvents.find(
+          (e) => e.type === 'email_replied'
+        );
+        if (!lastReply) return null;
+        const replyText = lastReply.detail || lastReply.description || '';
+        if (!replyText) return null;
+        // Find AI analysis for this reply
+        const aiAnalysis = timelineEvents.find(
+          (e) => e.type === 'ai_reply_analysis'
+        );
+        const analysisMetadata = aiAnalysis?.metadata as Record<string, string> | undefined;
+        return (
+          <AIValueResponseCard
+            prospect={prospect}
+            lastReplyText={replyText}
+            replyAnalysis={analysisMetadata ? {
+              sentiment: analysisMetadata.sentiment,
+              intent: analysisMetadata.intent,
+            } : undefined}
           />
         );
       })()}

@@ -21,6 +21,18 @@ interface AIReplyAnalysisParams {
   previousInteractions?: Array<{ role: string; content: string; sent_at?: string }>;
 }
 
+interface AIMeetingMessageParams {
+  prospectId: string;
+  channel?: "email" | "linkedin";
+  bookingUrl?: string;
+}
+
+interface AIValueResponseParams {
+  prospectId: string;
+  replyText: string;
+  replyAnalysis?: Record<string, unknown>;
+}
+
 interface AIStrategyParams {
   segmentStats: {
     totalProspects: number;
@@ -111,6 +123,54 @@ export function useAIGeneration() {
     []
   );
 
+  const generateMeetingMessage = useCallback(
+    async (params: AIMeetingMessageParams): Promise<AnyResult | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/agents/meeting-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur de generation");
+        return data.result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        setError(msg);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const generateValueResponse = useCallback(
+    async (params: AIValueResponseParams): Promise<AnyResult | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/agents/value-response", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur de generation");
+        return data.result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        setError(msg);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
   const getStrategy = useCallback(
     async (params: AIStrategyParams): Promise<AnyResult | null> => {
       setIsLoading(true);
@@ -139,6 +199,8 @@ export function useAIGeneration() {
     generateOutreach,
     researchProspect,
     analyzeReply,
+    generateMeetingMessage,
+    generateValueResponse,
     getStrategy,
     isLoading,
     error,

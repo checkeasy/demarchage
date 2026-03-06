@@ -80,6 +80,7 @@ const EVENT_CONFIG: Record<string, { icon: React.ElementType; color: string; bgC
   call_logged: { icon: PhoneCall, color: "text-orange-600", bgColor: "bg-orange-50", label: "Appel" },
   meeting_scheduled: { icon: CalendarClock, color: "text-indigo-600", bgColor: "bg-indigo-50", label: "RDV" },
   meeting_completed: { icon: CalendarCheck, color: "text-indigo-600", bgColor: "bg-indigo-50", label: "RDV" },
+  meeting_suggested: { icon: CalendarClock, color: "text-orange-600", bgColor: "bg-orange-50", label: "RDV suggere" },
   note_added: { icon: StickyNote, color: "text-amber-600", bgColor: "bg-amber-50", label: "Note" },
   status_changed: { icon: ArrowRightLeft, color: "text-slate-600", bgColor: "bg-slate-100", label: "Statut" },
   // WhatsApp

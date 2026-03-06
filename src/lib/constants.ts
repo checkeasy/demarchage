@@ -13,6 +13,7 @@ import {
   Shield,
   Kanban,
   CheckSquare,
+  FileText,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -45,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Scraper", href: "/scraper", icon: Search, group: "tools" },
   { label: "Google Maps", href: "/maps-scraper", icon: MapPin, group: "tools" },
   { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
+  { label: "Lead Magnets", href: "/lead-magnets", icon: FileText, group: "tools" },
   // Settings
   { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
 ];
