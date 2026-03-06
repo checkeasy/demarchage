@@ -136,7 +136,13 @@ export async function POST(request: NextRequest) {
     let actionItems: string[] = [];
 
     try {
-      const parsed = JSON.parse(rawSummary);
+      // Strip markdown code block wrappers if present (```json ... ```)
+      const cleanedSummary = rawSummary
+        .trim()
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?\s*```\s*$/i, "")
+        .trim();
+      const parsed = JSON.parse(cleanedSummary);
       summary = parsed.summary || summary;
       keyPoints = Array.isArray(parsed.key_points) ? parsed.key_points : [];
       actionItems = Array.isArray(parsed.action_items) ? parsed.action_items : [];

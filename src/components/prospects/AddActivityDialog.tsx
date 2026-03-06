@@ -186,7 +186,7 @@ export function AddActivityDialog({ open, onOpenChange, prospectId, prospectName
     }
   };
 
-  const isCallType = activityType === "call_logged";
+  const isCallType = activityType === "call_logged" || activityType === "meeting_completed";
   const hasRecording = !!audioBlob;
 
   return (
