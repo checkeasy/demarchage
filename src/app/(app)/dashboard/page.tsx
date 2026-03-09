@@ -336,11 +336,12 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .in("status", ["warm", "hot"]),
-    // Cockpit: Follow-ups due today
+    // Cockpit: Follow-ups due today (scoped to workspace via campaigns)
     supabase
       .from("campaign_prospects")
-      .select("id", { count: "exact", head: true })
+      .select("id, campaigns!inner(workspace_id)", { count: "exact", head: true })
       .eq("status", "active")
+      .eq("campaigns.workspace_id", workspaceId)
       .gte("next_send_at", todayStart.toISOString())
       .lte("next_send_at", todayEnd.toISOString()),
     // Cockpit: Activities due today (calls/meetings)

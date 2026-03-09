@@ -65,6 +65,7 @@ export default async function CampaignDetailPage({
       id,
       prospect_id,
       status,
+      status_reason,
       current_step_id,
       next_send_at,
       enrolled_at,

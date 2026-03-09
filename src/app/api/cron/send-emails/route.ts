@@ -252,10 +252,18 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Skip prospects with low email validity score
+        // Stop sequence for prospects with invalid email
         const emailScore = item.email_validity_score as number | null;
         if (emailScore !== null && emailScore < MIN_EMAIL_SCORE) {
-          console.log(`[SendEmails] Skipping ${item.prospect_email}: email score ${emailScore}% < ${MIN_EMAIL_SCORE}%`);
+          console.log(`[SendEmails] Stopping sequence for ${item.prospect_email}: email score ${emailScore}% < ${MIN_EMAIL_SCORE}%`);
+          await supabase
+            .from("campaign_prospects")
+            .update({
+              status: "error",
+              status_reason: `Email invalide (score: ${emailScore}% — minimum requis: ${MIN_EMAIL_SCORE}%)`,
+              next_send_at: null,
+            })
+            .eq("id", item.campaign_prospect_id);
           skippedCount++;
           continue;
         }
@@ -398,7 +406,7 @@ export async function POST(request: NextRequest) {
           console.warn(`[SendEmails] Skipping email for prospect ${item.prospect_email}: subject too short after merge ("${mergedSubject}"). Original: "${subject}"`);
           await supabase
             .from("campaign_prospects")
-            .update({ next_send_at: null, status: "error" })
+            .update({ next_send_at: null, status: "error", status_reason: "Sujet vide apres fusion des variables" })
             .eq("id", item.campaign_prospect_id);
           skippedCount++;
           continue;
@@ -508,7 +516,7 @@ export async function POST(request: NextRequest) {
 
           sentCount++;
         } else {
-          // Mark as failed
+          // Mark email as failed
           await supabase
             .from("emails_sent")
             .update({
@@ -517,7 +525,45 @@ export async function POST(request: NextRequest) {
             })
             .eq("id", emailRecord.id);
 
+          // Detect hard bounce (550, 551, 552, 553, 554) → stop sequence
+          const errorMsg = (result.error || "").toLowerCase();
+          const isHardBounce = /\b55[0-4]\b/.test(errorMsg)
+            || errorMsg.includes("user unknown")
+            || errorMsg.includes("address rejected")
+            || errorMsg.includes("mailbox not found")
+            || errorMsg.includes("does not exist")
+            || errorMsg.includes("no such user")
+            || errorMsg.includes("invalid recipient");
+
+          if (isHardBounce) {
+            console.log(`[SendEmails] Hard bounce for ${item.prospect_email}: ${result.error}`);
+            await supabase
+              .from("campaign_prospects")
+              .update({
+                status: "bounced",
+                status_reason: `Email introuvable : ${result.error}`,
+                next_send_at: null,
+              })
+              .eq("id", item.campaign_prospect_id);
+
+            // Also mark the prospect's email as invalid
+            await supabase
+              .from("prospects")
+              .update({ email_validity_score: 0 })
+              .eq("id", item.prospect_id);
+
+            // Increment campaign bounce count
+            await supabase.rpc("increment_campaign_stat", {
+              p_campaign_id: item.campaign_id,
+              p_column: "total_bounced",
+            });
+          } else {
+            // Soft failure (temp error) - still advance to next step
+            await advanceToNextStep(supabase, item);
+          }
+
           errorCount++;
+          continue;
         }
 
         // Advance to next step

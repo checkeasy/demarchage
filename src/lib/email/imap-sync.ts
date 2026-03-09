@@ -101,7 +101,20 @@ async function syncAccount(
 
     for (const email of inboundEmails) {
       try {
-        // Dedup: skip if already processed
+        // Check if this is a bounce notification (mailer-daemon, postmaster)
+        const fromLower = (email.from || "").toLowerCase();
+        const isBounce = fromLower.includes("mailer-daemon")
+          || fromLower.includes("postmaster")
+          || (email.subject || "").toLowerCase().includes("delivery status notification")
+          || (email.subject || "").toLowerCase().includes("undeliverable")
+          || (email.subject || "").toLowerCase().includes("adresse introuvable");
+
+        if (isBounce) {
+          await processBounceEmail(supabase, email, imapAccount);
+          continue;
+        }
+
+        // Dedup: skip if already processed (only for non-bounce emails)
         if (email.messageId) {
           const { data: existing } = await supabase
             .from("inbox_messages")
@@ -383,4 +396,156 @@ async function processMatchedReply(
       last_contacted_at: email.date.toISOString(),
     })
     .eq("id", match.prospectId);
+}
+
+// ─── Bounce Email Processing ───────────────────────────────────────────────
+
+async function processBounceEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  email: InboundEmail,
+  account: ImapAccount
+) {
+  // Extract the bounced email address from the bounce notification body
+  const bodyText = email.textContent || email.htmlContent || "";
+  const bouncedAddress = extractBouncedAddress(bodyText, email.subject);
+
+  if (!bouncedAddress) {
+    console.log(`[ImapSync] Bounce detected but could not extract address from: ${email.subject}`);
+    return;
+  }
+
+  console.log(`[ImapSync] Bounce detected for: ${bouncedAddress}`);
+
+  // Find the most recent email we sent to this address from this account
+  const { data: sentEmail } = await supabase
+    .from("emails_sent")
+    .select("id, campaign_prospect_id, to_email")
+    .eq("to_email", bouncedAddress)
+    .eq("email_account_id", account.id)
+    .eq("status", "sent")
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sentEmail) {
+    console.log(`[ImapSync] No matching sent email found for bounced address: ${bouncedAddress}`);
+    return;
+  }
+
+  // Mark the sent email as bounced
+  await supabase
+    .from("emails_sent")
+    .update({ status: "bounced", error_message: `Bounce: ${email.subject}` })
+    .eq("id", sentEmail.id);
+
+  // Stop the campaign sequence for this prospect
+  if (sentEmail.campaign_prospect_id) {
+    const { data: cp } = await supabase
+      .from("campaign_prospects")
+      .select("id, campaign_id, prospect_id, status")
+      .eq("id", sentEmail.campaign_prospect_id)
+      .single();
+
+    if (cp && cp.status === "active") {
+      await supabase
+        .from("campaign_prospects")
+        .update({
+          status: "bounced",
+          status_reason: `Email introuvable (bounce) : ${bouncedAddress}`,
+          next_send_at: null,
+        })
+        .eq("id", cp.id);
+
+      // Mark prospect email as invalid
+      await supabase
+        .from("prospects")
+        .update({ email_validity_score: 0 })
+        .eq("id", cp.prospect_id);
+
+      // Increment bounce counter
+      try {
+        await supabase.rpc("increment_campaign_stat", {
+          p_campaign_id: cp.campaign_id,
+          p_column: "total_bounced",
+        });
+      } catch {
+        // RPC may not exist
+      }
+
+      console.log(`[ImapSync] Stopped sequence for bounced prospect: ${bouncedAddress} (campaign_prospect ${cp.id})`);
+    }
+  }
+
+  // Also stop ALL other active campaign_prospects for this email address
+  const { data: prospect } = await supabase
+    .from("prospects")
+    .select("id")
+    .eq("email", bouncedAddress)
+    .limit(1)
+    .maybeSingle();
+
+  if (prospect) {
+    const { data: otherCps } = await supabase
+      .from("campaign_prospects")
+      .select("id, campaign_id")
+      .eq("prospect_id", prospect.id)
+      .eq("status", "active");
+
+    if (otherCps && otherCps.length > 0) {
+      for (const ocp of otherCps) {
+        await supabase
+          .from("campaign_prospects")
+          .update({
+            status: "bounced",
+            status_reason: `Email introuvable (bounce) : ${bouncedAddress}`,
+            next_send_at: null,
+          })
+          .eq("id", ocp.id);
+
+        try {
+          await supabase.rpc("increment_campaign_stat", {
+            p_campaign_id: ocp.campaign_id,
+            p_column: "total_bounced",
+          });
+        } catch {
+          // ignore
+        }
+      }
+      console.log(`[ImapSync] Also stopped ${otherCps.length} other active sequences for ${bouncedAddress}`);
+    }
+  }
+}
+
+function extractBouncedAddress(body: string, subject: string): string | null {
+  // Common patterns in bounce notifications
+  const patterns = [
+    // "Your message to X was not delivered"
+    /message.*?to\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    // "Delivery to X failed"
+    /delivery\s+to\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    // "550 5.1.1 <email@example.com>"
+    /55[0-4]\s+[\d.]+\s+<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?/i,
+    // "Recipient address rejected: email@example.com"
+    /recipient.*?rejected.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    // "n'est pas parvenu à email@example.com" (French Gmail)
+    /parvenu.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    // Generic: first email address that's not ours (mailer-daemon, postmaster)
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+  ];
+
+  const combined = subject + " " + body;
+
+  for (const pattern of patterns) {
+    const match = combined.match(pattern);
+    if (match && match[1]) {
+      const addr = match[1].toLowerCase();
+      // Skip mailer-daemon and postmaster addresses
+      if (addr.includes("mailer-daemon") || addr.includes("postmaster") || addr.includes("noreply")) {
+        continue;
+      }
+      return addr;
+    }
+  }
+
+  return null;
 }

@@ -62,6 +62,7 @@ interface CampaignProspect {
   id: string;
   prospect_id: string;
   status: string;
+  status_reason: string | null;
   current_step_id: string | null;
   next_send_at: string | null;
   enrolled_at: string | null;
@@ -83,6 +84,7 @@ const PROSPECT_STATUS_MAP: Record<string, { label: string; color: string }> = {
   bounced: { label: "Bounce", color: "bg-red-100 text-red-700" },
   replied: { label: "Repondu", color: "bg-purple-100 text-purple-700" },
   unsubscribed: { label: "Desabonne", color: "bg-slate-100 text-slate-700" },
+  error: { label: "Email invalide", color: "bg-red-100 text-red-700" },
 };
 
 const ITEMS_PER_PAGE = 25;
@@ -679,9 +681,16 @@ function CampaignProspectsTab({
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className={`text-xs ${statusCfg?.color || ""}`}>
-                              {statusCfg?.label || cp.status}
-                            </Badge>
+                            <div className="flex flex-col gap-0.5">
+                              <Badge variant="secondary" className={`text-xs ${statusCfg?.color || ""}`}>
+                                {statusCfg?.label || cp.status}
+                              </Badge>
+                              {cp.status_reason && (
+                                <span className="text-[10px] text-red-500 leading-tight">
+                                  {cp.status_reason}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm">
                             {currentStep ? (
