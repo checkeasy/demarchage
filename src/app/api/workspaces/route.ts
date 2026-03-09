@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET: List all workspaces the user belongs to
 export async function GET() {
@@ -12,10 +13,10 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   }
 
-  // Get current workspace id
+  // Get current workspace id + user role
   const { data: profile } = await supabase
     .from("profiles")
-    .select("current_workspace_id")
+    .select("current_workspace_id, role")
     .eq("id", user.id)
     .single();
 
@@ -50,7 +51,9 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ workspaces });
+  const isSuperAdmin = profile?.role === "super_admin" || user.app_metadata?.role === "super_admin";
+
+  return NextResponse.json({ workspaces, isSuperAdmin });
 }
 
 // POST: Create a new workspace
@@ -122,4 +125,104 @@ export async function POST(request: NextRequest) {
     .eq("id", user.id);
 
   return NextResponse.json({ workspace });
+}
+
+// DELETE: Delete a workspace (super_admin only)
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+  }
+
+  // Verify super_admin
+  const isSuperAdmin = user.app_metadata?.role === "super_admin";
+  if (!isSuperAdmin) {
+    const adminClient = createAdminClient();
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.role !== "super_admin") {
+      return NextResponse.json(
+        { error: "Seuls les super administrateurs peuvent supprimer un environnement" },
+        { status: 403 }
+      );
+    }
+  }
+
+  const { workspaceId } = await request.json();
+
+  if (!workspaceId) {
+    return NextResponse.json(
+      { error: "L'identifiant du workspace est requis" },
+      { status: 400 }
+    );
+  }
+
+  // Verify workspace exists
+  const adminClient = createAdminClient();
+  const { data: workspace } = await adminClient
+    .from("workspaces")
+    .select("id, name")
+    .eq("id", workspaceId)
+    .single();
+
+  if (!workspace) {
+    return NextResponse.json(
+      { error: "Environnement introuvable" },
+      { status: 404 }
+    );
+  }
+
+  // If the user's current workspace is the one being deleted, switch to another
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("current_workspace_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.current_workspace_id === workspaceId) {
+    // Find another workspace to switch to
+    const { data: otherMembership } = await adminClient
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .neq("workspace_id", workspaceId)
+      .limit(1)
+      .maybeSingle();
+
+    if (otherMembership) {
+      await adminClient
+        .from("profiles")
+        .update({ current_workspace_id: otherMembership.workspace_id })
+        .eq("id", user.id);
+    } else {
+      await adminClient
+        .from("profiles")
+        .update({ current_workspace_id: null })
+        .eq("id", user.id);
+    }
+  }
+
+  // Delete workspace (CASCADE will clean up all related data)
+  const { error: deleteError } = await adminClient
+    .from("workspaces")
+    .delete()
+    .eq("id", workspaceId);
+
+  if (deleteError) {
+    console.error("[Workspaces] Delete error:", deleteError);
+    return NextResponse.json(
+      { error: "Erreur lors de la suppression", details: deleteError.message },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ success: true, deletedName: workspace.name });
 }

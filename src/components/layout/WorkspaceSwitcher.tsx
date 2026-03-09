@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -70,9 +70,11 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showDelete, setShowDelete] = useState<Workspace | null>(null);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const router = useRouter();
 
   const current = workspaces.find((w) => w.isCurrent);
@@ -85,6 +87,7 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
         if (res.ok && !cancelled) {
           const data = await res.json();
           setWorkspaces(data.workspaces || []);
+          setIsSuperAdmin(data.isSuperAdmin || false);
         }
       } catch {
         // silent fail on load
@@ -119,6 +122,33 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
       toast.error("Erreur lors du changement d'environnement");
     }
     setSwitching(false);
+  }
+
+  async function deleteWorkspace(ws: Workspace) {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: ws.id }),
+      });
+
+      if (res.ok) {
+        toast.success(`Environnement "${ws.name}" supprime`);
+        setShowDelete(null);
+        setWorkspaces((prev) => prev.filter((w) => w.id !== ws.id));
+        if (ws.isCurrent) {
+          router.push("/dashboard");
+          router.refresh();
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la suppression");
+      }
+    } catch {
+      toast.error("Erreur lors de la suppression");
+    }
+    setLoading(false);
   }
 
   async function createWorkspace() {
@@ -185,10 +215,15 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
             <WorkspaceList
               workspaces={workspaces}
               switching={switching}
+              isSuperAdmin={isSuperAdmin}
               onSwitch={switchWorkspace}
               onCreate={() => {
                 setOpen(false);
                 setShowCreate(true);
+              }}
+              onDelete={(ws) => {
+                setOpen(false);
+                setShowDelete(ws);
               }}
             />
           </PopoverContent>
@@ -201,6 +236,13 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
           setNewName={setNewName}
           loading={loading}
           onCreate={createWorkspace}
+        />
+
+        <DeleteDialog
+          workspace={showDelete}
+          onOpenChange={(open) => !open && setShowDelete(null)}
+          loading={loading}
+          onDelete={deleteWorkspace}
         />
       </>
     );
@@ -238,10 +280,15 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
           <WorkspaceList
             workspaces={workspaces}
             switching={switching}
+            isSuperAdmin={isSuperAdmin}
             onSwitch={switchWorkspace}
             onCreate={() => {
               setOpen(false);
               setShowCreate(true);
+            }}
+            onDelete={(ws) => {
+              setOpen(false);
+              setShowDelete(ws);
             }}
           />
         </PopoverContent>
@@ -255,6 +302,13 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
         loading={loading}
         onCreate={createWorkspace}
       />
+
+      <DeleteDialog
+        workspace={showDelete}
+        onOpenChange={(open) => !open && setShowDelete(null)}
+        loading={loading}
+        onDelete={deleteWorkspace}
+      />
     </>
   );
 }
@@ -263,13 +317,17 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
 function WorkspaceList({
   workspaces,
   switching,
+  isSuperAdmin,
   onSwitch,
   onCreate,
+  onDelete,
 }: {
   workspaces: Workspace[];
   switching: boolean;
+  isSuperAdmin: boolean;
   onSwitch: (id: string) => void;
   onCreate: () => void;
+  onDelete: (ws: Workspace) => void;
 }) {
   return (
     <div className="py-1">
@@ -279,20 +337,36 @@ function WorkspaceList({
         </p>
       </div>
       {workspaces.map((ws) => (
-        <button
+        <div
           key={ws.id}
-          onClick={() => onSwitch(ws.id)}
-          disabled={switching}
-          className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+          className="flex items-center gap-0 group"
         >
-          <div
-            className={`flex items-center justify-center w-6 h-6 rounded ${getWorkspaceColor(ws.name)} text-white text-[10px] font-bold shrink-0`}
+          <button
+            onClick={() => onSwitch(ws.id)}
+            disabled={switching}
+            className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-50"
           >
-            {getInitials(ws.name)}
-          </div>
-          <span className="flex-1 text-left truncate">{ws.name}</span>
-          {ws.isCurrent && <Check className="size-4 text-blue-500 shrink-0" />}
-        </button>
+            <div
+              className={`flex items-center justify-center w-6 h-6 rounded ${getWorkspaceColor(ws.name)} text-white text-[10px] font-bold shrink-0`}
+            >
+              {getInitials(ws.name)}
+            </div>
+            <span className="flex-1 text-left truncate">{ws.name}</span>
+            {ws.isCurrent && <Check className="size-4 text-blue-500 shrink-0" />}
+          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(ws);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1.5 mr-2 rounded hover:bg-red-100 text-muted-foreground hover:text-red-600 transition-all shrink-0"
+              title="Supprimer"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )}
+        </div>
       ))}
       <Separator className="my-1" />
       <button
@@ -356,6 +430,89 @@ function CreateDialog({
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Creer
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Delete workspace dialog with double confirmation
+function DeleteDialog({
+  workspace,
+  onOpenChange,
+  loading,
+  onDelete,
+}: {
+  workspace: Workspace | null;
+  onOpenChange: (open: boolean) => void;
+  loading: boolean;
+  onDelete: (ws: Workspace) => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const expectedText = workspace?.name || "";
+  const isConfirmed = confirmText === expectedText;
+
+  return (
+    <Dialog
+      open={!!workspace}
+      onOpenChange={(open) => {
+        if (!open) setConfirmText("");
+        onOpenChange(open);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-red-600 flex items-center gap-2">
+            <Trash2 className="size-5" />
+            Supprimer l&apos;environnement
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-2">
+            <p className="text-sm font-medium text-red-800">
+              Cette action est irreversible.
+            </p>
+            <p className="text-xs text-red-700">
+              Toutes les donnees seront definitivement supprimees : prospects,
+              campagnes, emails envoyes, deals, activites, comptes email et
+              parametres.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm">
+              Tapez <span className="font-bold">{expectedText}</span> pour
+              confirmer
+            </Label>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={expectedText}
+              className={
+                confirmText.length > 0 && !isConfirmed
+                  ? "border-red-300 focus-visible:ring-red-500"
+                  : ""
+              }
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setConfirmText("");
+                onOpenChange(false);
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => workspace && onDelete(workspace)}
+              disabled={loading || !isConfirmed}
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Supprimer definitivement
             </Button>
           </div>
         </div>
