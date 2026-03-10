@@ -456,9 +456,16 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Send via Gmail SMTP or Resend based on provider
+        // Send via Gmail SMTP with Resend fallback
         const provider = (item.email_provider as string) || "gmail";
         let result: { success: boolean; messageId?: string; error?: string };
+
+        // Build the Resend-compatible from address (use send.checkeasy.co subdomain)
+        const fromEmail = (item.from_email_address as string) || "adrien@checkeasy.co";
+        const fromName = (item.from_display_name as string) || "";
+        const resendFrom = fromName
+          ? `${fromName} <${fromEmail.replace(/@checkeasy\.co$/, "@send.checkeasy.co")}>`
+          : fromEmail.replace(/@checkeasy\.co$/, "@send.checkeasy.co");
 
         if (provider === "gmail") {
           // Delay aleatoire 2-5s entre emails pour simuler envoi humain
@@ -473,9 +480,22 @@ export async function POST(request: NextRequest) {
             text: mergedText,
             from: emailRecord.from_email,
           });
+
+          // Fallback to Resend if Gmail SMTP fails (e.g. port blocked on cloud)
+          if (!result.success && (result.error?.includes("timeout") || result.error?.includes("ENETUNREACH") || result.error?.includes("ECONNREFUSED"))) {
+            console.log(`[SendEmails] Gmail SMTP failed for ${item.prospect_email}, falling back to Resend: ${result.error}`);
+            result = await sendEmail({
+              from: resendFrom,
+              to: item.prospect_email as string,
+              subject: mergedSubject,
+              html: processedBody,
+              text: mergedText,
+              replyTo: fromEmail,
+            });
+          }
         } else {
           result = await sendEmail({
-            from: emailRecord.from_email,
+            from: resendFrom,
             to: item.prospect_email as string,
             subject: mergedSubject,
             html: processedBody,
@@ -558,8 +578,9 @@ export async function POST(request: NextRequest) {
               p_column: "total_bounced",
             });
           } else {
-            // Soft failure (temp error) - still advance to next step
-            await advanceToNextStep(supabase, item);
+            // Soft failure (temp error) - do NOT advance, retry on next cron run
+            // Keep current step and next_send_at so it gets picked up again
+            console.log(`[SendEmails] Soft failure for ${item.prospect_email}: ${result.error} — will retry`);
           }
 
           errorCount++;
