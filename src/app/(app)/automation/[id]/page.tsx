@@ -33,6 +33,9 @@ import {
   ChevronUp,
   ChevronDown,
   GripVertical,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   Settings,
   Linkedin,
 } from "lucide-react";
@@ -389,6 +392,15 @@ export default function AutomationDetailPage() {
   const [prospectStatusFilter, setProspectStatusFilter] = useState("all");
   const [linkedinFilter, setLinkedinFilter] = useState<"all" | "with" | "without">("all");
 
+  // Prospect sorting
+  type AutoSortCol = "prospect" | "company" | "status" | "step" | "next_action";
+  const [autoSortCol, setAutoSortCol] = useState<AutoSortCol | null>(null);
+  const [autoSortDir, setAutoSortDir] = useState<"asc" | "desc">("asc");
+  const toggleAutoSort = (col: AutoSortCol) => {
+    if (autoSortCol === col) setAutoSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setAutoSortCol(col); setAutoSortDir("asc"); }
+  };
+
   // Prospect selection & removal
   const [selectedProspectIds, setSelectedProspectIds] = useState<Set<string>>(new Set());
   const [isRemoving, setIsRemoving] = useState(false);
@@ -542,6 +554,35 @@ export default function AutomationDetailPage() {
       return true;
     });
   }, [prospects, prospectSearch, prospectStatusFilter, linkedinFilter]);
+
+  const sortedProspects = useMemo(() => {
+    if (!autoSortCol) return filteredProspects;
+    const dir = autoSortDir === "asc" ? 1 : -1;
+    return [...filteredProspects].sort((a, b) => {
+      const pa = getProspectData(a);
+      const pb = getProspectData(b);
+      if (!pa || !pb) return 0;
+      switch (autoSortCol) {
+        case "prospect": {
+          const na = [pa.first_name, pa.last_name].filter(Boolean).join(" ").toLowerCase();
+          const nb = [pb.first_name, pb.last_name].filter(Boolean).join(" ").toLowerCase();
+          return na.localeCompare(nb) * dir;
+        }
+        case "company":
+          return (pa.organization || pa.company || "").localeCompare(pb.organization || pb.company || "") * dir;
+        case "status":
+          return a.status.localeCompare(b.status) * dir;
+        case "step": {
+          const sa = a.current_step_id && sequence ? (sequence.steps.find((s) => s.id === a.current_step_id)?.stepOrder ?? 0) : 0;
+          const sb = b.current_step_id && sequence ? (sequence.steps.find((s) => s.id === b.current_step_id)?.stepOrder ?? 0) : 0;
+          return (sa - sb) * dir;
+        }
+        case "next_action":
+          return (a.next_action_at || "").localeCompare(b.next_action_at || "") * dir;
+        default: return 0;
+      }
+    });
+  }, [filteredProspects, autoSortCol, autoSortDir, sequence]);
 
   const prospectStatusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1058,14 +1099,14 @@ export default function AutomationDetailPage() {
                       <TableRow>
                         <TableHead className="w-[40px]">
                           <Checkbox
-                            checked={filteredProspects.length > 0 && filteredProspects.slice(0, 50).every((cp) => {
+                            checked={sortedProspects.length > 0 && sortedProspects.slice(0, 50).every((cp) => {
                               const p = getProspectData(cp);
                               return p ? selectedProspectIds.has(p.id) : true;
                             })}
                             onCheckedChange={(checked) => {
                               if (checked) {
                                 const ids = new Set(selectedProspectIds);
-                                filteredProspects.slice(0, 50).forEach((cp) => {
+                                sortedProspects.slice(0, 50).forEach((cp) => {
                                   const p = getProspectData(cp);
                                   if (p) ids.add(p.id);
                                 });
@@ -1076,24 +1117,42 @@ export default function AutomationDetailPage() {
                             }}
                           />
                         </TableHead>
-                        <TableHead>Prospect</TableHead>
-                        <TableHead className="hidden sm:table-cell">Entreprise</TableHead>
+                        {([
+                          { key: "prospect" as AutoSortCol, label: "Prospect", className: "" },
+                          { key: "company" as AutoSortCol, label: "Entreprise", className: "hidden sm:table-cell" },
+                        ]).map((col) => {
+                          const Icon = autoSortCol === col.key ? (autoSortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead key={col.key} className={`${col.className} cursor-pointer select-none hover:bg-muted/50`} onClick={() => toggleAutoSort(col.key)}>
+                              <span className="flex items-center gap-1">{col.label}<Icon className={`size-3 ${autoSortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} /></span>
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="hidden sm:table-cell">LinkedIn</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="hidden md:table-cell">Etape actuelle</TableHead>
-                        <TableHead className="hidden lg:table-cell">Prochaine action</TableHead>
+                        {([
+                          { key: "status" as AutoSortCol, label: "Statut", className: "" },
+                          { key: "step" as AutoSortCol, label: "Etape actuelle", className: "hidden md:table-cell" },
+                          { key: "next_action" as AutoSortCol, label: "Prochaine action", className: "hidden lg:table-cell" },
+                        ]).map((col) => {
+                          const Icon = autoSortCol === col.key ? (autoSortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead key={col.key} className={`${col.className} cursor-pointer select-none hover:bg-muted/50`} onClick={() => toggleAutoSort(col.key)}>
+                              <span className="flex items-center gap-1">{col.label}<Icon className={`size-3 ${autoSortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} /></span>
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="w-[80px]" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredProspects.length === 0 ? (
+                      {sortedProspects.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                             Aucun prospect ne correspond a votre recherche.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredProspects.slice(0, 50).map((cp) => {
+                        sortedProspects.slice(0, 50).map((cp) => {
                           const p = getProspectData(cp);
                           if (!p) return null;
                           const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email;

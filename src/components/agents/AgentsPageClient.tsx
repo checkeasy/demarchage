@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Brain,
   Sparkles,
@@ -18,6 +18,9 @@ import {
   FileText,
   Check,
   ChevronRight,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -306,6 +309,29 @@ export function AgentsPageClient({
   }, [configs.length, loadPerformance]);
 
   const activeCount = configs.filter((c) => c.is_active).length;
+
+  type AgentSortCol = "agent" | "generations" | "score" | "tokens" | "cost";
+  const [agentSortCol, setAgentSortCol] = useState<AgentSortCol | null>(null);
+  const [agentSortDir, setAgentSortDir] = useState<"asc" | "desc">("asc");
+  const toggleAgentSort = (col: AgentSortCol) => {
+    if (agentSortCol === col) setAgentSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setAgentSortCol(col); setAgentSortDir("asc"); }
+  };
+
+  const sortedAgentStats = useMemo(() => {
+    if (!performance?.agentStats || !agentSortCol) return performance?.agentStats || [];
+    const dir = agentSortDir === "asc" ? 1 : -1;
+    return [...performance.agentStats].sort((a, b) => {
+      switch (agentSortCol) {
+        case "agent": return a.agent_type.localeCompare(b.agent_type) * dir;
+        case "generations": return (a.total_generations - b.total_generations) * dir;
+        case "score": return (a.avg_personalization_score - b.avg_personalization_score) * dir;
+        case "tokens": return (a.avg_tokens - b.avg_tokens) * dir;
+        case "cost": return (a.total_cost_usd - b.total_cost_usd) * dir;
+        default: return 0;
+      }
+    });
+  }, [performance?.agentStats, agentSortCol, agentSortDir]);
 
   // Agent type name mapping for the stats table
   const agentTypeNames: Record<string, string> = {
@@ -761,25 +787,31 @@ export function AgentsPageClient({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                        <TableHead className="font-medium text-slate-600">
-                          Agent
-                        </TableHead>
-                        <TableHead className="text-right font-medium text-slate-600">
-                          Generations
-                        </TableHead>
-                        <TableHead className="text-right font-medium text-slate-600">
-                          Score perso.
-                        </TableHead>
-                        <TableHead className="text-right font-medium text-slate-600">
-                          Tokens moy.
-                        </TableHead>
-                        <TableHead className="text-right font-medium text-slate-600">
-                          Cout
-                        </TableHead>
+                        {([
+                          { key: "agent" as AgentSortCol, label: "Agent", className: "" },
+                          { key: "generations" as AgentSortCol, label: "Generations", className: "text-right" },
+                          { key: "score" as AgentSortCol, label: "Score perso.", className: "text-right" },
+                          { key: "tokens" as AgentSortCol, label: "Tokens moy.", className: "text-right" },
+                          { key: "cost" as AgentSortCol, label: "Cout", className: "text-right" },
+                        ]).map((col) => {
+                          const Icon = agentSortCol === col.key ? (agentSortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                          return (
+                            <TableHead
+                              key={col.key}
+                              className={`${col.className} font-medium text-slate-600 cursor-pointer select-none hover:bg-muted/50`}
+                              onClick={() => toggleAgentSort(col.key)}
+                            >
+                              <span className={`flex items-center gap-1 ${col.className.includes("text-right") ? "justify-end" : ""}`}>
+                                {col.label}
+                                <Icon className={`size-3 ${agentSortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
+                              </span>
+                            </TableHead>
+                          );
+                        })}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {performance.agentStats.map((stat) => (
+                      {sortedAgentStats.map((stat) => (
                         <TableRow key={stat.agent_type}>
                           <TableCell className="font-medium text-slate-900">
                             {agentTypeNames[stat.agent_type] ||

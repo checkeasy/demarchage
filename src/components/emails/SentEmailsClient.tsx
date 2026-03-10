@@ -15,6 +15,9 @@ import {
   AlertTriangle,
   Send,
   SearchX,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -91,6 +94,15 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
   const [page, setPage] = useState(1);
   const [previewEmail, setPreviewEmail] = useState<SentEmail | null>(null);
 
+  type SortCol = "recipient" | "subject" | "campaign" | "status" | "date";
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+    setPage(1);
+  };
+
   const filtered = useMemo(() => {
     let result = emails;
 
@@ -113,8 +125,28 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
     return result;
   }, [emails, search, statusFilter]);
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated = filtered.slice(
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortCol) {
+        case "recipient":
+          return (a.prospect_name || a.to_email).localeCompare(b.prospect_name || b.to_email) * dir;
+        case "subject":
+          return (a.subject || "").localeCompare(b.subject || "") * dir;
+        case "campaign":
+          return (a.campaign_name || "").localeCompare(b.campaign_name || "") * dir;
+        case "status":
+          return a.status.localeCompare(b.status) * dir;
+        case "date":
+          return (a.sent_at || a.created_at).localeCompare(b.sent_at || b.created_at) * dir;
+        default: return 0;
+      }
+    });
+  }, [filtered, sortCol, sortDir]);
+
+  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
+  const paginated = sorted.slice(
     (page - 1) * ITEMS_PER_PAGE,
     page * ITEMS_PER_PAGE
   );
@@ -212,11 +244,27 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Destinataire</TableHead>
-              <TableHead className="hidden sm:table-cell">Objet</TableHead>
-              <TableHead className="hidden md:table-cell">Campagne</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead className="hidden sm:table-cell">Date</TableHead>
+              {([
+                { key: "recipient" as SortCol, label: "Destinataire", className: "" },
+                { key: "subject" as SortCol, label: "Objet", className: "hidden sm:table-cell" },
+                { key: "campaign" as SortCol, label: "Campagne", className: "hidden md:table-cell" },
+                { key: "status" as SortCol, label: "Statut", className: "" },
+                { key: "date" as SortCol, label: "Date", className: "hidden sm:table-cell" },
+              ]).map((col) => {
+                const Icon = sortCol === col.key ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                return (
+                  <TableHead
+                    key={col.key}
+                    className={`${col.className} cursor-pointer select-none hover:bg-muted/50`}
+                    onClick={() => toggleSort(col.key)}
+                  >
+                    <span className="flex items-center gap-1">
+                      {col.label}
+                      <Icon className={`size-3 ${sortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
+                    </span>
+                  </TableHead>
+                );
+              })}
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -303,8 +351,8 @@ export function SentEmailsClient({ emails }: SentEmailsClientProps) {
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {(page - 1) * ITEMS_PER_PAGE + 1} -{" "}
-            {Math.min(page * ITEMS_PER_PAGE, filtered.length)} sur{" "}
-            {filtered.length}
+            {Math.min(page * ITEMS_PER_PAGE, sorted.length)} sur{" "}
+            {sorted.length}
           </p>
           <div className="flex gap-2">
             <Button

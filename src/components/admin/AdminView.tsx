@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Shield,
   UserPlus,
@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   Loader2,
   Users,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -186,6 +189,28 @@ export function AdminView() {
     }
   };
 
+  type SortCol = "name" | "email" | "role" | "status";
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
+  const sortedUsers = useMemo(() => {
+    if (!sortCol) return users;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...users].sort((a, b) => {
+      switch (sortCol) {
+        case "name": return (a.full_name || "").localeCompare(b.full_name || "") * dir;
+        case "email": return a.email.localeCompare(b.email) * dir;
+        case "role": return a.role.localeCompare(b.role) * dir;
+        case "status": return (a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1) * dir;
+        default: return 0;
+      }
+    });
+  }, [users, sortCol, sortDir]);
+
   const toggleWsId = (
     ids: string[],
     setIds: (ids: string[]) => void,
@@ -252,16 +277,45 @@ export function AdminView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                {([
+                  { key: "name" as SortCol, label: "Nom" },
+                  { key: "email" as SortCol, label: "Email" },
+                  { key: "role" as SortCol, label: "Role" },
+                ] as { key: SortCol; label: string }[]).map((col) => {
+                  const Icon = sortCol === col.key ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                  return (
+                    <TableHead
+                      key={col.key}
+                      className="cursor-pointer select-none hover:bg-muted/50"
+                      onClick={() => toggleSort(col.key)}
+                    >
+                      <span className="flex items-center gap-1">
+                        {col.label}
+                        <Icon className={`size-3 ${sortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
+                      </span>
+                    </TableHead>
+                  );
+                })}
                 <TableHead>Workspaces</TableHead>
-                <TableHead>Statut</TableHead>
+                {(() => {
+                  const Icon = sortCol === "status" ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                  return (
+                    <TableHead
+                      className="cursor-pointer select-none hover:bg-muted/50"
+                      onClick={() => toggleSort("status")}
+                    >
+                      <span className="flex items-center gap-1">
+                        Statut
+                        <Icon className={`size-3 ${sortCol === "status" ? "text-foreground" : "text-muted-foreground/50"}`} />
+                      </span>
+                    </TableHead>
+                  );
+                })()}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {sortedUsers.map((user) => (
                 <TableRow
                   key={user.id}
                   className={!user.is_active ? "opacity-50" : ""}

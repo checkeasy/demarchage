@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -40,6 +42,39 @@ export function DealListView({ stages, deals }: DealListViewProps) {
 
   const stageMap = new Map(stages.map((s) => [s.id, s]));
 
+  type SortCol = "deal" | "contact" | "stage" | "amount" | "probability" | "close_date" | "created";
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
+  const sortedDeals = useMemo(() => {
+    if (!sortCol) return deals;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...deals].sort((a, b) => {
+      switch (sortCol) {
+        case "deal": return a.title.localeCompare(b.title) * dir;
+        case "contact": {
+          const na = a.prospect ? `${a.prospect.first_name || ""} ${a.prospect.last_name || ""}`.trim() : "";
+          const nb = b.prospect ? `${b.prospect.first_name || ""} ${b.prospect.last_name || ""}`.trim() : "";
+          return na.localeCompare(nb) * dir;
+        }
+        case "stage": {
+          const sa = stageMap.get(a.stage_id)?.name || "";
+          const sb = stageMap.get(b.stage_id)?.name || "";
+          return sa.localeCompare(sb) * dir;
+        }
+        case "amount": return ((a.value ?? 0) - (b.value ?? 0)) * dir;
+        case "probability": return (a.probability - b.probability) * dir;
+        case "close_date": return (a.expected_close_date || "").localeCompare(b.expected_close_date || "") * dir;
+        case "created": return a.created_at.localeCompare(b.created_at) * dir;
+        default: return 0;
+      }
+    });
+  }, [deals, sortCol, sortDir, stageMap]);
+
   if (deals.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
@@ -53,17 +88,33 @@ export function DealListView({ stages, deals }: DealListViewProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Deal</TableHead>
-            <TableHead>Contact</TableHead>
-            <TableHead>Etape</TableHead>
-            <TableHead className="text-right">Montant</TableHead>
-            <TableHead className="hidden sm:table-cell">Probabilite</TableHead>
-            <TableHead className="hidden md:table-cell">Cloture prevue</TableHead>
-            <TableHead className="hidden md:table-cell">Cree le</TableHead>
+            {([
+              { key: "deal" as SortCol, label: "Deal", className: "" },
+              { key: "contact" as SortCol, label: "Contact", className: "" },
+              { key: "stage" as SortCol, label: "Etape", className: "" },
+              { key: "amount" as SortCol, label: "Montant", className: "text-right" },
+              { key: "probability" as SortCol, label: "Probabilite", className: "hidden sm:table-cell" },
+              { key: "close_date" as SortCol, label: "Cloture prevue", className: "hidden md:table-cell" },
+              { key: "created" as SortCol, label: "Cree le", className: "hidden md:table-cell" },
+            ]).map((col) => {
+              const Icon = sortCol === col.key ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+              return (
+                <TableHead
+                  key={col.key}
+                  className={`${col.className} cursor-pointer select-none hover:bg-muted/50`}
+                  onClick={() => toggleSort(col.key)}
+                >
+                  <span className="flex items-center gap-1">
+                    {col.label}
+                    <Icon className={`size-3 ${sortCol === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
+                  </span>
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {deals.map((deal) => {
+          {sortedDeals.map((deal) => {
             const stage = stageMap.get(deal.stage_id);
             const prospectName = deal.prospect
               ? `${deal.prospect.first_name || ""} ${deal.prospect.last_name || ""}`.trim()
