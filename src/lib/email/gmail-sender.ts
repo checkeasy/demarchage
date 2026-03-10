@@ -18,35 +18,69 @@ export interface SendEmailResult {
   error?: string;
 }
 
+// ─── Gmail SMTP IPv4 Address ────────────────────────────────────────────────
+
+// Pre-resolved IPv4 address for smtp.gmail.com to bypass IPv6 DNS resolution
+// Gmail SMTP resolves to multiple IPs; we resolve once at startup
+let resolvedSmtpHost: string | null = null;
+
+async function resolveGmailIPv4(): Promise<string> {
+  if (resolvedSmtpHost) return resolvedSmtpHost;
+
+  return new Promise((resolve, reject) => {
+    dns.resolve4('smtp.gmail.com', (err, addresses) => {
+      if (err || !addresses || addresses.length === 0) {
+        console.warn('[GmailSender] DNS resolve4 failed, falling back to hostname');
+        resolve('smtp.gmail.com');
+        return;
+      }
+      resolvedSmtpHost = addresses[0];
+      console.log(`[GmailSender] Resolved smtp.gmail.com → ${resolvedSmtpHost} (IPv4)`);
+      resolve(resolvedSmtpHost);
+    });
+  });
+}
+
 // ─── Gmail Transporter ──────────────────────────────────────────────────────
 
-// Singleton - recreated on config change (server restart)
+// Force IPv4 globally at process level
+dns.setDefaultResultOrder('ipv4first');
+
+// Per-host transporter cache (keyed by resolved IP)
 let transporter: nodemailer.Transporter | null = null;
+let transporterHost: string | null = null;
 
-function getTransporter(): nodemailer.Transporter {
-  if (!transporter) {
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD;
+async function getTransporter(): Promise<nodemailer.Transporter> {
+  const smtpHost = await resolveGmailIPv4();
 
-    if (!user || !pass) {
-      throw new Error(
-        'GMAIL_USER et GMAIL_APP_PASSWORD doivent etre definis dans .env.local'
-      );
-    }
-
-    // Force IPv4 globally for this process - VPS has no IPv6 connectivity
-    dns.setDefaultResultOrder('ipv4first');
-
-    transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: { user, pass },
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 30000,
-    } as Record<string, unknown>);
+  if (transporter && transporterHost === smtpHost) {
+    return transporter;
   }
+
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!user || !pass) {
+    throw new Error(
+      'GMAIL_USER et GMAIL_APP_PASSWORD doivent etre definis dans .env.local'
+    );
+  }
+
+  transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: 587,
+    secure: false,
+    auth: { user, pass },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
+    // Ensure TLS connects with the real hostname for certificate validation
+    tls: {
+      servername: 'smtp.gmail.com',
+    },
+  });
+
+  transporterHost = smtpHost;
   return transporter;
 }
 
@@ -54,7 +88,7 @@ function getTransporter(): nodemailer.Transporter {
 
 export async function sendGmail(params: SendEmailParams): Promise<SendEmailResult> {
   try {
-    const transport = getTransporter();
+    const transport = await getTransporter();
     const from = params.from || process.env.GMAIL_USER!;
 
     const info = await transport.sendMail({
@@ -115,7 +149,7 @@ export async function verifyGmailConnection(): Promise<{
   error?: string;
 }> {
   try {
-    const transport = getTransporter();
+    const transport = await getTransporter();
     await transport.verify();
     return { success: true };
   } catch (err) {
