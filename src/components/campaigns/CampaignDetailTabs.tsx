@@ -40,6 +40,9 @@ import {
   Sparkles,
   Loader2,
   CheckCircle2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -421,6 +424,20 @@ function CampaignProspectsTab({
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ analyzed: number; total: number } | null>(null);
 
+  type SortColumn = "prospect" | "company" | "email_score" | "lead_score" | "status" | "step" | "next_send" | "enrolled";
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleSort = (col: SortColumn) => {
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
+
   // Build step lookup
   const stepMap = useMemo(() => {
     const map: Record<string, { order: number; type: string; subject: string | null }> = {};
@@ -459,8 +476,48 @@ function CampaignProspectsTab({
     });
   }, [campaignProspects, search, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const sorted = useMemo(() => {
+    if (!sortColumn) return filtered;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const pa = getProspect(a);
+      const pb = getProspect(b);
+      if (!pa || !pb) return 0;
+
+      switch (sortColumn) {
+        case "prospect": {
+          const na = [pa.first_name, pa.last_name].filter(Boolean).join(" ").toLowerCase();
+          const nb = [pb.first_name, pb.last_name].filter(Boolean).join(" ").toLowerCase();
+          return na.localeCompare(nb) * dir;
+        }
+        case "company": {
+          const ca = (pa.organization || pa.company || "").toLowerCase();
+          const cb = (pb.organization || pb.company || "").toLowerCase();
+          return ca.localeCompare(cb) * dir;
+        }
+        case "email_score":
+          return ((pa.email_validity_score ?? -1) - (pb.email_validity_score ?? -1)) * dir;
+        case "lead_score":
+          return ((pa.lead_score ?? -1) - (pb.lead_score ?? -1)) * dir;
+        case "status":
+          return a.status.localeCompare(b.status) * dir;
+        case "step": {
+          const sa = a.current_step_id ? stepMap[a.current_step_id]?.order ?? 0 : 0;
+          const sb = b.current_step_id ? stepMap[b.current_step_id]?.order ?? 0 : 0;
+          return (sa - sb) * dir;
+        }
+        case "next_send":
+          return ((a.next_send_at || "").localeCompare(b.next_send_at || "")) * dir;
+        case "enrolled":
+          return ((a.enrolled_at || "").localeCompare(b.enrolled_at || "")) * dir;
+        default:
+          return 0;
+      }
+    });
+  }, [filtered, sortColumn, sortDir, stepMap]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+  const paginated = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   // Status counts
   const statusCounts = useMemo(() => {
@@ -608,14 +665,32 @@ function CampaignProspectsTab({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Prospect</TableHead>
-                    <TableHead className="hidden sm:table-cell">Entreprise</TableHead>
-                    <TableHead className="hidden md:table-cell">Fiabilite email</TableHead>
-                    <TableHead className="hidden md:table-cell">Score IA</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="hidden md:table-cell">Etape actuelle</TableHead>
-                    <TableHead className="hidden lg:table-cell">Prochain envoi</TableHead>
-                    <TableHead className="hidden lg:table-cell">Inscrit le</TableHead>
+                    {([
+                      { key: "prospect", label: "Prospect", className: "" },
+                      { key: "company", label: "Entreprise", className: "hidden sm:table-cell" },
+                      { key: "email_score", label: "Fiabilite email", className: "hidden md:table-cell" },
+                      { key: "lead_score", label: "Score IA", className: "hidden md:table-cell" },
+                      { key: "status", label: "Statut", className: "" },
+                      { key: "step", label: "Etape actuelle", className: "hidden md:table-cell" },
+                      { key: "next_send", label: "Prochain envoi", className: "hidden lg:table-cell" },
+                      { key: "enrolled", label: "Inscrit le", className: "hidden lg:table-cell" },
+                    ] as { key: SortColumn; label: string; className: string }[]).map((col) => {
+                      const SortIcon = sortColumn === col.key
+                        ? (sortDir === "asc" ? ArrowUp : ArrowDown)
+                        : ArrowUpDown;
+                      return (
+                        <TableHead
+                          key={col.key}
+                          className={`${col.className} cursor-pointer select-none hover:bg-muted/50`}
+                          onClick={() => toggleSort(col.key)}
+                        >
+                          <span className="flex items-center gap-1">
+                            {col.label}
+                            <SortIcon className={`size-3 ${sortColumn === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
+                          </span>
+                        </TableHead>
+                      );
+                    })}
                     <TableHead className="w-[50px]" />
                   </TableRow>
                 </TableHeader>
@@ -734,10 +809,10 @@ function CampaignProspectsTab({
             </div>
 
             {/* Pagination */}
-            {filtered.length > ITEMS_PER_PAGE && (
+            {sorted.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between mt-3">
                 <p className="text-xs text-muted-foreground">
-                  {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, filtered.length)} sur {filtered.length}
+                  {(page - 1) * ITEMS_PER_PAGE + 1} - {Math.min(page * ITEMS_PER_PAGE, sorted.length)} sur {sorted.length}
                 </p>
                 <div className="flex items-center gap-1">
                   <Button
