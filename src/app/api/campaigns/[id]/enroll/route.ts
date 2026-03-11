@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNextSendTime } from "@/lib/email/scheduler";
+import { checkProspectContactability } from "@/lib/utils/contactability";
 
 // POST /api/campaigns/[id]/enroll — Add prospects to a campaign
 export async function POST(
@@ -55,6 +56,17 @@ export async function POST(
 
     const enrolledIds = new Set((alreadyEnrolled || []).map((e) => e.prospect_id));
 
+    // Filter out already enrolled, then check contactability
+    const candidateIds = prospectIds.filter((id: string) => !enrolledIds.has(id));
+
+    const { contactable, blocked } = await checkProspectContactability(
+      supabase,
+      candidateIds,
+      { targetCampaignId: campaignId }
+    );
+
+    const contactableSet = new Set(contactable);
+
     // Calculate first send time
     const nextSendAt = getNextSendTime(
       campaign.timezone || "Europe/Paris",
@@ -68,9 +80,9 @@ export async function POST(
     // Determine status based on campaign status
     const prospectStatus = campaign.status === "active" ? "active" : "paused";
 
-    // Enroll prospects
+    // Enroll only contactable prospects
     const enrollments = prospectIds
-      .filter((id: string) => !enrolledIds.has(id))
+      .filter((id: string) => !enrolledIds.has(id) && contactableSet.has(id))
       .map((prospectId: string) => ({
         campaign_id: campaignId,
         prospect_id: prospectId,
@@ -111,6 +123,7 @@ export async function POST(
       success: true,
       enrolled: enrollments.length,
       skipped: prospectIds.length - enrollments.length,
+      blocked: blocked.length > 0 ? blocked : undefined,
     });
   } catch (err) {
     console.error("[Campaign] Enroll error:", err);

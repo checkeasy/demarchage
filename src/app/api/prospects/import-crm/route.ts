@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getProtectedProspectIds } from '@/lib/utils/contactability';
 
 // ─── CSV Parsing ─────────────────────────────────────────────────────────────
 
@@ -257,6 +258,19 @@ export async function POST() {
     });
   }
 
+  // 4b. Protect statuses on prospects that match existing protected ones
+  const allEmails = prospects.map((p) => p.email as string);
+  const protectedMap = await getProtectedProspectIds(supabase, allEmails, workspace.id);
+  let statusProtectedCount = 0;
+
+  for (const prospect of prospects) {
+    const email = (prospect.email as string).toLowerCase();
+    if (protectedMap.has(email)) {
+      delete prospect.status;
+      statusProtectedCount++;
+    }
+  }
+
   // 5. Try inserting first prospect to detect errors early
   // V2 - Debug version
   if (prospects.length > 0) {
@@ -357,6 +371,7 @@ export async function POST() {
       byPipeline: pipelineCounts,
       withRealEmail: hasEmail,
       withPhone: hasPhone,
+      statusProtected: statusProtectedCount,
     },
   });
 }

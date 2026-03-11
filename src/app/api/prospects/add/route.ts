@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { findExistingProspect, mergeProspectData } from '@/lib/utils/prospect-matcher';
+import { PROTECTED_STATUSES } from '@/lib/utils/contactability';
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,6 +76,10 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (existing) {
+            // Protect status from being overwritten on protected prospects
+            if ((PROTECTED_STATUSES as readonly string[]).includes(existing.status)) {
+              delete prospectData.status;
+            }
             const merged = mergeProspectData(existing, prospectData);
             const { error } = await supabase
               .from('prospects')
@@ -170,6 +175,10 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (existing) {
+        // Protect status from being overwritten on protected prospects
+        if ((PROTECTED_STATUSES as readonly string[]).includes(existing.status)) {
+          delete prospectData.status;
+        }
         const merged = mergeProspectData(existing, prospectData);
         const { error } = await supabase
           .from('prospects')

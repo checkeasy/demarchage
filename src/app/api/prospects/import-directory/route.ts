@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import * as fs from 'fs';
 import * as path from 'path';
 import Papa from 'papaparse';
+import { getProtectedProspectIds } from '@/lib/utils/contactability';
 
 // ─── Number Parsing ─────────────────────────────────────────────────────────
 
@@ -346,6 +347,19 @@ export async function POST() {
     });
   }
 
+  // 4b. Protect statuses on new prospects that might match existing protected ones via upsert
+  const newEmails = newProspects.map((p) => p.email as string);
+  const protectedMap = await getProtectedProspectIds(supabase, newEmails, workspace.id);
+  let statusProtectedCount = 0;
+
+  for (const prospect of newProspects) {
+    const email = (prospect.email as string).toLowerCase();
+    if (protectedMap.has(email)) {
+      delete prospect.status;
+      statusProtectedCount++;
+    }
+  }
+
   // 5. Execute merge updates
   for (const update of mergeUpdates) {
     const { id, data, linkedin_url_fill, job_title_fill, phone_fill, nb_properties_fill } = update;
@@ -427,6 +441,7 @@ export async function POST() {
       newInserted: stats.inserted,
       mergedWithExisting: stats.merged,
       errors: stats.errors,
+      statusProtected: statusProtectedCount,
     },
   });
 }

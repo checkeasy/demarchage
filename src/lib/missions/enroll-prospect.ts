@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { classifyProspect, type OutreachBucket } from "@/lib/outreach-routing";
 import { getNextSendTime } from "@/lib/email/scheduler";
+import { HARD_BLOCKED_STATUSES, checkProspectContactability } from "@/lib/utils/contactability";
 
 interface MissionRecord {
   id: string;
@@ -32,6 +33,21 @@ export async function enrollProspectInMission(
   mission: MissionRecord,
   prospect: ProspectRecord
 ): Promise<{ enrolled: boolean; campaignId?: string; bucket: OutreachBucket }> {
+  // Block hard-blocked statuses immediately
+  if ((HARD_BLOCKED_STATUSES as readonly string[]).includes(prospect.status)) {
+    return { enrolled: false, bucket: "no_data" as OutreachBucket };
+  }
+
+  // Full contactability check (skip cooldown for mission auto-enrollment)
+  const { contactable } = await checkProspectContactability(
+    supabase,
+    [prospect.id],
+    { ignoreCooldown: true }
+  );
+  if (contactable.length === 0) {
+    return { enrolled: false, bucket: "no_data" as OutreachBucket };
+  }
+
   const bucket = classifyProspect({
     email: prospect.email,
     linkedin_url: prospect.linkedin_url,
