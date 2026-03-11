@@ -131,6 +131,7 @@ export interface Database {
           warmup_enabled: boolean;
           warmup_daily_target: number;
           warmup_current_volume: number;
+          warmup_started_at: string | null;
           health_score: number;
           is_active: boolean;
           booking_url: string | null;
@@ -160,6 +161,7 @@ export interface Database {
           warmup_enabled?: boolean;
           warmup_daily_target?: number;
           warmup_current_volume?: number;
+          warmup_started_at?: string | null;
           health_score?: number;
           is_active?: boolean;
           booking_url?: string | null;
@@ -189,6 +191,7 @@ export interface Database {
           warmup_enabled?: boolean;
           warmup_daily_target?: number;
           warmup_current_volume?: number;
+          warmup_started_at?: string | null;
           health_score?: number;
           is_active?: boolean;
           booking_url?: string | null;

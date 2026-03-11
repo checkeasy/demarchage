@@ -242,26 +242,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Warmup: reset and increment daily warmup volumes ---
-    // Get all accounts with warmup enabled that need daily increment
-    const { data: warmupAccounts } = await supabase
-      .from("email_accounts")
-      .select("id, warmup_current_volume, warmup_daily_target")
-      .eq("warmup_enabled", true);
-
-    if (warmupAccounts) {
-      for (const acc of warmupAccounts) {
-        const current = acc.warmup_current_volume || 0;
-        const target = acc.warmup_daily_target || 50;
-        if (current < target) {
-          // Increment by 5 per day (capped at target)
-          const newVolume = Math.min(current + 5, target);
-          await supabase
-            .from("email_accounts")
-            .update({ warmup_current_volume: newVolume })
-            .eq("id", acc.id)
-            .eq("warmup_current_volume", current); // Optimistic lock to avoid double-increment
-        }
+    // --- Warmup: progressive volume based on Google recommendations ---
+    // Schedule: 2→50 emails over 14 days, then linear ramp to target
+    // Auto-protection: pause if bounce > 5% or complaint > 0.3%
+    const { runWarmupCycle } = await import("@/lib/email/warmup");
+    const warmupResult = await runWarmupCycle(supabase);
+    if (warmupResult.updated > 0) {
+      console.log(`[Cron] Warmup: ${warmupResult.updated} accounts updated`);
+    }
+    for (const hc of warmupResult.healthChecks) {
+      if (hc.status !== "healthy") {
+        console.log(`[Cron] Health: ${hc.emailAddress} → ${hc.status}: ${hc.message}`);
       }
     }
 

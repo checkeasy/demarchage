@@ -62,6 +62,7 @@ interface EmailAccountForm {
   daily_limit: number;
   signature_html: string;
   warmup_enabled: boolean;
+  warmup_daily_target: number;
   booking_url: string;
   tracking_domain: string;
 }
@@ -84,6 +85,7 @@ export default function SettingsPage() {
       warmup_enabled: boolean;
       warmup_current_volume: number;
       warmup_daily_target: number;
+      warmup_started_at: string | null;
       booking_url: string | null;
       signature_html: string | null;
       tracking_domain: string | null;
@@ -107,6 +109,7 @@ export default function SettingsPage() {
     daily_limit: 50,
     signature_html: "",
     warmup_enabled: false,
+    warmup_daily_target: 20,
     booking_url: "",
     tracking_domain: "",
   });
@@ -174,7 +177,7 @@ export default function SettingsPage() {
     const { data: accounts } = await supabase
       .from("email_accounts")
       .select(
-        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, warmup_current_volume, warmup_daily_target, booking_url, signature_html, tracking_domain, provider_daily_max"
+        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, warmup_current_volume, warmup_daily_target, warmup_started_at, booking_url, signature_html, tracking_domain, provider_daily_max"
       )
       .eq("workspace_id", profile.current_workspace_id)
       .eq("user_id", user.id);
@@ -317,6 +320,9 @@ export default function SettingsPage() {
       daily_limit: newAccount.daily_limit,
       signature_html: newAccount.signature_html || "",
       warmup_enabled: newAccount.warmup_enabled,
+      warmup_daily_target: newAccount.warmup_enabled ? newAccount.warmup_daily_target : null,
+      warmup_current_volume: 2,
+      warmup_started_at: newAccount.warmup_enabled ? new Date().toISOString() : null,
       booking_url: newAccount.booking_url || null,
       tracking_domain: newAccount.tracking_domain || null,
     });
@@ -693,16 +699,16 @@ export default function SettingsPage() {
                         {account.display_name || account.provider} - Limite: {account.daily_limit}/jour
                         {account.provider_daily_max && ` (max provider: ${account.provider_daily_max})`}
                       </p>
-                      {account.warmup_enabled && (
+                      {account.warmup_enabled && account.warmup_daily_target > 0 && (
                         <div className="flex items-center gap-2 mt-1">
                           <div className="w-24 h-1.5 rounded-full bg-slate-200">
                             <div
                               className="h-1.5 rounded-full bg-amber-500 transition-all"
-                              style={{ width: `${account.warmup_daily_target > 0 ? Math.min(100, (account.warmup_current_volume / account.warmup_daily_target) * 100) : 0}%` }}
+                              style={{ width: `${Math.min(100, ((account.warmup_current_volume ?? 0) / account.warmup_daily_target) * 100)}%` }}
                             />
                           </div>
                           <span className="text-xs text-muted-foreground">
-                            Warmup: {account.warmup_current_volume}/{account.warmup_daily_target}
+                            Warmup: {account.warmup_current_volume ?? 0}/{account.warmup_daily_target}
                           </span>
                         </div>
                       )}
@@ -882,6 +888,99 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Warmup toggle */}
+                <div className="space-y-2 pl-6 pt-2">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={account.warmup_enabled}
+                        onCheckedChange={async (checked) => {
+                          const { error } = await supabase
+                            .from("email_accounts")
+                            .update({
+                              warmup_enabled: checked,
+                              warmup_daily_target: checked ? (account.warmup_daily_target || 50) : account.warmup_daily_target,
+                              warmup_current_volume: checked ? 2 : 0,
+                              warmup_started_at: checked ? new Date().toISOString() : null,
+                            })
+                            .eq("id", account.id);
+                          if (!error) {
+                            setEmailAccounts((prev) =>
+                              prev.map((a) =>
+                                a.id === account.id
+                                  ? { ...a, warmup_enabled: checked, warmup_daily_target: checked ? (a.warmup_daily_target || 50) : a.warmup_daily_target, warmup_current_volume: checked ? 2 : 0, warmup_started_at: checked ? new Date().toISOString() : null }
+                                  : a
+                              )
+                            );
+                            toast.success(checked ? "Warmup active — montee progressive automatique" : "Warmup desactive");
+                          }
+                        }}
+                      />
+                      <span className="text-sm">Warmup automatique</span>
+                    </div>
+                    {account.warmup_enabled && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Cible :</span>
+                        <Input
+                          type="number"
+                          min={10}
+                          max={100}
+                          className="h-7 w-16 text-sm"
+                          value={account.warmup_daily_target || 50}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 50;
+                            setEmailAccounts((prev) =>
+                              prev.map((a) =>
+                                a.id === account.id ? { ...a, warmup_daily_target: val } : a
+                              )
+                            );
+                          }}
+                          onBlur={async (e) => {
+                            const val = Math.min(100, Math.max(10, parseInt(e.target.value) || 50));
+                            await supabase
+                              .from("email_accounts")
+                              .update({ warmup_daily_target: val })
+                              .eq("id", account.id);
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">/jour</span>
+                      </div>
+                    )}
+                  </div>
+                  {account.warmup_enabled && (() => {
+                    const dayNum = account.warmup_started_at
+                      ? Math.floor((Date.now() - new Date(account.warmup_started_at).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                      : 0;
+                    const phase = dayNum <= 14 ? "Montee progressive" : dayNum <= 28 ? "Acceleration" : "Vitesse de croisiere";
+                    const target = account.warmup_daily_target || 50;
+                    const current = account.warmup_current_volume || 2;
+                    const pct = Math.min(100, (current / target) * 100);
+                    return (
+                      <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            Jour {dayNum} — {phase}
+                          </span>
+                          <span className="font-medium">
+                            {current}/{target} emails/jour
+                          </span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-slate-200">
+                          <div
+                            className="h-2 rounded-full bg-blue-500 transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Recommandations Google : 2→50 emails en 14 jours, puis acceleration progressive.
+                          Protection auto si bounce &gt;3% ou plainte &gt;0.1%.
+                          Max 100 emails/jour par boite.
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -1039,17 +1138,45 @@ export default function SettingsPage() {
                       }
                     />
                   </div>
-                  <div className="flex items-center gap-2 pt-6">
-                    <Switch
-                      checked={newAccount.warmup_enabled}
-                      onCheckedChange={(checked) =>
-                        setNewAccount((p) => ({
-                          ...p,
-                          warmup_enabled: checked,
-                        }))
-                      }
-                    />
-                    <Label>Activer le warmup</Label>
+                  <div className="space-y-3 pt-6">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={newAccount.warmup_enabled}
+                        onCheckedChange={(checked) =>
+                          setNewAccount((p) => ({
+                            ...p,
+                            warmup_enabled: checked,
+                          }))
+                        }
+                      />
+                      <Label>Activer le warmup automatique</Label>
+                    </div>
+                    {newAccount.warmup_enabled && (
+                      <div className="space-y-2 pl-1">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap">Cible :</Label>
+                          <Input
+                            type="number"
+                            min={10}
+                            max={100}
+                            className="h-7 w-16 text-sm"
+                            value={newAccount.warmup_daily_target}
+                            onChange={(e) =>
+                              setNewAccount((p) => ({
+                                ...p,
+                                warmup_daily_target: Math.min(100, parseInt(e.target.value) || 50),
+                              }))
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground">/jour</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Montee progressive automatique selon les recommandations Google :
+                          2 emails/jour au debut, ~50 apres 2 semaines, cible atteinte en ~4 semaines.
+                          Protection auto si bounce &gt;3% ou plainte &gt;0.1%. Max 100/jour/boite.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1801,10 +1928,10 @@ function AccountHealthDashboard() {
                 </div>
               )}
 
-              {account.warmup_enabled && (
+              {account.warmup_enabled && account.warmup_daily_target > 0 && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Info className="h-3.5 w-3.5" />
-                  Warmup actif : {account.warmup_current_volume}/{account.warmup_daily_target} emails/jour
+                  Warmup actif : {account.warmup_current_volume ?? 0}/{account.warmup_daily_target} emails/jour
                 </div>
               )}
             </CardContent>
