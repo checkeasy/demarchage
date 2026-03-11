@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -43,6 +43,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -387,20 +388,7 @@ export function CampaignDetailTabs({
 
       {/* Analytics Tab */}
       <TabsContent value="analytics" className="mt-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Analytique</CardTitle>
-            <CardDescription>
-              Statistiques detaillees de la campagne.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Les graphiques et statistiques detaillees seront disponibles
-              prochainement.
-            </p>
-          </CardContent>
-        </Card>
+        <CampaignAnalyticsTab campaignId={campaign.id} />
       </TabsContent>
     </Tabs>
   );
@@ -845,5 +833,190 @@ function CampaignProspectsTab({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// --- Campaign Analytics Tab ---
+interface StepAnalytics {
+  id: string;
+  step_order: number;
+  step_type: string;
+  subject: string | null;
+  total_sent: number;
+  total_opened: number;
+  total_clicked: number;
+  total_replied: number;
+  total_bounced: number;
+  open_rate: number;
+  click_rate: number;
+  reply_rate: number;
+  bounce_rate: number;
+}
+
+function CampaignAnalyticsTab({ campaignId }: { campaignId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [analyticsSteps, setAnalyticsSteps] = useState<StepAnalytics[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAnalytics() {
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/analytics`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur");
+        setAnalyticsSteps(data.steps || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAnalytics();
+  }, [campaignId]);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-red-500">
+          {error}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (analyticsSteps.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Analytique</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Aucune etape de type email dans cette campagne.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Totals
+  const totals = analyticsSteps.reduce(
+    (acc, s) => ({
+      sent: acc.sent + s.total_sent,
+      opened: acc.opened + s.total_opened,
+      clicked: acc.clicked + s.total_clicked,
+      replied: acc.replied + s.total_replied,
+      bounced: acc.bounced + s.total_bounced,
+    }),
+    { sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 }
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Envoyes", value: totals.sent, color: "text-blue-600" },
+          { label: "Ouverts", value: totals.opened, pct: totals.sent > 0 ? Math.round((totals.opened / totals.sent) * 100) : 0, color: "text-green-600" },
+          { label: "Cliques", value: totals.clicked, pct: totals.sent > 0 ? Math.round((totals.clicked / totals.sent) * 100) : 0, color: "text-purple-600" },
+          { label: "Reponses", value: totals.replied, pct: totals.sent > 0 ? Math.round((totals.replied / totals.sent) * 100) : 0, color: "text-amber-600" },
+          { label: "Bounces", value: totals.bounced, pct: totals.sent > 0 ? Math.round((totals.bounced / totals.sent) * 100) : 0, color: "text-red-600" },
+        ].map((stat) => (
+          <Card key={stat.label}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              {stat.pct !== undefined && (
+                <p className="text-xs text-muted-foreground">{stat.pct}%</p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Per-step table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="size-4 text-muted-foreground" />
+            <CardTitle className="text-base">Performance par etape</CardTitle>
+          </div>
+          <CardDescription>
+            Statistiques detaillees pour chaque etape de la sequence.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[60px]">#</TableHead>
+                  <TableHead>Sujet</TableHead>
+                  <TableHead className="text-right">Envoyes</TableHead>
+                  <TableHead className="text-right">Ouverture</TableHead>
+                  <TableHead className="text-right">Clic</TableHead>
+                  <TableHead className="text-right">Reponse</TableHead>
+                  <TableHead className="text-right">Bounce</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analyticsSteps.filter((s) => s.step_type === "email").map((step) => (
+                  <TableRow key={step.id}>
+                    <TableCell>
+                      <span className="flex items-center justify-center size-6 rounded-full bg-slate-200 text-xs font-medium">
+                        {step.step_order}
+                      </span>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-sm">
+                      {step.subject || "Sans sujet"}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {step.total_sent}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RateCell value={step.open_rate} count={step.total_opened} color="bg-green-500" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RateCell value={step.click_rate} count={step.total_clicked} color="bg-purple-500" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RateCell value={step.reply_rate} count={step.total_replied} color="bg-amber-500" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RateCell value={step.bounce_rate} count={step.total_bounced} color="bg-red-500" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RateCell({ value, count, color }: { value: number; count: number; color: string }) {
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <span className="text-sm font-medium">{value}%</span>
+      <div className="w-16 h-1.5 rounded-full bg-slate-100">
+        <div
+          className={`h-1.5 rounded-full ${color} transition-all`}
+          style={{ width: `${Math.min(value, 100)}%` }}
+        />
+      </div>
+      <span className="text-[10px] text-muted-foreground">{count}</span>
+    </div>
   );
 }

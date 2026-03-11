@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import dns from 'dns';
+import net from 'net';
 import { promisify } from 'util';
 
 const resolveMx = promisify(dns.resolveMx);
@@ -32,9 +33,11 @@ const PLACEHOLDER_PATTERNS = [
 interface VerificationResult {
   email: string;
   score: number;
+  smtp_verified: boolean;
   checks: {
     format_valid: boolean;
     mx_exists: boolean;
+    smtp_accepts: boolean | null;
     is_placeholder: boolean;
     is_disposable: boolean;
     is_role_based: boolean;
@@ -42,13 +45,89 @@ interface VerificationResult {
   };
 }
 
+/**
+ * SMTP probe: connect to MX server and issue RCPT TO to verify mailbox exists.
+ * Returns true if accepted, false if rejected, null if inconclusive/timeout.
+ */
+async function smtpProbe(email: string, mxHost: string): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      resolve(null); // Timeout = inconclusive
+    }, 8000);
+
+    const socket = net.createConnection(25, mxHost);
+    let step = 0;
+    let buffer = '';
+
+    socket.setEncoding('utf8');
+    socket.on('error', () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+
+    socket.on('data', (data: string) => {
+      buffer += data;
+      // Wait for full response line
+      if (!buffer.includes('\r\n') && !buffer.includes('\n')) return;
+
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const code = parseInt(line.substring(0, 3), 10);
+        if (isNaN(code)) continue;
+
+        if (step === 0 && code === 220) {
+          // Server greeting → send EHLO
+          socket.write('EHLO verify.local\r\n');
+          step = 1;
+        } else if (step === 1 && (code === 250 || code === 220)) {
+          // EHLO accepted → MAIL FROM
+          socket.write('MAIL FROM:<verify@verify.local>\r\n');
+          step = 2;
+        } else if (step === 2 && code === 250) {
+          // MAIL FROM accepted → RCPT TO (the actual probe)
+          socket.write(`RCPT TO:<${email}>\r\n`);
+          step = 3;
+        } else if (step === 3) {
+          // RCPT TO response: 250 = exists, 550/551/552/553 = doesn't exist
+          socket.write('QUIT\r\n');
+          clearTimeout(timeout);
+          socket.destroy();
+          if (code === 250 || code === 251) {
+            resolve(true);
+          } else if (code >= 550 && code <= 559) {
+            resolve(false);
+          } else {
+            resolve(null); // Catch-all or greylisting
+          }
+          return;
+        } else if (code >= 400) {
+          // Server error / rejection at any step
+          clearTimeout(timeout);
+          socket.destroy();
+          resolve(null);
+          return;
+        }
+      }
+    });
+
+    socket.on('close', () => {
+      clearTimeout(timeout);
+    });
+  });
+}
+
 async function verifyEmail(email: string): Promise<VerificationResult> {
   const result: VerificationResult = {
     email,
     score: 0,
+    smtp_verified: false,
     checks: {
       format_valid: false,
       mx_exists: false,
+      smtp_accepts: null,
       is_placeholder: false,
       is_disposable: false,
       is_role_based: false,
@@ -68,7 +147,7 @@ async function verifyEmail(email: string): Promise<VerificationResult> {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (emailRegex.test(email)) {
     result.checks.format_valid = true;
-    result.score += 30;
+    result.score += 20;
   } else {
     return result;
   }
@@ -91,14 +170,37 @@ async function verifyEmail(email: string): Promise<VerificationResult> {
   }
 
   // MX record check
+  let mxHost: string | null = null;
   try {
     const mxRecords = await resolveMx(domain);
     if (mxRecords && mxRecords.length > 0) {
       result.checks.mx_exists = true;
-      result.score += 30;
+      result.score += 20;
+      // Sort by priority (lowest = highest priority)
+      mxRecords.sort((a, b) => a.priority - b.priority);
+      mxHost = mxRecords[0].exchange;
     }
   } catch {
     // No MX records = domain doesn't accept email
+  }
+
+  // SMTP probe (only if MX exists)
+  if (mxHost) {
+    try {
+      const smtpResult = await smtpProbe(email, mxHost);
+      result.checks.smtp_accepts = smtpResult;
+
+      if (smtpResult === true) {
+        result.score += 25; // Confirmed mailbox exists
+        result.smtp_verified = true;
+      } else if (smtpResult === false) {
+        result.score = Math.min(result.score, 30); // Cap score — mailbox rejected
+        result.smtp_verified = false;
+      }
+      // null = inconclusive, no score change
+    } catch {
+      // SMTP probe failed, continue without it
+    }
   }
 
   // Business domain bonus (not free email)
@@ -110,9 +212,9 @@ async function verifyEmail(email: string): Promise<VerificationResult> {
   ]);
 
   if (!freeProviders.has(domain)) {
-    result.score += 20; // Business domain = more likely to be real
+    result.score += 15; // Business domain = more likely to be real
   } else {
-    result.score += 10; // Free provider but still valid
+    result.score += 5; // Free provider but still valid
   }
 
   return result;
@@ -163,6 +265,7 @@ export async function POST(request: NextRequest) {
             .from('prospects')
             .update({
               email_validity_score: result.score,
+              email_smtp_verified: result.smtp_verified,
               email_verified_at: new Date().toISOString(),
             })
             .eq('id', prospect.id);

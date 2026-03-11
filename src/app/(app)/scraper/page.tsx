@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   LayoutGrid,
@@ -11,6 +12,7 @@ import {
   Brain,
   Loader2,
   Globe,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +35,7 @@ import { trackAction } from "@/lib/linkedin/safety-tracker";
 
 export default function ScraperPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [profiles, setProfiles] = useState<LinkedInProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -41,6 +44,18 @@ export default function ScraperPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAddingBulk, setIsAddingBulk] = useState(false);
   const [isEnrichingBulk, setIsEnrichingBulk] = useState(false);
+  const [missions, setMissions] = useState<Array<{ id: string; name: string; search_keywords: string[]; language: string }>>([]);
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(searchParams.get("mission_id"));
+
+  // Fetch missions on mount
+  useEffect(() => {
+    fetch("/api/missions")
+      .then(r => r.json())
+      .then(data => {
+        if (data.missions) setMissions(data.missions);
+      })
+      .catch(() => {});
+  }, []);
 
   // Enrichment data per profile
   const [enrichmentMap, setEnrichmentMap] = useState<Map<string, EnrichmentData>>(new Map());
@@ -235,6 +250,7 @@ export default function ScraperPage() {
           company_size: profile.companySize,
           email: bestEmail,
           website: enrichment?.website?.websiteUrl,
+          ...(selectedMissionId ? { mission_id: selectedMissionId } : {}),
         }),
       });
 
@@ -278,6 +294,7 @@ export default function ScraperPage() {
               website: enrichment?.website?.websiteUrl,
             };
           }),
+          mission_id: selectedMissionId,
         }),
       });
 
@@ -410,6 +427,35 @@ export default function ScraperPage() {
 
       {/* Safety Gauge */}
       <SafetyGauge />
+
+      {/* Mission Selector */}
+      {missions.length > 0 && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <Target className="size-4 text-indigo-500" />
+                Mission active
+              </div>
+              <select
+                className="flex-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm bg-white"
+                value={selectedMissionId || ""}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  setSelectedMissionId(val);
+                }}
+              >
+                <option value="">Aucune mission</option>
+                {missions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.language.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search Form */}
       <Card>

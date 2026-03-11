@@ -27,6 +27,7 @@ import {
   Target,
   Users,
   SearchX,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1371,6 +1372,7 @@ export function ProspectPageClient({
               </TableHead>
               <SortableHeader field="first_name" label="Nom" />
               <SortableHeader field="company" label="Entreprise" className="hidden sm:table-cell" />
+              <SortableHeader field="website" label="Site" className="hidden lg:table-cell" />
               <SortableHeader field="nb_properties" label="Biens" className="hidden xl:table-cell" />
               <SortableHeader field="country" label="Pays" className="hidden xl:table-cell" />
               <SortableHeader field="pipeline_stage" label="Pipeline" className="hidden md:table-cell" />
@@ -1386,7 +1388,7 @@ export function ProspectPageClient({
           <TableBody>
             {paginatedProspects.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="p-0">
+                <TableCell colSpan={14} className="p-0">
                   {prospects.length === 0 ? (
                     <EmptyState
                       icon={Users}
@@ -1455,6 +1457,22 @@ export function ProspectPageClient({
                           </span>
                         )}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm">
+                      {prospect.website ? (
+                        <a
+                          href={prospect.website.startsWith("http") ? prospect.website : `https://${prospect.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline max-w-[160px] truncate"
+                          title={prospect.website}
+                        >
+                          {prospect.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                          <ExternalLink className="size-3 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-right text-sm tabular-nums">
                       {prospect.nb_properties ?? "-"}

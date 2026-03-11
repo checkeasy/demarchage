@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
 import { INDUSTRIES, EMPLOYEE_COUNTS } from "@/lib/constants";
+import { detectLanguage } from "@/lib/outreach-routing";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +114,11 @@ export function AddProspectDialog({
       } else {
         cleaned[key] = value && (value as string).trim() !== "" ? (value as string).trim() : null;
       }
+    }
+
+    // Auto-detect language from country
+    if (cleaned.country && typeof cleaned.country === "string") {
+      cleaned.language = detectLanguage(cleaned.country);
     }
 
     if (isEdit && defaultValues?.id) {

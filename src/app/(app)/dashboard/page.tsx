@@ -40,7 +40,8 @@ import { Progress } from "@/components/ui/progress";
 import { PipelineValueCard } from "@/components/dashboard/PipelineValueCard";
 import { DealsWonLostChartLazy } from "@/components/dashboard/DealsWonLostChartLazy";
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
-import { TodayCockpit } from "@/components/dashboard/TodayCockpit";
+import { DailyRoutine } from "@/components/dashboard/DailyRoutine";
+import { classifyProspect, ROUTING_BUCKETS, type OutreachBucket } from "@/lib/outreach-routing";
 
 // --- Activity type icon map for upcoming activities ---
 const ACTIVITY_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -153,6 +154,10 @@ export default async function DashboardPage() {
   sixMonthsAgo.setDate(1);
   sixMonthsAgo.setHours(0, 0, 0, 0);
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setHours(0, 0, 0, 0);
+
   // --- Execute ALL independent queries in parallel ---
   const [
     { count: prospectCount },
@@ -181,6 +186,14 @@ export default async function DashboardPage() {
     { count: cockpitFollowUps },
     { count: cockpitActivities },
     { data: cockpitHotProspects },
+    // Daily routine queries
+    { count: scrapedToday },
+    { count: emailsSentToday },
+    { count: linkedinConnectionsToday },
+    { data: streakProspects },
+    { data: recentZones },
+    // Smart routing query
+    { data: unroutedProspects },
   ] = await Promise.all([
     // Onboarding checklist counts
     supabase
@@ -361,6 +374,50 @@ export default async function DashboardPage() {
       .in("status", ["hot", "warm"])
       .order("updated_at", { ascending: false })
       .limit(10),
+    // Daily routine: Prospects scraped today (google_maps + linkedin)
+    supabase
+      .from("prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .in("source", ["google_maps", "linkedin"])
+      .gte("created_at", todayStart.toISOString()),
+    // Daily routine: Emails sent today
+    supabase
+      .from("emails_sent")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "sent")
+      .gte("sent_at", todayStart.toISOString()),
+    // Daily routine: LinkedIn connections today
+    supabase
+      .from("linkedin_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("task_type", "connect")
+      .eq("status", "completed")
+      .gte("completed_at", todayStart.toISOString()),
+    // Daily routine: Streak - prospect creation dates last 30 days
+    supabase
+      .from("prospects")
+      .select("created_at")
+      .eq("workspace_id", workspaceId)
+      .in("source", ["google_maps", "linkedin", "csv_import"])
+      .gte("created_at", thirtyDaysAgo.toISOString()),
+    // Daily routine: Recent zones (country/city from recent scrapes)
+    supabase
+      .from("prospects")
+      .select("country, city")
+      .eq("workspace_id", workspaceId)
+      .in("source", ["google_maps", "linkedin"])
+      .order("created_at", { ascending: false })
+      .limit(100),
+    // Smart routing: unrouted prospects (active/to_contact/standby + pipeline to_contact)
+    supabase
+      .from("prospects")
+      .select("id, email, linkedin_url, phone, status, language, country")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["active", "to_contact", "standby"])
+      .eq("pipeline_stage", "to_contact"),
   ]);
 
   // --- Derive onboarding state ---
@@ -579,6 +636,127 @@ export default async function DashboardPage() {
     emailsSentLastMonth ?? 0
   );
 
+  // --- Compute streak (consecutive days with scraped prospects) ---
+  const streakDays = (() => {
+    if (!streakProspects || streakProspects.length === 0) return 0;
+    const daySet = new Set<string>();
+    for (const p of streakProspects) {
+      if (p.created_at) {
+        const d = new Date(p.created_at);
+        daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+      }
+    }
+    let streak = 0;
+    const check = new Date();
+    check.setHours(0, 0, 0, 0);
+    while (true) {
+      const key = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
+      if (daySet.has(key)) {
+        streak++;
+        check.setDate(check.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  })();
+
+  // --- Compute suggested zones (least represented destinations) ---
+  const TOURIST_DESTINATIONS = [
+    { country: "France", city: "Paris" },
+    { country: "France", city: "Nice" },
+    { country: "Spain", city: "Barcelona" },
+    { country: "Spain", city: "Madrid" },
+    { country: "Italy", city: "Rome" },
+    { country: "Italy", city: "Milan" },
+    { country: "Portugal", city: "Lisbon" },
+    { country: "Greece", city: "Athens" },
+    { country: "Croatia", city: "Dubrovnik" },
+    { country: "Thailand", city: "Bangkok" },
+    { country: "Thailand", city: "Phuket" },
+    { country: "Mexico", city: "Cancun" },
+    { country: "Morocco", city: "Marrakech" },
+    { country: "United Kingdom", city: "London" },
+    { country: "Germany", city: "Berlin" },
+    { country: "Netherlands", city: "Amsterdam" },
+    { country: "Japan", city: "Tokyo" },
+    { country: "Australia", city: "Sydney" },
+    { country: "United States", city: "Miami" },
+    { country: "UAE", city: "Dubai" },
+    { country: "Indonesia", city: "Bali" },
+    { country: "Brazil", city: "Rio de Janeiro" },
+    { country: "Turkey", city: "Istanbul" },
+    { country: "Portugal", city: "Porto" },
+    { country: "Greece", city: "Santorini" },
+    { country: "Spain", city: "Malaga" },
+    { country: "Italy", city: "Florence" },
+    { country: "France", city: "Lyon" },
+    { country: "United States", city: "New York" },
+    { country: "Mexico", city: "Mexico City" },
+  ];
+  const suggestedZones = (() => {
+    const zoneCounts: Record<string, number> = {};
+    for (const z of recentZones || []) {
+      const key = `${z.city || ""},${z.country || ""}`;
+      zoneCounts[key] = (zoneCounts[key] || 0) + 1;
+    }
+    // Sort destinations by how few prospects exist there
+    const scored = TOURIST_DESTINATIONS.map((d) => ({
+      ...d,
+      count: zoneCounts[`${d.city},${d.country}`] || 0,
+    }));
+    scored.sort((a, b) => a.count - b.count);
+    return scored.slice(0, 2);
+  })();
+
+  // Active missions with campaign stats
+  const { data: activeMissionsRaw } = await supabase
+    .from("outreach_missions")
+    .select(`
+      id, name, language, total_prospects, total_enrolled, search_keywords,
+      campaign_email:campaigns!outreach_missions_campaign_email_id_fkey(total_sent, total_replied),
+      campaign_linkedin:campaigns!outreach_missions_campaign_linkedin_id_fkey(total_sent, total_replied),
+      campaign_multi:campaigns!outreach_missions_campaign_multichannel_id_fkey(total_sent, total_replied)
+    `)
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const activeMissions = (activeMissionsRaw || []).map((m: any) => ({
+    id: m.id,
+    name: m.name,
+    language: m.language,
+    total_prospects: m.total_prospects,
+    total_enrolled: m.total_enrolled,
+    total_sent: ((m.campaign_email?.total_sent || 0) + (m.campaign_linkedin?.total_sent || 0) + (m.campaign_multi?.total_sent || 0)),
+    total_replied: ((m.campaign_email?.total_replied || 0) + (m.campaign_linkedin?.total_replied || 0) + (m.campaign_multi?.total_replied || 0)),
+    search_keywords: m.search_keywords || [],
+  }));
+
+  // --- Compute routing bucket counts ---
+  const routingBucketCounts: Record<OutreachBucket, number> = {
+    email_linkedin: 0,
+    email_only: 0,
+    linkedin_only: 0,
+    phone_whatsapp: 0,
+    newsletter: 0,
+    incomplete: 0,
+  };
+  const languageCounts = { fr: 0, es: 0, en: 0 };
+
+  for (const p of unroutedProspects || []) {
+    const bucket = classifyProspect(p);
+    routingBucketCounts[bucket]++;
+    const lang = (p.language as "fr" | "es" | "en") || "en";
+    if (lang in languageCounts) {
+      languageCounts[lang]++;
+    } else {
+      languageCounts.en++;
+    }
+  }
+  const totalUnrouted = Object.values(routingBucketCounts).reduce((a, b) => a + b, 0);
+
   // Quick actions definition
   const quickActions = [
     {
@@ -617,13 +795,32 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Today's Cockpit */}
-      <TodayCockpit
+      {/* Daily Routine */}
+      <DailyRoutine
+        scrapedToday={scrapedToday ?? 0}
+        emailsSentToday={emailsSentToday ?? 0}
+        repliesToday={cockpitReplies ?? 0}
+        linkedinConnectionsToday={linkedinConnectionsToday ?? 0}
+        streakDays={streakDays}
+        suggestedZones={suggestedZones}
         prospectsToContact={cockpitToContact ?? 0}
         repliesToHandle={cockpitReplies ?? 0}
         followUpsDue={cockpitFollowUps ?? 0}
         activitiesDue={cockpitActivities ?? 0}
         hotProspects={(cockpitHotProspects || []) as { id: string; first_name: string | null; last_name: string | null; company: string | null; status: string }[]}
+        routingBuckets={ROUTING_BUCKETS.map((b) => ({
+          key: b.key,
+          label: b.label,
+          description: b.description,
+          color: b.color,
+          bgColor: b.bgColor,
+          borderColor: b.borderColor,
+          count: routingBucketCounts[b.key],
+          href: `/campaigns/new?bucket=${b.key}`,
+        }))}
+        totalUnrouted={totalUnrouted}
+        languageCounts={languageCounts}
+        activeMissions={activeMissions}
       />
 
       {/* Onboarding Checklist */}

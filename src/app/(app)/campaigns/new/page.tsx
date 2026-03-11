@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Send,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ import {
 import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge";
 import { STEP_TYPES } from "@/lib/constants";
 import type { EmailAccount, Prospect } from "@/lib/types/database";
+import { classifyProspect, ROUTING_BUCKETS, type OutreachBucket } from "@/lib/outreach-routing";
 
 const DRAFT_KEY = "campaign-wizard-draft";
 
@@ -102,6 +104,7 @@ export default function NewCampaignPage() {
     draft?.formData ?? { name: "", description: "", email_account_id: "" }
   );
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [rotationAccountIds, setRotationAccountIds] = useState<Set<string>>(new Set());
 
   // Step 2: Audience
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -136,8 +139,18 @@ export default function NewCampaignPage() {
   // Workspace ID
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
+  // Smart routing bucket from URL
+  const [routingBucket, setRoutingBucket] = useState<OutreachBucket | null>(null);
+
   // Load workspace data
   useEffect(() => {
+    // Read bucket from URL query params
+    const params = new URLSearchParams(window.location.search);
+    const bucket = params.get("bucket") as OutreachBucket | null;
+    if (bucket && ROUTING_BUCKETS.some((b) => b.key === bucket)) {
+      setRoutingBucket(bucket);
+    }
+
     async function loadData() {
       const {
         data: { user },
@@ -162,15 +175,31 @@ export default function NewCampaignPage() {
 
       setEmailAccounts((accounts ?? []) as EmailAccount[]);
 
-      // Load prospects
-      const { data: prospectsData } = await supabase
+      // Load prospects — adapt query based on routing bucket
+      let prospectQuery = supabase
         .from("prospects")
         .select("*")
-        .eq("workspace_id", profile.current_workspace_id)
-        .eq("status", "active")
+        .eq("workspace_id", profile.current_workspace_id);
+
+      if (bucket === "newsletter") {
+        prospectQuery = prospectQuery.eq("status", "standby");
+      } else {
+        prospectQuery = prospectQuery.in("status", ["active", "to_contact"]);
+      }
+
+      const { data: prospectsData } = await prospectQuery
         .order("created_at", { ascending: false });
 
-      setProspects((prospectsData ?? []) as Prospect[]);
+      const allProspects = (prospectsData ?? []) as Prospect[];
+
+      // If a routing bucket is set, filter and auto-select matching prospects
+      if (bucket) {
+        const matching = allProspects.filter((p) => classifyProspect(p) === bucket);
+        setProspects(allProspects);
+        setSelectedProspectIds(new Set(matching.map((p) => p.id)));
+      } else {
+        setProspects(allProspects);
+      }
     }
 
     loadData();
@@ -357,6 +386,21 @@ export default function NewCampaignPage() {
         if (enrollError) throw enrollError;
       }
 
+      // Insert rotation accounts if selected
+      if (rotationAccountIds.size > 0) {
+        const allAccountIds = [formData.email_account_id, ...rotationAccountIds];
+        const rotationRows = allAccountIds.map((accId, idx) => ({
+          campaign_id: campaign.id,
+          email_account_id: accId,
+          priority: idx + 1,
+          is_active: true,
+        }));
+
+        await supabase
+          .from("campaign_email_accounts")
+          .insert(rotationRows);
+      }
+
       // Update campaign prospect count
       const { error: updateError } = await supabase
         .from("campaigns")
@@ -511,12 +555,76 @@ export default function NewCampaignPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Rotation accounts (optional multi-select) */}
+              {emailAccounts.length > 1 && formData.email_account_id && (
+                <div className="space-y-2">
+                  <Label>Rotation de comptes <span className="text-xs text-muted-foreground font-normal">(optionnel)</span></Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ajoutez des comptes supplementaires pour repartir les envois. Les emails seront distribues en round-robin.
+                  </p>
+                  <div className="space-y-1.5 border rounded-lg p-3">
+                    {emailAccounts
+                      .filter((a) => a.id !== formData.email_account_id)
+                      .map((account) => (
+                        <label
+                          key={account.id}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5"
+                        >
+                          <Checkbox
+                            checked={rotationAccountIds.has(account.id)}
+                            onCheckedChange={(checked) => {
+                              const next = new Set(rotationAccountIds);
+                              if (checked) next.add(account.id);
+                              else next.delete(account.id);
+                              setRotationAccountIds(next);
+                            }}
+                          />
+                          <span className="text-sm">
+                            {account.display_name
+                              ? `${account.display_name} (${account.email_address})`
+                              : account.email_address}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] ml-auto">
+                            {account.health_score}% sante
+                          </Badge>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* STEP 2: Audience */}
           {currentStep === 1 && (
             <div className="space-y-5">
+              {/* Routing bucket banner */}
+              {routingBucket && (
+                <div className={`rounded-lg border p-3 flex items-center gap-3 ${
+                  ROUTING_BUCKETS.find((b) => b.key === routingBucket)?.bgColor || "bg-slate-50"
+                } ${ROUTING_BUCKETS.find((b) => b.key === routingBucket)?.borderColor || "border-slate-200"}`}>
+                  <Zap className={`size-4 ${ROUTING_BUCKETS.find((b) => b.key === routingBucket)?.color || "text-slate-600"}`} />
+                  <div>
+                    <p className="text-sm font-medium">
+                      Campagne {ROUTING_BUCKETS.find((b) => b.key === routingBucket)?.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {ROUTING_BUCKETS.find((b) => b.key === routingBucket)?.description} — prospects pre-filtres automatiquement
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setRoutingBucket(null);
+                      window.history.replaceState(null, "", "/campaigns/new");
+                    }}
+                    className="ml-auto text-xs text-muted-foreground hover:text-slate-900"
+                  >
+                    Retirer le filtre
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold">
@@ -678,6 +786,19 @@ export default function NewCampaignPage() {
                       )?.email_address ?? "Non selectionne"}
                     </span>
                   </div>
+                  {rotationAccountIds.size > 0 && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">
+                        Rotation :
+                      </span>{" "}
+                      <span className="font-medium">
+                        {rotationAccountIds.size + 1} comptes
+                      </span>
+                      <span className="text-muted-foreground text-xs ml-2">
+                        ({[...rotationAccountIds].map((id) => emailAccounts.find((a) => a.id === id)?.email_address).filter(Boolean).join(", ")})
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

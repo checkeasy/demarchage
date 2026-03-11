@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
-import { sendGmail } from "@/lib/email/gmail-sender";
+import { sendGmail, type SmtpCredentials } from "@/lib/email/gmail-sender";
+import { injectUnsubscribeLink } from "@/lib/email/tracking";
 import {
   mergeTemplate,
   prospectToTemplateData,
@@ -241,13 +242,122 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Warmup: reset and increment daily warmup volumes ---
+    // Get all accounts with warmup enabled that need daily increment
+    const { data: warmupAccounts } = await supabase
+      .from("email_accounts")
+      .select("id, warmup_current_volume, warmup_daily_target")
+      .eq("warmup_enabled", true);
+
+    if (warmupAccounts) {
+      for (const acc of warmupAccounts) {
+        const current = acc.warmup_current_volume || 0;
+        const target = acc.warmup_daily_target || 50;
+        if (current < target) {
+          // Increment by 5 per day (capped at target)
+          const newVolume = Math.min(current + 5, target);
+          await supabase
+            .from("email_accounts")
+            .update({ warmup_current_volume: newVolume })
+            .eq("id", acc.id)
+            .eq("warmup_current_volume", current); // Optimistic lock to avoid double-increment
+        }
+      }
+    }
+
+    // --- Pre-fetch rotation accounts for campaigns that have them ---
+    const uniqueCampaignIds = [...new Set(queue.map((q) => q.campaign_id as string))];
+    const rotationAccountsMap = new Map<string, Record<string, unknown>[]>();
+
+    if (uniqueCampaignIds.length > 0) {
+      const { data: rotationRows } = await supabase
+        .from("campaign_email_accounts")
+        .select(`
+          campaign_id,
+          email_account_id,
+          priority,
+          is_active,
+          emails_sent_today,
+          last_used_at
+        `)
+        .in("campaign_id", uniqueCampaignIds)
+        .eq("is_active", true)
+        .order("last_used_at", { ascending: true, nullsFirst: true });
+
+      if (rotationRows) {
+        for (const row of rotationRows) {
+          const cid = row.campaign_id as string;
+          if (!rotationAccountsMap.has(cid)) rotationAccountsMap.set(cid, []);
+          rotationAccountsMap.get(cid)!.push(row);
+        }
+      }
+    }
+
+    // Pre-fetch email account details for rotation accounts
+    const rotationAccountIds = new Set<string>();
+    for (const rows of rotationAccountsMap.values()) {
+      for (const r of rows) rotationAccountIds.add(r.email_account_id as string);
+    }
+    const rotationAccountDetails = new Map<string, Record<string, unknown>>();
+    if (rotationAccountIds.size > 0) {
+      const { data: accDetails } = await supabase
+        .from("email_accounts")
+        .select("*")
+        .in("id", [...rotationAccountIds])
+        .eq("is_active", true);
+      if (accDetails) {
+        for (const a of accDetails) rotationAccountDetails.set(a.id as string, a);
+      }
+    }
+
     for (const item of queue) {
       try {
-        // Check daily limit for this account
-        const accountId = item.email_account_id as string;
-        const dailyLimit = (item.account_daily_limit as number) || 30;
+        // --- Account selection: rotation or default ---
+        let accountId = item.email_account_id as string;
+        let activeAccount: Record<string, unknown> | null = null;
+
+        const rotationAccounts = rotationAccountsMap.get(item.campaign_id as string);
+        if (rotationAccounts && rotationAccounts.length > 0) {
+          // Pick the rotation account with capacity (round-robin by last_used_at)
+          for (const ra of rotationAccounts) {
+            const accId = ra.email_account_id as string;
+            const details = rotationAccountDetails.get(accId);
+            if (!details || !(details.is_active)) continue;
+            if ((details.health_score as number) <= 30) continue;
+
+            const accDailyLimit = (details.daily_limit as number) || 30;
+            const providerMax = (details.provider_daily_max as number) || 500;
+            const effectiveLimit = Math.min(accDailyLimit, providerMax);
+            const alreadySentForAcc = sentTodayByAccount[accId] || 0;
+
+            if (alreadySentForAcc < effectiveLimit) {
+              accountId = accId;
+              activeAccount = details;
+              break;
+            }
+          }
+        }
+
+        // Build effective account data (rotation override or default from queue)
+        const warmupEnabled = activeAccount
+          ? (activeAccount.warmup_enabled as boolean)
+          : (item.warmup_enabled as boolean);
+        const warmupCurrentVolume = activeAccount
+          ? ((activeAccount.warmup_current_volume as number) || 0)
+          : ((item.warmup_current_volume as number) || 0);
+        const baseDailyLimit = activeAccount
+          ? ((activeAccount.daily_limit as number) || 30)
+          : ((item.account_daily_limit as number) || 30);
+        const providerDailyMax = activeAccount
+          ? ((activeAccount.provider_daily_max as number) || 500)
+          : ((item.provider_daily_max as number) || 500);
+
+        // Provider-specific rate limit (Phase 10)
+        const effectiveMax = Math.min(baseDailyLimit, providerDailyMax);
+        // If warmup is active, the effective limit is the warmup volume (progressive)
+        const dailyLimit = warmupEnabled ? Math.min(warmupCurrentVolume, effectiveMax) : effectiveMax;
         const alreadySent = sentTodayByAccount[accountId] || 0;
-        if (alreadySent + sentCount >= dailyLimit) {
+        if (alreadySent >= dailyLimit) {
           skippedCount++;
           continue;
         }
@@ -412,23 +522,50 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Resolve account data: use rotation account or default from queue
+        const fromEmailAddress = activeAccount
+          ? (activeAccount.email_address as string)
+          : (item.from_email_address as string);
+        const fromDisplayName = activeAccount
+          ? (activeAccount.display_name as string) || ""
+          : (item.from_display_name as string) || "";
+        const signatureHtml = activeAccount
+          ? (activeAccount.signature_html as string)
+          : (item.signature_html as string);
+        const accountProvider = activeAccount
+          ? (activeAccount.provider as string)
+          : (item.email_provider as string) || "gmail";
+        const accountBookingUrl = activeAccount
+          ? (activeAccount.booking_url as string | null)
+          : (item.booking_url as string | null);
+
         // Append signature if present
-        if (item.signature_html) {
-          mergedBody += `<br/><br/>${item.signature_html}`;
+        if (signatureHtml) {
+          mergedBody += `<br/><br/>${signatureHtml}`;
         }
 
-        // Generate tracking ID and process for tracking
-        // Skip tracking for Gmail (personal emails should not have tracking pixels)
-        const isGmail = ((item.email_provider as string) || "gmail") === "gmail";
+        // Generate tracking ID and process for tracking (all providers including Gmail)
+        // Use custom tracking domain if configured (Phase 9)
         const trackingId = crypto.randomUUID();
-        const processedBody = isGmail
-          ? mergedBody
-          : processEmailForTracking(
-              mergedBody,
-              trackingId,
-              item.track_opens,
-              item.track_clicks
-            );
+        const trackingDomain = activeAccount
+          ? (activeAccount.tracking_domain as string | null)
+          : (item.tracking_domain as string | null);
+        const appBaseUrl = trackingDomain || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002";
+        let processedBody = processEmailForTracking(
+          mergedBody,
+          trackingId,
+          item.track_opens,
+          item.track_clicks,
+          appBaseUrl
+        );
+
+        // Inject unsubscribe link at bottom of email
+        processedBody = injectUnsubscribeLink(processedBody, trackingId, appBaseUrl);
+
+        // Build from address
+        const fromField = fromDisplayName
+          ? `${fromDisplayName} <${fromEmailAddress}>`
+          : fromEmailAddress;
 
         // Insert emails_sent record with 'sending' status first (prevent duplicates)
         const { data: emailRecord, error: insertError } = await supabase
@@ -437,10 +574,8 @@ export async function POST(request: NextRequest) {
             campaign_prospect_id: item.campaign_prospect_id,
             step_id: step.id,
             ab_variant_id: variantId,
-            email_account_id: item.email_account_id,
-            from_email: item.from_display_name
-              ? `${item.from_display_name} <${item.from_email_address}>`
-              : item.from_email_address,
+            email_account_id: accountId,
+            from_email: fromField,
             to_email: item.prospect_email,
             subject: mergedSubject,
             body_html: processedBody,
@@ -456,13 +591,34 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Send via Gmail SMTP with Resend fallback
-        const provider = (item.email_provider as string) || "gmail";
+        // Build List-Unsubscribe headers
+        const unsubscribeUrl = `${appBaseUrl}/api/unsubscribe/${trackingId}`;
+        const listUnsubscribeHeaders: Record<string, string> = {
+          "List-Unsubscribe": `<${unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        };
+
+        // Build SMTP credentials (from rotation account or queue item)
+        let smtpCredentials: SmtpCredentials | undefined;
+        const smtpHost = activeAccount ? (activeAccount.smtp_host as string) : (item.smtp_host as string);
+        const smtpUser = activeAccount ? (activeAccount.smtp_user as string) : (item.smtp_user as string);
+        const smtpPass = activeAccount ? (activeAccount.smtp_pass_encrypted as string) : (item.smtp_pass_encrypted as string);
+        if (smtpHost && smtpUser && smtpPass) {
+          smtpCredentials = {
+            host: smtpHost,
+            port: activeAccount ? ((activeAccount.smtp_port as number) || 587) : ((item.smtp_port as number) || 587),
+            user: smtpUser,
+            pass: smtpPass,
+          };
+        }
+
+        // Send via SMTP with Resend fallback
+        const provider = accountProvider;
         let result: { success: boolean; messageId?: string; error?: string };
 
-        // Build the Resend-compatible from address (use send.checkeasy.co subdomain)
-        const fromEmail = (item.from_email_address as string) || "adrien@checkeasy.co";
-        const fromName = (item.from_display_name as string) || "";
+        // Build the Resend-compatible from address
+        const fromEmail = fromEmailAddress || "adrien@checkeasy.co";
+        const fromName = fromDisplayName;
         const resendFrom = fromName
           ? `${fromName} <${fromEmail.replace(/@checkeasy\.co$/, "@send.checkeasy.co")}>`
           : fromEmail.replace(/@checkeasy\.co$/, "@send.checkeasy.co");
@@ -479,6 +635,8 @@ export async function POST(request: NextRequest) {
             html: processedBody,
             text: mergedText,
             from: emailRecord.from_email,
+            smtpCredentials,
+            headers: listUnsubscribeHeaders,
           });
 
           // Fallback to Resend if Gmail SMTP fails (e.g. port blocked on cloud)
@@ -491,6 +649,7 @@ export async function POST(request: NextRequest) {
               html: processedBody,
               text: mergedText,
               replyTo: fromEmail,
+              headers: listUnsubscribeHeaders,
             });
           }
         } else {
@@ -500,6 +659,7 @@ export async function POST(request: NextRequest) {
             subject: mergedSubject,
             html: processedBody,
             text: mergedText,
+            headers: listUnsubscribeHeaders,
           });
         }
 
@@ -534,6 +694,20 @@ export async function POST(request: NextRequest) {
             .update({ last_contacted_at: new Date().toISOString() })
             .eq("id", item.prospect_id);
 
+          // Update rotation account usage (if using rotation)
+          if (rotationAccounts && rotationAccounts.length > 0) {
+            await supabase
+              .from("campaign_email_accounts")
+              .update({
+                emails_sent_today: (sentTodayByAccount[accountId] || 0) + 1,
+                last_used_at: new Date().toISOString(),
+              })
+              .eq("campaign_id", item.campaign_id)
+              .eq("email_account_id", accountId);
+          }
+
+          // Track per-account sent count for this batch
+          sentTodayByAccount[accountId] = (sentTodayByAccount[accountId] || 0) + 1;
           sentCount++;
         } else {
           // Mark email as failed

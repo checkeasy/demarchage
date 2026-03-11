@@ -63,6 +63,7 @@ interface EmailAccountForm {
   signature_html: string;
   warmup_enabled: boolean;
   booking_url: string;
+  tracking_domain: string;
 }
 
 export default function SettingsPage() {
@@ -81,8 +82,12 @@ export default function SettingsPage() {
       health_score: number;
       daily_limit: number;
       warmup_enabled: boolean;
+      warmup_current_volume: number;
+      warmup_daily_target: number;
       booking_url: string | null;
       signature_html: string | null;
+      tracking_domain: string | null;
+      provider_daily_max: number | null;
     }>
   >([]);
   const [showAddEmail, setShowAddEmail] = useState(false);
@@ -103,6 +108,7 @@ export default function SettingsPage() {
     signature_html: "",
     warmup_enabled: false,
     booking_url: "",
+    tracking_domain: "",
   });
 
   // LinkedIn state
@@ -168,7 +174,7 @@ export default function SettingsPage() {
     const { data: accounts } = await supabase
       .from("email_accounts")
       .select(
-        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, booking_url, signature_html"
+        "id, email_address, display_name, provider, is_active, health_score, daily_limit, warmup_enabled, warmup_current_volume, warmup_daily_target, booking_url, signature_html, tracking_domain, provider_daily_max"
       )
       .eq("workspace_id", profile.current_workspace_id)
       .eq("user_id", user.id);
@@ -312,6 +318,7 @@ export default function SettingsPage() {
       signature_html: newAccount.signature_html || "",
       warmup_enabled: newAccount.warmup_enabled,
       booking_url: newAccount.booking_url || null,
+      tracking_domain: newAccount.tracking_domain || null,
     });
 
     if (error) {
@@ -625,6 +632,10 @@ export default function SettingsPage() {
             <Phone className="mr-2 h-4 w-4" />
             WhatsApp
           </TabsTrigger>
+          <TabsTrigger value="health">
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Sante comptes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="workspace" className="space-y-4">
@@ -680,7 +691,21 @@ export default function SettingsPage() {
                       <p className="font-medium">{account.email_address}</p>
                       <p className="text-sm text-muted-foreground">
                         {account.display_name || account.provider} - Limite: {account.daily_limit}/jour
+                        {account.provider_daily_max && ` (max provider: ${account.provider_daily_max})`}
                       </p>
+                      {account.warmup_enabled && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="w-24 h-1.5 rounded-full bg-slate-200">
+                            <div
+                              className="h-1.5 rounded-full bg-amber-500 transition-all"
+                              style={{ width: `${account.warmup_daily_target > 0 ? Math.min(100, (account.warmup_current_volume / account.warmup_daily_target) * 100) : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            Warmup: {account.warmup_current_volume}/{account.warmup_daily_target}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1042,6 +1067,23 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     L&apos;IA pourra proposer ce lien dans les emails pour inviter les prospects a reserver un creneau.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Domaine de tracking <span className="text-xs text-muted-foreground font-normal">(optionnel)</span></Label>
+                  <Input
+                    value={newAccount.tracking_domain}
+                    onChange={(e) =>
+                      setNewAccount((p) => ({
+                        ...p,
+                        tracking_domain: e.target.value,
+                      }))
+                    }
+                    placeholder="https://track.votredomaine.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Utilisez un sous-domaine dedie pour le tracking (pixels d&apos;ouverture, liens). Ameliore la deliverabilite.
                   </p>
                 </div>
 
@@ -1577,7 +1619,198 @@ Nous voulons prendre contact avec [type de decideur] dans [secteur] pour leur pr
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Health Dashboard Tab */}
+        <TabsContent value="health" className="space-y-4">
+          <AccountHealthDashboard />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// --- Account Health Dashboard ---
+function AccountHealthDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [accounts, setAccounts] = useState<Array<{
+    id: string;
+    email_address: string;
+    display_name: string | null;
+    provider: string;
+    health_score: number;
+    is_active: boolean;
+    warmup_enabled: boolean;
+    warmup_current_volume: number;
+    warmup_daily_target: number;
+    daily_limit: number;
+    provider_daily_max: number | null;
+    health_logs: Array<{
+      log_date: string;
+      emails_sent: number;
+      emails_bounced: number;
+      emails_complained: number;
+      bounce_rate: number;
+      complaint_rate: number;
+      health_score: number;
+      auto_disabled: boolean;
+    }>;
+  }>>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/email-accounts/health");
+        const data = await res.json();
+        if (res.ok) setAccounts(data.accounts || []);
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sante des comptes email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Aucun compte email configure.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Sante des comptes email</CardTitle>
+          <CardDescription>
+            Surveillance automatique des taux de bounce et plaintes. Les comptes depassant les seuils (5% bounce, 0.1% plainte) sont automatiquement desactives.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {accounts.map((account) => {
+        const isHealthy = account.health_score > 80;
+        const isWarning = account.health_score > 50 && account.health_score <= 80;
+        const isDanger = account.health_score <= 50;
+        const latestLog = account.health_logs[account.health_logs.length - 1];
+
+        return (
+          <Card key={account.id} className={!account.is_active ? "opacity-60" : ""}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    !account.is_active ? "bg-slate-400" :
+                    isHealthy ? "bg-green-500" :
+                    isWarning ? "bg-amber-500" : "bg-red-500"
+                  }`} />
+                  <div>
+                    <CardTitle className="text-base">{account.email_address}</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {account.display_name || account.provider}
+                      {!account.is_active && " - DESACTIVE"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={isHealthy ? "default" : isDanger ? "destructive" : "secondary"}
+                    className="text-sm"
+                  >
+                    {account.health_score}%
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Current stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">{account.daily_limit}</p>
+                  <p className="text-[10px] text-muted-foreground">Limite/jour</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">{account.provider_daily_max || "-"}</p>
+                  <p className="text-[10px] text-muted-foreground">Max provider</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">
+                    {latestLog ? `${latestLog.bounce_rate}%` : "-"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Taux bounce (7j)</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <p className="text-lg font-bold">
+                    {latestLog ? `${latestLog.complaint_rate}%` : "-"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Taux plainte (7j)</p>
+                </div>
+              </div>
+
+              {/* 7-day history mini bars */}
+              {account.health_logs.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Historique 7 jours</p>
+                  <div className="flex items-end gap-1 h-12">
+                    {account.health_logs.map((log, i) => {
+                      const height = Math.max(4, (log.health_score / 100) * 48);
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                          <div
+                            className={`w-full rounded-sm transition-all ${
+                              log.health_score > 80 ? "bg-green-400" :
+                              log.health_score > 50 ? "bg-amber-400" : "bg-red-400"
+                            }`}
+                            style={{ height: `${height}px` }}
+                            title={`${new Date(log.log_date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}: ${log.emails_sent} envoyes, ${log.emails_bounced} bounces`}
+                          />
+                          <span className="text-[8px] text-muted-foreground">
+                            {new Date(log.log_date).getDate()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {latestLog?.auto_disabled && (
+                <div className="flex items-center gap-2 p-2 bg-red-50 rounded text-red-700 text-sm">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Compte desactive automatiquement (seuil depasse)
+                </div>
+              )}
+
+              {account.warmup_enabled && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Info className="h-3.5 w-3.5" />
+                  Warmup actif : {account.warmup_current_volume}/{account.warmup_daily_target} emails/jour
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

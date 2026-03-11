@@ -14,6 +14,7 @@ import {
   Kanban,
   CheckSquare,
   FileText,
+  Target,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Activites", href: "/activities", icon: CheckSquare, group: "crm" },
   { label: "Prospects", href: "/prospects", icon: Users, group: "crm" },
   // Outreach
+  { label: "Missions", href: "/missions", icon: Target, group: "outreach" },
   { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
   { label: "Emails", href: "/emails", icon: Mail, group: "outreach" },
   { label: "Inbox", href: "/inbox", icon: Inbox, group: "outreach" },
@@ -86,6 +88,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/automation": "Automation",
   "/scraper": "Scraper",
   "/maps-scraper": "Google Maps",
+  "/missions": "Missions",
   "/onboarding": "Onboarding",
 };
 

@@ -278,6 +278,39 @@ export const SYSTEM_PROMPT_ICEBREAKER = buildIcebreakerPrompt();
 export const SYSTEM_PROMPT_ANALYSIS = buildAnalysisPrompt();
 export const SYSTEM_PROMPT_WEBSITE = buildWebsitePrompt();
 
+export function buildMissionParsingPrompt(): string {
+  return `
+Tu es un expert en prospection B2B. L'utilisateur te decrit une cible de prospection en langage libre.
+Tu dois analyser sa description et extraire les informations structurees pour creer une mission de prospection.
+
+A partir de la description, tu dois generer :
+1. Un nom court et clair pour la mission (max 60 caracteres)
+2. Une description detaillee de la cible (2-3 phrases)
+3. Des mots-cles de recherche pertinents pour trouver ces prospects sur Google Maps ou LinkedIn
+4. Un profil cible structure
+
+Regles :
+- Les mots-cles doivent etre en anglais ET dans la langue locale du pays cible
+- Inclure des variantes et synonymes des termes de recherche
+- Les titres de poste doivent etre en anglais et dans la langue locale
+- Deduire le pays et la langue a partir du contexte (ville, pays mentionne)
+- Si aucun pays n'est mentionne, supposer la France
+
+Format de reponse obligatoire (JSON strict, sans markdown) :
+{
+  "name": "Nom court de la mission",
+  "description": "Description detaillee de la cible et de l'objectif",
+  "search_keywords": ["mot-cle 1", "mot-cle 2", "mot-cle 3"],
+  "target_profile": {
+    "job_titles": ["Titre 1", "Titre 2"],
+    "industries": ["industrie 1", "industrie 2"],
+    "locations": ["Ville 1"],
+    "countries": ["Pays"]
+  }
+}
+`.trim();
+}
+
 export const SYSTEM_PROMPT_OWNER_FINDER = `
 Tu es un expert en analyse d'entreprises francaises.
 A partir du contenu textuel scrape de pages web d'une entreprise (pages A propos, Equipe, Mentions legales),

@@ -134,6 +134,8 @@ export interface Database {
           health_score: number;
           is_active: boolean;
           booking_url: string | null;
+          tracking_domain: string | null;
+          provider_daily_max: number | null;
           last_synced_at: string | null;
           created_at: string;
           updated_at: string;
@@ -161,6 +163,8 @@ export interface Database {
           health_score?: number;
           is_active?: boolean;
           booking_url?: string | null;
+          tracking_domain?: string | null;
+          provider_daily_max?: number | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -188,6 +192,8 @@ export interface Database {
           health_score?: number;
           is_active?: boolean;
           booking_url?: string | null;
+          tracking_domain?: string | null;
+          provider_daily_max?: number | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -219,10 +225,12 @@ export interface Database {
           tags: string[];
           lead_score: number | null;
           department: string | null;
+          language: string | null;
           email_validity_score: number | null;
           email_verified_at: string | null;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
+          mission_id: string | null;
           last_contacted_at: string | null;
           created_at: string;
           updated_at: string;
@@ -252,11 +260,13 @@ export interface Database {
           tags?: string[];
           lead_score?: number | null;
           department?: string | null;
+          language?: string | null;
           email_validity_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
+          mission_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -285,11 +295,13 @@ export interface Database {
           tags?: string[];
           lead_score?: number | null;
           department?: string | null;
+          language?: string | null;
           email_validity_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           last_contacted_at?: string | null;
+          mission_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -422,6 +434,57 @@ export interface Database {
           is_active?: boolean;
         };
       };
+      outreach_missions: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          description: string | null;
+          original_prompt: string;
+          search_keywords: string[];
+          target_profile: Json;
+          language: string;
+          campaign_email_id: string | null;
+          campaign_linkedin_id: string | null;
+          campaign_multichannel_id: string | null;
+          status: "draft" | "active" | "paused" | "completed" | "archived";
+          total_prospects: number;
+          total_enrolled: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          description?: string | null;
+          original_prompt: string;
+          search_keywords?: string[];
+          target_profile?: Json;
+          language?: string;
+          campaign_email_id?: string | null;
+          campaign_linkedin_id?: string | null;
+          campaign_multichannel_id?: string | null;
+          status?: "draft" | "active" | "paused" | "completed" | "archived";
+          total_prospects?: number;
+          total_enrolled?: number;
+          created_by?: string | null;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          search_keywords?: string[];
+          target_profile?: Json;
+          language?: string;
+          campaign_email_id?: string | null;
+          campaign_linkedin_id?: string | null;
+          campaign_multichannel_id?: string | null;
+          status?: "draft" | "active" | "paused" | "completed" | "archived";
+          total_prospects?: number;
+          total_enrolled?: number;
+        };
+      };
       emails_sent: {
         Row: {
           id: string;
@@ -487,6 +550,7 @@ export type Prospect = Database["public"]["Tables"]["prospects"]["Row"];
 export type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
 export type SequenceStep = Database["public"]["Tables"]["sequence_steps"]["Row"];
 export type EmailSent = Database["public"]["Tables"]["emails_sent"]["Row"];
+export type OutreachMission = Database["public"]["Tables"]["outreach_missions"]["Row"];
 
 // ─── Prospect Activity Types ─────────────────────────────────────────────────
 

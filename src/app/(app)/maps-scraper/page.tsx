@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   LayoutGrid,
   List,
@@ -10,6 +11,7 @@ import {
   MapPin,
   Download,
   Search,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -37,6 +39,7 @@ import { EmailComposer } from "@/components/email/EmailComposer";
 import type { GoogleMapsBusinessResult } from "@/lib/scraper/google-maps-scraper";
 
 export default function MapsScraperPage() {
+  const searchParams = useSearchParams();
   const [businesses, setBusinesses] = useState<GoogleMapsBusinessResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -44,6 +47,18 @@ export default function MapsScraperPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isEnrichingBulk, setIsEnrichingBulk] = useState(false);
   const [isAddingBulk, setIsAddingBulk] = useState(false);
+  const [missions, setMissions] = useState<Array<{ id: string; name: string; search_keywords: string[]; language: string }>>([]);
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(searchParams.get("mission_id"));
+
+  // Fetch missions on mount
+  useEffect(() => {
+    fetch("/api/missions")
+      .then(r => r.json())
+      .then(data => {
+        if (data.missions) setMissions(data.missions);
+      })
+      .catch(() => {});
+  }, []);
 
   // Enrichment data per business
   const [enrichmentMap, setEnrichmentMap] = useState<
@@ -265,6 +280,7 @@ export default function MapsScraperPage() {
           rating: business.rating,
           reviewCount: business.reviewCount,
           category: business.category,
+          ...(selectedMissionId ? { mission_id: selectedMissionId } : {}),
         }),
       });
 
@@ -308,6 +324,7 @@ export default function MapsScraperPage() {
               category: business.category,
             };
           }),
+          mission_id: selectedMissionId,
         }),
       });
 
@@ -386,6 +403,35 @@ export default function MapsScraperPage() {
           automatiquement avec emails et nom du dirigeant
         </p>
       </div>
+
+      {/* Mission Selector */}
+      {missions.length > 0 && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <Target className="size-4 text-indigo-500" />
+                Mission active
+              </div>
+              <select
+                className="flex-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm bg-white"
+                value={selectedMissionId || ""}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  setSelectedMissionId(val);
+                }}
+              >
+                <option value="">Aucune mission</option>
+                {missions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.language.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search Form */}
       <Card>

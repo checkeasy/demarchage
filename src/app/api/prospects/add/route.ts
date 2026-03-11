@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
       return `${slug}@linkedin-prospect.local`;
     }
 
+    const missionId = body.mission_id || (body.bulk?.[0]?.mission_id);
+
     // Bulk add with upsert
     if (body.bulk && Array.isArray(body.bulk)) {
       let inserted = 0;
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
           industry: p.industry || null,
           employee_count: p.company_size || null,
           city: p.location ? String(p.location).split(',')[0].trim() : null,
+          mission_id: missionId || null,
           custom_fields: {
             headline: p.headline || '',
             relevance_score: p.relevance_score || 0,
@@ -86,6 +89,46 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Auto-enroll in mission if mission_id provided
+      if (missionId && inserted > 0) {
+        try {
+          const { enrollProspectInMission } = await import('@/lib/missions/enroll-prospect');
+          const { data: mission } = await supabase
+            .from('outreach_missions')
+            .select('id, campaign_email_id, campaign_linkedin_id, campaign_multichannel_id')
+            .eq('id', missionId)
+            .single();
+
+          if (mission) {
+            const { data: newProspects } = await supabase
+              .from('prospects')
+              .select('id, email, linkedin_url, phone, status')
+              .eq('workspace_id', workspace.id)
+              .eq('mission_id', missionId)
+              .order('created_at', { ascending: false })
+              .limit(inserted);
+
+            if (newProspects) {
+              for (const p of newProspects) {
+                await enrollProspectInMission(supabase, mission, p);
+              }
+            }
+
+            const { count: missionProspectCount } = await supabase
+              .from('prospects')
+              .select('id', { count: 'exact', head: true })
+              .eq('mission_id', missionId);
+
+            await supabase
+              .from('outreach_missions')
+              .update({ total_prospects: missionProspectCount || 0 })
+              .eq('id', missionId);
+          }
+        } catch (err) {
+          console.error('[API Prospects Add] Mission enrollment error:', err);
+        }
+      }
+
       return NextResponse.json({ success: true, inserted, updated, errors });
     }
 
@@ -104,6 +147,7 @@ export async function POST(request: NextRequest) {
       industry: body.industry || null,
       employee_count: body.company_size || null,
       city: body.location ? String(body.location).split(',')[0].trim() : null,
+      mission_id: missionId || null,
       custom_fields: {
         headline: body.headline || '',
         relevance_score: body.relevance_score || 0,
@@ -142,6 +186,45 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.from('prospects').insert(prospectData);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-enroll in mission if mission_id provided (single add)
+    if (missionId) {
+      try {
+        const { enrollProspectInMission } = await import('@/lib/missions/enroll-prospect');
+        const { data: mission } = await supabase
+          .from('outreach_missions')
+          .select('id, campaign_email_id, campaign_linkedin_id, campaign_multichannel_id')
+          .eq('id', missionId)
+          .single();
+
+        if (mission) {
+          const { data: newProspect } = await supabase
+            .from('prospects')
+            .select('id, email, linkedin_url, phone, status')
+            .eq('workspace_id', workspace.id)
+            .eq('mission_id', missionId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (newProspect) {
+            await enrollProspectInMission(supabase, mission, newProspect);
+          }
+
+          const { count: missionProspectCount } = await supabase
+            .from('prospects')
+            .select('id', { count: 'exact', head: true })
+            .eq('mission_id', missionId);
+
+          await supabase
+            .from('outreach_missions')
+            .update({ total_prospects: missionProspectCount || 0 })
+            .eq('id', missionId);
+        }
+      } catch (err) {
+        console.error('[API Prospects Add] Mission enrollment error:', err);
+      }
     }
 
     return NextResponse.json({ success: true, action: 'inserted' });

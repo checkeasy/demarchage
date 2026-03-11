@@ -36,6 +36,7 @@ interface ProspectRow {
   source: 'google_maps';
   status: 'active';
   custom_fields: Record<string, unknown>;
+  mission_id: string | null;
 }
 
 interface ExistingProspect {
@@ -67,7 +68,7 @@ function normalizePhone(phone: string): string {
 /**
  * Transforme les données entrantes (format Google Maps) en un objet prêt pour insert/merge.
  */
-function toProspectRow(workspaceId: string, b: IncomingProspect): ProspectRow {
+function toProspectRow(workspaceId: string, b: IncomingProspect, missionId?: string): ProspectRow {
   return {
     workspace_id: workspaceId,
     email: b.email || '',
@@ -87,6 +88,7 @@ function toProspectRow(workspaceId: string, b: IncomingProspect): ProspectRow {
       review_count: b.reviewCount || null,
       category: b.category || '',
     },
+    mission_id: missionId || null,
   };
 }
 
@@ -289,8 +291,9 @@ export async function POST(request: NextRequest) {
     // Bulk add (avec déduplication)
     // =========================================================================
     if (body.bulk && Array.isArray(body.bulk)) {
+      const bulkMissionId = body.mission_id;
       const prospects = body.bulk.map((b: IncomingProspect) =>
-        toProspectRow(workspaceId, b)
+        toProspectRow(workspaceId, b, bulkMissionId)
       );
 
       let insertedCount = 0;
@@ -330,6 +333,48 @@ export async function POST(request: NextRequest) {
         insertedCount = toInsert.length;
       }
 
+      // Auto-enroll in mission if mission_id provided
+      if (bulkMissionId && toInsert.length > 0) {
+        try {
+          const { enrollProspectInMission } = await import('@/lib/missions/enroll-prospect');
+          const { data: mission } = await supabase
+            .from('outreach_missions')
+            .select('id, campaign_email_id, campaign_linkedin_id, campaign_multichannel_id')
+            .eq('id', bulkMissionId)
+            .single();
+
+          if (mission) {
+            // Get newly inserted prospect IDs
+            const { data: newProspects } = await supabase
+              .from('prospects')
+              .select('id, email, linkedin_url, phone, status')
+              .eq('workspace_id', workspaceId)
+              .eq('mission_id', bulkMissionId)
+              .order('created_at', { ascending: false })
+              .limit(toInsert.length);
+
+            if (newProspects) {
+              for (const p of newProspects) {
+                await enrollProspectInMission(supabase, mission, p);
+              }
+            }
+
+            // Update mission total_prospects
+            const { count: missionProspectCount } = await supabase
+              .from('prospects')
+              .select('id', { count: 'exact', head: true })
+              .eq('mission_id', bulkMissionId);
+
+            await supabase
+              .from('outreach_missions')
+              .update({ total_prospects: missionProspectCount || 0 })
+              .eq('id', bulkMissionId);
+          }
+        } catch (err) {
+          console.error('[API add-maps-prospects] Mission enrollment error:', err);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         count: prospects.length,
@@ -342,7 +387,8 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // Single add (avec déduplication)
     // =========================================================================
-    const prospect = toProspectRow(workspaceId, body as IncomingProspect);
+    const missionId = body.mission_id;
+    const prospect = toProspectRow(workspaceId, body as IncomingProspect, missionId);
 
     const existing = await findExistingProspect(
       supabase,
@@ -368,6 +414,46 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('[API add-maps-prospects] Insert error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-enroll in mission if mission_id provided (single add)
+    if (missionId) {
+      try {
+        const { enrollProspectInMission } = await import('@/lib/missions/enroll-prospect');
+        const { data: mission } = await supabase
+          .from('outreach_missions')
+          .select('id, campaign_email_id, campaign_linkedin_id, campaign_multichannel_id')
+          .eq('id', missionId)
+          .single();
+
+        if (mission) {
+          const { data: newProspect } = await supabase
+            .from('prospects')
+            .select('id, email, linkedin_url, phone, status')
+            .eq('workspace_id', workspaceId)
+            .eq('mission_id', missionId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (newProspect) {
+            await enrollProspectInMission(supabase, mission, newProspect);
+          }
+
+          // Update mission total_prospects
+          const { count: missionProspectCount } = await supabase
+            .from('prospects')
+            .select('id', { count: 'exact', head: true })
+            .eq('mission_id', missionId);
+
+          await supabase
+            .from('outreach_missions')
+            .update({ total_prospects: missionProspectCount || 0 })
+            .eq('id', missionId);
+        }
+      } catch (err) {
+        console.error('[API add-maps-prospects] Mission enrollment error:', err);
+      }
     }
 
     return NextResponse.json({
