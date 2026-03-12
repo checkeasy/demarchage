@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -10,29 +10,42 @@ import {
 } from "@/lib/pipedrive/client";
 
 // POST /api/pipedrive/sync-activities — Sync all Pipedrive activities
-export async function POST() {
-  // Auth check
-  const authClient = await createClient();
-  const {
-    data: { user },
-  } = await authClient.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
+  let userId: string;
+  let workspaceId: string;
 
-  // Get workspace
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("current_workspace_id")
-    .eq("id", user.id)
-    .single();
+  // Support CRON_SECRET auth for server-side triggers
+  const cronSecret = request.headers.get("x-cron-secret");
+  if (cronSecret && cronSecret === process.env.CRON_SECRET) {
+    // Use first workspace + first user
+    const { data: workspace } = await supabase.from("workspaces").select("id").limit(1).single();
+    const { data: profile } = await supabase.from("profiles").select("id, current_workspace_id").limit(1).single();
+    if (!workspace || !profile) {
+      return NextResponse.json({ error: "No workspace/profile" }, { status: 500 });
+    }
+    workspaceId = profile.current_workspace_id || workspace.id;
+    userId = profile.id;
+  } else {
+    // Normal auth check
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    userId = user.id;
 
-  if (!profile?.current_workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("current_workspace_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.current_workspace_id) {
+      return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    }
+    workspaceId = profile.current_workspace_id;
   }
-  const workspaceId = profile.current_workspace_id;
 
   try {
     // 1. Fetch all activities from Pipedrive
@@ -103,8 +116,8 @@ export async function POST() {
         done_at: pa.done && pa.marked_as_done_time ? pa.marked_as_done_time : null,
         priority: mapPipedrivePriority(pa.priority),
         prospect_id: prospectId,
-        assigned_to: user.id,
-        created_by: user.id,
+        assigned_to: userId,
+        created_by: userId,
         custom_fields: {
           pipedrive_id: pa.id,
           pipedrive_org: pa.org_name,
