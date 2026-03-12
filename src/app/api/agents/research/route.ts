@@ -79,21 +79,24 @@ export async function POST(request: NextRequest) {
         enrichmentUpdates.email = enrichment.email;
       }
 
-      // Save enrichment data in custom_fields for transparency
-      const customFields = (prospect.custom_fields || {}) as Record<string, unknown>;
-      enrichmentUpdates.custom_fields = {
-        ...customFields,
-        web_enrichment: {
-          linkedin_url: enrichment.linkedin_url,
-          linkedin_confidence: enrichment.linkedin_confidence,
-          email: enrichment.email,
-          email_confidence: enrichment.email_confidence,
-          sources: enrichment.sources,
-          reasoning: enrichment.reasoning,
-          enriched_at: new Date().toISOString(),
-          confidence_threshold: CONFIDENCE_THRESHOLD,
-        },
-      };
+      // Save enrichment data in custom_fields only if there are meaningful results
+      const hasMeaningfulResults = enrichment.linkedin_url || enrichment.email || (enrichment.sources && enrichment.sources.length > 0);
+      if (hasMeaningfulResults) {
+        const customFields = (prospect.custom_fields || {}) as Record<string, unknown>;
+        enrichmentUpdates.custom_fields = {
+          ...customFields,
+          web_enrichment: {
+            linkedin_url: enrichment.linkedin_url,
+            linkedin_confidence: enrichment.linkedin_confidence,
+            email: enrichment.email,
+            email_confidence: enrichment.email_confidence,
+            sources: enrichment.sources,
+            reasoning: enrichment.reasoning,
+            enriched_at: new Date().toISOString(),
+            confidence_threshold: CONFIDENCE_THRESHOLD,
+          },
+        };
+      }
 
       if (Object.keys(enrichmentUpdates).length > 0) {
         await supabase
@@ -104,6 +107,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Add enrichment info to the research result
+    if (typeof research.content !== 'object' || research.content === null) {
+      research.content = {};
+    }
     const researchContent = research.content as Record<string, unknown>;
     if (enrichment) {
       researchContent.web_enrichment = {

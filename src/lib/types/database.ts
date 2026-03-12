@@ -280,7 +280,7 @@ export interface Database {
           lead_score: number | null;
           department: string | null;
           language: string | null;
-          email_validity_score: number | null;
+          email_score: number | null;
           email_verified_at: string | null;
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
@@ -317,7 +317,7 @@ export interface Database {
           lead_score?: number | null;
           department?: string | null;
           language?: string | null;
-          email_validity_score?: number | null;
+          email_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
@@ -354,7 +354,7 @@ export interface Database {
           lead_score?: number | null;
           department?: string | null;
           language?: string | null;
-          email_validity_score?: number | null;
+          email_score?: number | null;
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";

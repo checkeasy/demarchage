@@ -529,13 +529,13 @@ export function ProspectPageClient({
         );
       } else if (emailQualityFilter === "verified_high") {
         result = result.filter((p) =>
-          p.email_validity_score !== null && p.email_validity_score !== undefined &&
-          p.email_validity_score >= 70
+          p.email_score !== null && p.email_score !== undefined &&
+          p.email_score >= 70
         );
       } else if (emailQualityFilter === "verified_low") {
         result = result.filter((p) =>
-          p.email_validity_score !== null && p.email_validity_score !== undefined &&
-          p.email_validity_score < 70 && p.email_validity_score > 0
+          p.email_score !== null && p.email_score !== undefined &&
+          p.email_score < 70 && p.email_score > 0
         );
       } else if (emailQualityFilter === "not_verified") {
         result = result.filter((p) =>
@@ -543,13 +543,13 @@ export function ProspectPageClient({
           !p.email.endsWith('@crm-import.local') &&
           !p.email.endsWith('@directory-import.local') &&
           !p.email.endsWith('@linkedin-prospect.local') &&
-          (p.email_validity_score === null || p.email_validity_score === undefined)
+          (p.email_score === null || p.email_score === undefined)
         );
       }
     }
 
     // Sort — nulls always last regardless of direction
-    const numericFields = new Set(["nb_properties", "lead_score", "email_validity_score"]);
+    const numericFields = new Set(["nb_properties", "lead_score", "email_score"]);
     result = [...result].sort((a, b) => {
       const aRaw = a[sortField as keyof Prospect];
       const bRaw = b[sortField as keyof Prospect];
@@ -697,6 +697,7 @@ export function ProspectPageClient({
 
   async function handleDeleteSelected() {
     if (selectedIds.size === 0) return;
+    if (!window.confirm(`Supprimer ${selectedIds.size} prospect(s) ? Cette action est irréversible.`)) return;
 
     const ids = Array.from(selectedIds);
     const { error } = await supabase
@@ -1689,7 +1690,7 @@ export function ProspectPageClient({
               <SortableHeader field="status" label="Statut" />
               <SortableHeader field="source" label="Source" className="hidden lg:table-cell" />
               <SortableHeader field="lead_score" label="Score IA" className="hidden sm:table-cell" />
-              <SortableHeader field="email_validity_score" label="Fiabilité" className="hidden xl:table-cell" />
+              <SortableHeader field="email_score" label="Fiabilité" className="hidden xl:table-cell" />
               <SortableHeader field="email" label="Email" className="hidden md:table-cell" />
               <SortableHeader field="last_contacted_at" label="Dernier contact" className="hidden lg:table-cell" />
               <SortableHeader field="created_at" label="Ajout" className="hidden xl:table-cell" />
@@ -1852,16 +1853,16 @@ export function ProspectPageClient({
                       )}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
-                      {prospect.email_validity_score !== null && prospect.email_validity_score !== undefined ? (
+                      {prospect.email_score !== null && prospect.email_score !== undefined ? (
                         <Badge
                           variant="secondary"
                           className={`text-xs text-white ${
-                            prospect.email_validity_score >= 70 ? "bg-green-500" :
-                            prospect.email_validity_score >= 40 ? "bg-yellow-500" :
-                            prospect.email_validity_score > 0 ? "bg-orange-500" : "bg-red-500"
+                            prospect.email_score >= 70 ? "bg-green-500" :
+                            prospect.email_score >= 40 ? "bg-yellow-500" :
+                            prospect.email_score > 0 ? "bg-orange-500" : "bg-red-500"
                           }`}
                         >
-                          {prospect.email_validity_score}%
+                          {prospect.email_score}%
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>

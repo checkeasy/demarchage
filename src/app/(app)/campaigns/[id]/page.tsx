@@ -70,7 +70,7 @@ export default async function CampaignDetailPage({
       next_send_at,
       enrolled_at,
       completed_at,
-      prospect:prospects(id, first_name, last_name, email, company, organization, nb_properties, lead_score, status, email_validity_score)
+      prospect:prospects(id, first_name, last_name, email, company, organization, nb_properties, lead_score, status, email_score)
     `)
     .eq("campaign_id", id)
     .order("enrolled_at", { ascending: false })

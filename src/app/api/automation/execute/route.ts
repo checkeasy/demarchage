@@ -615,6 +615,11 @@ async function advanceStep(
       .eq("id", item.automation_prospect_id as string);
 
     // Update sequence processed count
+    // NOTE: This read-then-write has a potential race condition if multiple
+    // workers process completions for the same sequence concurrently.
+    // It's acceptable here since total_processed is a stats counter only.
+    // Ideally this would use an RPC like increment_campaign_stat, but
+    // no such function exists for automation_sequences yet.
     const { data: seq } = await supabase
       .from("automation_sequences")
       .select("total_processed")

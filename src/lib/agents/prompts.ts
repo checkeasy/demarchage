@@ -41,7 +41,6 @@ function loadAgentPrompt(agentType: AgentType): string | null {
   // Try multiple paths (dev vs production)
   const candidates = [
     path.resolve(process.cwd(), '.claude', 'agents', dirName, 'AGENT.md'),
-    path.resolve('/root/ProjectList/colddemarchage/.claude/agents', dirName, 'AGENT.md'),
   ];
 
   for (const filePath of candidates) {

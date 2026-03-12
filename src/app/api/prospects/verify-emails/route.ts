@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
           const { error: updateError } = await admin
             .from('prospects')
             .update({
-              email_validity_score: result.score,
+              email_score: result.score,
               email_smtp_verified: result.smtp_verified,
               email_verified_at: new Date().toISOString(),
             })

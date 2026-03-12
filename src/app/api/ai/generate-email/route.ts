@@ -281,7 +281,8 @@ Reponds UNIQUEMENT en JSON valide avec ce format :
 
     let parsed: { subject?: string; body?: string };
     try {
-      parsed = JSON.parse(content);
+      const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      parsed = JSON.parse(cleaned);
     } catch {
       console.error("[API generate-email] JSON parse error:", content.slice(0, 500));
       return NextResponse.json(

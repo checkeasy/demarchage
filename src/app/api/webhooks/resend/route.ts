@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Find the sent email by Resend message ID
     const { data: emailSent } = await supabase
       .from("emails_sent")
-      .select("id, campaign_prospect_id, status")
+      .select("id, campaign_prospect_id, status, opened_at, clicked_at")
       .eq("resend_message_id", (data as Record<string, string>).email_id)
       .single();
 
@@ -75,30 +75,32 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", emailSent.id);
 
-        // Stop the campaign for this prospect
-        await supabase
-          .from("campaign_prospects")
-          .update({ status: "bounced" })
-          .eq("id", emailSent.campaign_prospect_id);
-
-        // Get prospect ID to mark as bounced
-        const { data: cp } = await supabase
-          .from("campaign_prospects")
-          .select("prospect_id, campaign_id")
-          .eq("id", emailSent.campaign_prospect_id)
-          .single();
-
-        if (cp) {
+        // Stop the campaign for this prospect (only if linked to a campaign)
+        if (emailSent.campaign_prospect_id) {
           await supabase
-            .from("prospects")
+            .from("campaign_prospects")
             .update({ status: "bounced" })
-            .eq("id", cp.prospect_id);
+            .eq("id", emailSent.campaign_prospect_id);
 
-          // Increment bounce stats
-          await supabase.rpc("increment_campaign_stat", {
-            p_campaign_id: cp.campaign_id,
-            p_column: "total_bounced",
-          });
+          // Get prospect ID to mark as bounced
+          const { data: cp } = await supabase
+            .from("campaign_prospects")
+            .select("prospect_id, campaign_id")
+            .eq("id", emailSent.campaign_prospect_id)
+            .single();
+
+          if (cp) {
+            await supabase
+              .from("prospects")
+              .update({ status: "bounced" })
+              .eq("id", cp.prospect_id);
+
+            // Increment bounce stats
+            await supabase.rpc("increment_campaign_stat", {
+              p_campaign_id: cp.campaign_id,
+              p_column: "total_bounced",
+            });
+          }
         }
 
         // Log tracking event
@@ -115,6 +117,8 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        const isFirstOpen = !emailSent.opened_at;
+
         await supabase
           .from("emails_sent")
           .update({ opened_at: new Date().toISOString() })
@@ -125,8 +129,8 @@ export async function POST(request: NextRequest) {
           event_type: "open",
         });
 
-        // Increment open stats on campaign
-        if (emailSent.campaign_prospect_id) {
+        // Increment open stats on campaign only on first open
+        if (isFirstOpen && emailSent.campaign_prospect_id) {
           const { data: cp } = await supabase
             .from("campaign_prospects")
             .select("campaign_id")
@@ -151,6 +155,8 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        const isFirstClick = !emailSent.clicked_at;
+
         await supabase
           .from("emails_sent")
           .update({ clicked_at: new Date().toISOString() })
@@ -162,7 +168,8 @@ export async function POST(request: NextRequest) {
           metadata: { url: (data as Record<string, Record<string, string>>).click?.link || null },
         });
 
-        if (emailSent.campaign_prospect_id) {
+        // Increment click stats on campaign only on first click
+        if (isFirstClick && emailSent.campaign_prospect_id) {
           const { data: cp } = await supabase
             .from("campaign_prospects")
             .select("campaign_id")
@@ -187,29 +194,31 @@ export async function POST(request: NextRequest) {
           .update({ status: "complained" })
           .eq("id", emailSent.id);
 
-        // Get prospect ID from campaign_prospect
-        const { data: cpComplaint } = await supabase
-          .from("campaign_prospects")
-          .select("prospect_id")
-          .eq("id", emailSent.campaign_prospect_id)
-          .single();
-
-        if (cpComplaint) {
-          // Mark the prospect as unsubscribed (complaint = hard stop)
-          await supabase
-            .from("prospects")
-            .update({ status: "unsubscribed" })
-            .eq("id", cpComplaint.prospect_id);
-
-          // Stop ALL active campaign_prospects for this prospect
-          await supabase
+        // Get prospect ID from campaign_prospect (only if linked to a campaign)
+        if (emailSent.campaign_prospect_id) {
+          const { data: cpComplaint } = await supabase
             .from("campaign_prospects")
-            .update({
-              status: "unsubscribed",
-              next_send_at: null,
-            })
-            .eq("prospect_id", cpComplaint.prospect_id)
-            .in("status", ["active", "paused"]);
+            .select("prospect_id")
+            .eq("id", emailSent.campaign_prospect_id)
+            .single();
+
+          if (cpComplaint) {
+            // Mark the prospect as unsubscribed (complaint = hard stop)
+            await supabase
+              .from("prospects")
+              .update({ status: "unsubscribed" })
+              .eq("id", cpComplaint.prospect_id);
+
+            // Stop ALL active campaign_prospects for this prospect
+            await supabase
+              .from("campaign_prospects")
+              .update({
+                status: "unsubscribed",
+                next_send_at: null,
+              })
+              .eq("prospect_id", cpComplaint.prospect_id)
+              .in("status", ["active", "paused"]);
+          }
         }
 
         // Log tracking event

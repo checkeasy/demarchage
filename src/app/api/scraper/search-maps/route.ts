@@ -28,9 +28,10 @@ export async function POST(request: NextRequest) {
 
     const result = await searchGoogleMaps(query.trim(), location?.trim());
 
-    // Limit results
+    // Limit results but preserve the original total count
+    const originalTotal = result.totalFound;
     result.businesses = result.businesses.slice(0, Math.min(maxResults, 20));
-    result.totalFound = result.businesses.length;
+    result.totalFound = originalTotal;
 
     return NextResponse.json({
       success: true,

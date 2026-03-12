@@ -133,7 +133,8 @@ export default function EditCampaignPage() {
     }
 
     loadCampaign();
-  }, [campaignId, supabase, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, supabase]);
 
   const handleSave = async () => {
     if (!name.trim()) {

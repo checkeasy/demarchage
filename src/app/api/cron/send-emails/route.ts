@@ -430,7 +430,11 @@ export async function POST(request: NextRequest) {
               .eq("id", item.campaign_prospect_id as string);
             continue;
           } else if (step?.step_type === "whatsapp") {
-            await handleWhatsAppStep(supabase, item, step);
+            const success = await handleWhatsAppStep(supabase, item, step);
+            if (success) {
+              await advanceToNextStep(supabase, item);
+            }
+            continue;
           }
           await advanceToNextStep(supabase, item);
           continue;
@@ -821,7 +825,7 @@ export async function POST(request: NextRequest) {
             // Also mark the prospect's email as invalid
             await supabase
               .from("prospects")
-              .update({ email_validity_score: 0 })
+              .update({ email_score: 0 })
               .eq("id", item.prospect_id);
 
             // Increment campaign bounce count
@@ -981,7 +985,7 @@ async function handleWhatsAppStep(
   supabase: ReturnType<typeof createAdminClient>,
   item: Record<string, unknown>,
   step: Record<string, unknown>
-) {
+): Promise<boolean> {
   const workspaceId = item.workspace_id as string;
   const prospectId = item.prospect_id as string;
   const campaignId = item.campaign_id as string;
@@ -1012,7 +1016,7 @@ async function handleWhatsAppStep(
       status: "invalid_number",
       errorMessage: "Pas de numero de telephone",
     });
-    return;
+    return false;
   }
 
   // Check rate limit
@@ -1027,7 +1031,7 @@ async function handleWhatsAppStep(
       status: "rate_limited",
       errorMessage: "Limite quotidienne atteinte",
     });
-    return;
+    return false;
   }
 
   // Get WhatsApp client (per-user)
@@ -1044,7 +1048,7 @@ async function handleWhatsAppStep(
       status: "failed",
       errorMessage: "Client WhatsApp non connecte",
     });
-    return;
+    return false;
   }
 
   // Merge template variables using template engine
@@ -1059,7 +1063,7 @@ async function handleWhatsAppStep(
 
   if (!messageText.trim()) {
     console.log(`[WhatsApp] Empty message for step ${step.id}, skipping`);
-    return;
+    return false;
   }
 
   try {
@@ -1084,6 +1088,7 @@ async function handleWhatsAppStep(
       .eq("id", prospectId);
 
     console.log(`[WhatsApp] Message sent to ${prospect.phone}`);
+    return true;
   } catch (err) {
     console.error(`[WhatsApp] Send error:`, err);
     await logWhatsAppAction({
@@ -1094,5 +1099,6 @@ async function handleWhatsAppStep(
       status: "failed",
       errorMessage: err instanceof Error ? err.message : "Erreur inconnue",
     });
+    return false;
   }
 }

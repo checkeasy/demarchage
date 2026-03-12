@@ -9,3 +9,8 @@ CREATE TABLE IF NOT EXISTS public.prospect_enrichments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_prospect_enrichments_prospect_id ON public.prospect_enrichments(prospect_id);
+
+ALTER TABLE public.prospect_enrichments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access on prospect_enrichments" ON public.prospect_enrichments
+  FOR ALL USING (true) WITH CHECK (true);

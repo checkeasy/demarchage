@@ -699,7 +699,7 @@ export default function NewCampaignPage() {
                     </div>
                   ) : (
                     filteredProspects.map((prospect) => {
-                      const emailScore = (prospect as Record<string, unknown>).email_validity_score as number | null | undefined;
+                      const emailScore = (prospect as Record<string, unknown>).email_score as number | null | undefined;
                       const leadScore = (prospect as Record<string, unknown>).lead_score as number | null | undefined;
                       const isPlaceholderEmail = prospect.email && (
                         prospect.email.endsWith("@linkedin-prospect.local") ||

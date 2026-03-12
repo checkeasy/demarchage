@@ -106,6 +106,10 @@ function findNextValidSlot(
       const jitter = Math.floor(Math.random() * 30);
       result.setMinutes(result.getMinutes() + jitter);
 
+      if (result <= new Date()) {
+        continue; // This day's window has already passed, try next day
+      }
+
       return result;
     }
   }

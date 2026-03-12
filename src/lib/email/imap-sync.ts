@@ -517,7 +517,7 @@ async function processBounceEmail(
       // Mark prospect email as invalid
       await supabase
         .from("prospects")
-        .update({ email_validity_score: 0 })
+        .update({ email_score: 0 })
         .eq("id", cp.prospect_id);
 
       // Increment bounce counter

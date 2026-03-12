@@ -72,7 +72,7 @@ interface ProspectInfo {
   nb_properties: number | null;
   lead_score: number | null;
   status: string;
-  email_validity_score: number | null;
+  email_score: number | null;
 }
 
 interface CampaignProspect {
@@ -497,7 +497,7 @@ function CampaignProspectsTab({
           return ca.localeCompare(cb) * dir;
         }
         case "email_score":
-          return ((pa.email_validity_score ?? -1) - (pb.email_validity_score ?? -1)) * dir;
+          return ((pa.email_score ?? -1) - (pb.email_score ?? -1)) * dir;
         case "lead_score":
           return ((pa.lead_score ?? -1) - (pb.lead_score ?? -1)) * dir;
         case "status":
@@ -725,16 +725,16 @@ function CampaignProspectsTab({
                             {company || "-"}
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
-                            {p.email_validity_score !== null && p.email_validity_score !== undefined ? (
+                            {p.email_score !== null && p.email_score !== undefined ? (
                               <Badge
                                 variant="secondary"
                                 className={`text-xs text-white ${
-                                  p.email_validity_score >= 70 ? "bg-green-500" :
-                                  p.email_validity_score >= 40 ? "bg-yellow-500" :
-                                  p.email_validity_score > 0 ? "bg-orange-500" : "bg-red-500"
+                                  p.email_score >= 70 ? "bg-green-500" :
+                                  p.email_score >= 40 ? "bg-yellow-500" :
+                                  p.email_score > 0 ? "bg-orange-500" : "bg-red-500"
                                 }`}
                               >
-                                {p.email_validity_score}%
+                                {p.email_score}%
                               </Badge>
                             ) : (
                               <span className="text-xs text-muted-foreground">Non verifie</span>

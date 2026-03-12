@@ -220,123 +220,132 @@ export default function SettingsPage() {
 
   async function saveWorkspace() {
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("current_workspace_id")
-      .eq("id", user.id)
-      .single();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
 
-    if (!profile?.current_workspace_id) return;
+      if (!profile?.current_workspace_id) return;
 
-    const { error } = await supabase
-      .from("workspaces")
-      .update({ name: workspaceName })
-      .eq("id", profile.current_workspace_id);
+      const { error } = await supabase
+        .from("workspaces")
+        .update({ name: workspaceName })
+        .eq("id", profile.current_workspace_id);
 
-    if (error) {
-      toast.error("Erreur lors de la sauvegarde");
-    } else {
-      toast.success("Parametres sauvegardes");
+      if (error) {
+        toast.error("Erreur lors de la sauvegarde");
+      } else {
+        toast.success("Parametres sauvegardes");
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function saveAiSettings() {
     setSavingAi(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("current_workspace_id")
-      .eq("id", user.id)
-      .single();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
 
-    if (!profile?.current_workspace_id) return;
+      if (!profile?.current_workspace_id) return;
 
-    // Get current settings to merge
-    const { data: workspace } = await supabase
-      .from("workspaces")
-      .select("settings")
-      .eq("id", profile.current_workspace_id)
-      .single();
+      // Get current settings to merge
+      const { data: workspace } = await supabase
+        .from("workspaces")
+        .select("settings")
+        .eq("id", profile.current_workspace_id)
+        .single();
 
-    const currentSettings = (workspace?.settings as Record<string, unknown>) || {};
+      const currentSettings = (workspace?.settings as Record<string, unknown>) || {};
 
-    const { error } = await supabase
-      .from("workspaces")
-      .update({
-        ai_company_context: aiCompanyContext,
-        settings: {
-          ...currentSettings,
-          ai_tone: aiTone,
-          ai_target_audience: aiTargetAudience,
-        },
-      })
-      .eq("id", profile.current_workspace_id);
+      const { error } = await supabase
+        .from("workspaces")
+        .update({
+          ai_company_context: aiCompanyContext,
+          settings: {
+            ...currentSettings,
+            ai_tone: aiTone,
+            ai_target_audience: aiTargetAudience,
+          },
+        })
+        .eq("id", profile.current_workspace_id);
 
-    if (error) {
-      toast.error("Erreur lors de la sauvegarde");
-    } else {
-      toast.success("Configuration IA sauvegardee");
+      if (error) {
+        toast.error("Erreur lors de la sauvegarde");
+      } else {
+        toast.success("Configuration IA sauvegardee");
+      }
+    } finally {
+      setSavingAi(false);
     }
-    setSavingAi(false);
   }
 
   async function addEmailAccount() {
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("current_workspace_id")
-      .eq("id", user.id)
-      .single();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_workspace_id")
+        .eq("id", user.id)
+        .single();
 
-    if (!profile?.current_workspace_id) return;
+      if (!profile?.current_workspace_id) return;
 
-    const { error } = await supabase.from("email_accounts").insert({
-      workspace_id: profile.current_workspace_id,
-      user_id: user.id,
-      email_address: newAccount.email_address,
-      display_name: newAccount.display_name || null,
-      provider: newAccount.provider,
-      smtp_host: newAccount.smtp_host || null,
-      smtp_port: newAccount.smtp_port,
-      smtp_user: newAccount.smtp_user || null,
-      smtp_pass_encrypted: newAccount.smtp_pass || null,
-      imap_host: newAccount.imap_host || null,
-      imap_port: newAccount.imap_port,
-      imap_user: newAccount.imap_user || null,
-      imap_pass_encrypted: newAccount.imap_pass || null,
-      daily_limit: newAccount.daily_limit,
-      signature_html: newAccount.signature_html || "",
-      warmup_enabled: newAccount.warmup_enabled,
-      warmup_daily_target: newAccount.warmup_enabled ? newAccount.warmup_daily_target : null,
-      warmup_current_volume: 2,
-      warmup_started_at: newAccount.warmup_enabled ? new Date().toISOString() : null,
-      booking_url: newAccount.booking_url || null,
-      tracking_domain: newAccount.tracking_domain || null,
-    });
+      const { error } = await supabase.from("email_accounts").insert({
+        workspace_id: profile.current_workspace_id,
+        user_id: user.id,
+        email_address: newAccount.email_address,
+        display_name: newAccount.display_name || null,
+        provider: newAccount.provider,
+        smtp_host: newAccount.smtp_host || null,
+        smtp_port: newAccount.smtp_port,
+        smtp_user: newAccount.smtp_user || null,
+        smtp_pass_encrypted: newAccount.smtp_pass || null,
+        imap_host: newAccount.imap_host || null,
+        imap_port: newAccount.imap_port,
+        imap_user: newAccount.imap_user || null,
+        imap_pass_encrypted: newAccount.imap_pass || null,
+        daily_limit: newAccount.daily_limit,
+        signature_html: newAccount.signature_html || "",
+        warmup_enabled: newAccount.warmup_enabled,
+        warmup_daily_target: newAccount.warmup_enabled ? newAccount.warmup_daily_target : null,
+        warmup_current_volume: 2,
+        warmup_started_at: newAccount.warmup_enabled ? new Date().toISOString() : null,
+        booking_url: newAccount.booking_url || null,
+        tracking_domain: newAccount.tracking_domain || null,
+      });
 
-    if (error) {
-      toast.error("Erreur lors de l'ajout du compte");
-    } else {
-      toast.success("Compte email ajoute");
-      setShowAddEmail(false);
-      loadSettings();
+      if (error) {
+        toast.error("Erreur lors de l'ajout du compte");
+      } else {
+        toast.success("Compte email ajoute");
+        setShowAddEmail(false);
+        loadSettings();
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function deleteEmailAccount(id: string) {
