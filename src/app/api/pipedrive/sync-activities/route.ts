@@ -54,16 +54,25 @@ export async function POST(request: NextRequest) {
     // 1. Fetch all activities from Pipedrive
     const pipedriveActivities = await fetchAllPipedriveActivities();
 
-    // 2. Get existing pipedrive-imported activities to avoid duplicates
-    const { data: existingActivities } = await supabase
-      .from("activities")
-      .select("id, custom_fields")
-      .eq("workspace_id", workspaceId)
-      .not("custom_fields->pipedrive_id", "is", null);
+    // 2. Get existing pipedrive-imported activities to avoid duplicates (paginated)
+    const existingActivities: { id: string; custom_fields: Record<string, unknown> }[] = [];
+    let existStart = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("activities")
+        .select("id, custom_fields")
+        .eq("workspace_id", workspaceId)
+        .not("custom_fields->pipedrive_id", "is", null)
+        .range(existStart, existStart + 999);
+      if (!data || data.length === 0) break;
+      existingActivities.push(...(data as typeof existingActivities));
+      existStart += 1000;
+      if (data.length < 1000) break;
+    }
 
     const existingPipedriveIds = new Set<number>();
-    for (const a of existingActivities || []) {
-      const cf = a.custom_fields as Record<string, unknown> | null;
+    for (const a of existingActivities) {
+      const cf = a.custom_fields;
       if (cf?.pipedrive_id) {
         existingPipedriveIds.add(cf.pipedrive_id as number);
       }
