@@ -4,10 +4,11 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Calendar, User } from "lucide-react";
+import { GripVertical, Calendar, User, Mail } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CONTACT_TYPES } from "@/lib/constants";
 import type { Deal } from "@/lib/types/crm";
 
 interface DealKanbanCardProps {
@@ -30,6 +31,44 @@ function getDaysInStage(stageEnteredAt: string): number {
   const now = new Date();
   const diffMs = now.getTime() - entered.getTime();
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function formatRelativeDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  if (diffDays < 7) return `Il y a ${diffDays}j`;
+  if (diffDays < 30) return `Il y a ${Math.floor(diffDays / 7)} sem.`;
+  if (diffDays < 365) return `Il y a ${Math.floor(diffDays / 30)} mois`;
+  return `Il y a ${Math.floor(diffDays / 365)} an(s)`;
+}
+
+function getLastContactColor(dateStr: string): string {
+  const diffDays = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 3) return "text-green-600";
+  if (diffDays <= 7) return "text-muted-foreground";
+  if (diffDays <= 14) return "text-orange-600";
+  return "text-red-600";
+}
+
+// Stage-specific thresholds for "days in stage" coloring (warning, danger)
+const STAGE_THRESHOLDS: Record<string, { warn: number; danger: number }> = {
+  discovery:    { warn: 3,  danger: 7  },
+  qualification:{ warn: 5,  danger: 10 },
+  proposal:     { warn: 7,  danger: 14 },
+  negotiation:  { warn: 14, danger: 30 },
+  closing:      { warn: 7,  danger: 14 },
+};
+
+const DEFAULT_THRESHOLD = { warn: 7, danger: 14 };
+
+function getStageThresholds(stageSlug?: string): { warn: number; danger: number } {
+  if (!stageSlug) return DEFAULT_THRESHOLD;
+  return STAGE_THRESHOLDS[stageSlug] || DEFAULT_THRESHOLD;
 }
 
 function getProspectName(deal: Deal): string {
@@ -60,10 +99,11 @@ export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
   const daysInStage = getDaysInStage(deal.stage_entered_at);
   const prospectName = getProspectName(deal);
 
+  const thresholds = getStageThresholds(deal.stage?.slug);
   const daysColor =
-    daysInStage > 14
+    daysInStage > thresholds.danger
       ? "text-red-600 bg-red-50"
-      : daysInStage > 7
+      : daysInStage > thresholds.warn
         ? "text-orange-600 bg-orange-50"
         : "text-muted-foreground bg-muted";
 
@@ -85,7 +125,11 @@ export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
           if (isDragging || isDragOverlay) return;
           const target = e.target as HTMLElement;
           if (target.closest("[data-drag-handle]")) return;
-          router.push(`/deals/${deal.id}`);
+          if (deal.prospect_id) {
+            router.push(`/prospects/${deal.prospect_id}`);
+          } else {
+            router.push(`/deals/${deal.id}`);
+          }
         }}
       >
         <CardContent className="px-3 py-0 space-y-2">
@@ -120,11 +164,34 @@ export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
             </div>
           )}
 
-          {/* Days in stage */}
-          <div className="flex items-center justify-between">
+          {/* Contact type badge */}
+          {deal.prospect?.contact_type && deal.prospect.contact_type !== "prospect" && (() => {
+            const ct = deal.prospect!.contact_type as keyof typeof CONTACT_TYPES;
+            const config = CONTACT_TYPES[ct];
+            if (!config) return null;
+            return (
+              <Badge variant="secondary" className={`text-[10px] w-fit ${config.textColor} ${config.bgLight}`}>
+                {config.label}
+              </Badge>
+            );
+          })()}
+
+          {/* Last contact + Days in stage */}
+          <div className="flex items-center justify-between gap-1 flex-wrap">
+            {deal.prospect?.last_contacted_at ? (
+              <span className={`text-[10px] flex items-center gap-0.5 ${getLastContactColor(deal.prospect.last_contacted_at)}`}>
+                <Mail className="size-2.5" />
+                {formatRelativeDate(deal.prospect.last_contacted_at)}
+              </span>
+            ) : (
+              <span className="text-[10px] text-orange-500 flex items-center gap-0.5">
+                <Mail className="size-2.5" />
+                Jamais contacte
+              </span>
+            )}
             <Badge variant="secondary" className={`text-[10px] ${daysColor}`}>
               <Calendar className="size-2.5" />
-              {daysInStage}j dans cette etape
+              {daysInStage}j
             </Badge>
           </div>
         </CardContent>

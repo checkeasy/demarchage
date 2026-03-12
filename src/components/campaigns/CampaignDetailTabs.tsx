@@ -3,6 +3,19 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  ComposedChart,
+} from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -455,7 +468,7 @@ function CampaignProspectsTab({
         const q = search.toLowerCase();
         const name = [p.first_name, p.last_name].filter(Boolean).join(" ").toLowerCase();
         const company = (p.organization || p.company || "").toLowerCase();
-        if (!name.includes(q) && !p.email.toLowerCase().includes(q) && !company.includes(q)) {
+        if (!name.includes(q) && !(p.email || "").toLowerCase().includes(q) && !company.includes(q)) {
           return false;
         }
       }
@@ -853,18 +866,33 @@ interface StepAnalytics {
   bounce_rate: number;
 }
 
+interface DailyMetric {
+  date: string;
+  sends: number;
+  opens: number;
+  replies: number;
+}
+
 function CampaignAnalyticsTab({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [analyticsSteps, setAnalyticsSteps] = useState<StepAnalytics[]>([]);
+  const [dailyMetrics, setDailyMetrics] = useState<DailyMetric[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAnalytics() {
       try {
-        const res = await fetch(`/api/campaigns/${campaignId}/analytics`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Erreur");
-        setAnalyticsSteps(data.steps || []);
+        const [stepsRes, dailyRes] = await Promise.all([
+          fetch(`/api/campaigns/${campaignId}/analytics`),
+          fetch(`/api/campaigns/${campaignId}/analytics/daily`),
+        ]);
+        const stepsData = await stepsRes.json();
+        const dailyData = await dailyRes.json();
+        if (!stepsRes.ok) throw new Error(stepsData.error || "Erreur");
+        setAnalyticsSteps(stepsData.steps || []);
+        if (dailyRes.ok) {
+          setDailyMetrics(dailyData.daily || []);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erreur");
       } finally {
@@ -943,6 +971,53 @@ function CampaignAnalyticsTab({ campaignId }: { campaignId: string }) {
           </Card>
         ))}
       </div>
+
+      {/* Daily metrics chart */}
+      {dailyMetrics.length > 0 && dailyMetrics.some((d) => d.sends > 0 || d.opens > 0 || d.replies > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Activite quotidienne (30 derniers jours)</CardTitle>
+            <CardDescription>
+              Envois, ouvertures et reponses par jour.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={dailyMetrics.map((d) => ({
+                ...d,
+                label: new Date(d.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    fontSize: "12px",
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="sends" name="Envois" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                <Line dataKey="opens" name="Ouvertures" stroke="#22c55e" strokeWidth={2} dot={false} />
+                <Line dataKey="replies" name="Reponses" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-step table */}
       <Card>

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Target, Plus, Pause, Play, Archive, Search } from "lucide-react";
+import { Target, Plus, Pause, Play, Archive, Search, Users, Mail, MessageSquare, Inbox } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -28,6 +29,9 @@ interface MissionWithStats {
   total_sent: number;
   total_replied: number;
   created_at: string;
+  campaign_email_id: string | null;
+  campaign_linkedin_id: string | null;
+  campaign_multichannel_id: string | null;
 }
 
 interface MissionsPageClientProps {
@@ -224,6 +228,53 @@ function MissionCard({
             </span>
           </div>
           <Progress value={enrolledProgress} className="h-2" />
+        </div>
+
+        {/* Drill-through links */}
+        <div className="flex flex-wrap gap-1.5">
+          <Link
+            href={`/prospects?mission_id=${mission.id}`}
+            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors font-medium"
+          >
+            <Users className="size-3" />
+            Prospects
+          </Link>
+          {mission.campaign_email_id && (
+            <Link
+              href={`/campaigns/${mission.campaign_email_id}`}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium"
+            >
+              <Mail className="size-3" />
+              Email
+            </Link>
+          )}
+          {mission.campaign_linkedin_id && (
+            <Link
+              href={`/campaigns/${mission.campaign_linkedin_id}`}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-medium"
+            >
+              <MessageSquare className="size-3" />
+              LinkedIn
+            </Link>
+          )}
+          {mission.campaign_multichannel_id && (
+            <Link
+              href={`/campaigns/${mission.campaign_multichannel_id}`}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium"
+            >
+              <Inbox className="size-3" />
+              Multicanal
+            </Link>
+          )}
+          {mission.total_replied > 0 && (
+            <Link
+              href={`/inbox?mission_id=${mission.id}`}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 transition-colors font-medium"
+            >
+              <Inbox className="size-3" />
+              Reponses
+            </Link>
+          )}
         </div>
 
         {/* Footer: date + actions */}

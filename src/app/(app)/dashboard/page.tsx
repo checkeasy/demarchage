@@ -173,6 +173,8 @@ export default async function DashboardPage() {
     { count: completedThisWeek },
     { count: emailsSentThisMonth },
     { count: emailsSentLastMonth },
+    { count: repliesThisMonth },
+    { count: repliesLastMonth },
     { data: wonDeals },
     { data: lostDeals },
     { data: recentDeals },
@@ -276,6 +278,21 @@ export default async function DashboardPage() {
       .eq("workspace_id", workspaceId)
       .gte("created_at", lastMonthStart.toISOString())
       .lte("created_at", lastMonthEnd.toISOString()),
+    // Replies this month
+    supabase
+      .from("emails_sent")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .not("replied_at", "is", null)
+      .gte("replied_at", monthStart.toISOString()),
+    // Replies last month
+    supabase
+      .from("emails_sent")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .not("replied_at", "is", null)
+      .gte("replied_at", lastMonthStart.toISOString())
+      .lte("replied_at", lastMonthEnd.toISOString()),
     // Deals won/lost by month for chart
     supabase
       .from("deals")
@@ -631,9 +648,16 @@ export default async function DashboardPage() {
   const overdueTrendAdjusted = overdueTrend
     ? { ...overdueTrend, isPositive: !overdueTrend.isPositive }
     : null;
-  const emailTrend = getTrend(
-    emailsSentThisMonth ?? 0,
-    emailsSentLastMonth ?? 0
+  // Reply RATE trend: compare reply rates, not volumes
+  const currentReplyRate = (emailsSentThisMonth ?? 0) > 0
+    ? (repliesThisMonth ?? 0) / (emailsSentThisMonth ?? 1)
+    : 0;
+  const previousReplyRate = (emailsSentLastMonth ?? 0) > 0
+    ? (repliesLastMonth ?? 0) / (emailsSentLastMonth ?? 1)
+    : 0;
+  const replyRateTrend = getTrend(
+    Math.round(currentReplyRate * 1000),
+    Math.round(previousReplyRate * 1000)
   );
 
   // --- Compute streak (consecutive days with scraped prospects) ---
@@ -906,100 +930,108 @@ export default async function DashboardPage() {
 
       {/* Row 2: KPI Cards with Trends */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <PipelineValueCard value={pipelineValue} dealsCount={openDealsCount} />
-        <Card>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Deals gagnes ce mois
-                </p>
-                <p className="text-2xl font-bold">{wonThisMonth ?? 0}</p>
-                {wonTrend && (
-                  <div
-                    className={`flex items-center gap-0.5 text-xs ${
-                      wonTrend.isPositive ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {wonTrend.isPositive ? (
-                      <TrendingUp className="size-3" />
-                    ) : (
-                      <TrendingDown className="size-3" />
-                    )}
-                    <span>{wonTrend.percentage}%</span>
-                  </div>
-                )}
+        <Link href="/deals" className="cursor-pointer hover:shadow-md transition">
+          <PipelineValueCard value={pipelineValue} dealsCount={openDealsCount} />
+        </Link>
+        <Link href="/deals" className="cursor-pointer hover:shadow-md transition">
+          <Card className="h-full">
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Deals gagnes ce mois
+                  </p>
+                  <p className="text-2xl font-bold">{wonThisMonth ?? 0}</p>
+                  {wonTrend && (
+                    <div
+                      className={`flex items-center gap-0.5 text-xs ${
+                        wonTrend.isPositive ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {wonTrend.isPositive ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
+                      <span>{wonTrend.percentage}%</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-50">
+                  <Trophy className="size-5 text-green-600" />
+                </div>
               </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-50">
-                <Trophy className="size-5 text-green-600" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/activities" className="cursor-pointer hover:shadow-md transition">
+          <Card className="h-full">
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Activites en retard
+                  </p>
+                  <p className="text-2xl font-bold">{overdueCount ?? 0}</p>
+                  {overdueTrendAdjusted && (
+                    <div
+                      className={`flex items-center gap-0.5 text-xs ${
+                        overdueTrendAdjusted.isPositive
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {overdueTrendAdjusted.isPositive ? (
+                        <TrendingDown className="size-3" />
+                      ) : (
+                        <TrendingUp className="size-3" />
+                      )}
+                      <span>{overdueTrendAdjusted.percentage}%</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-50">
+                  <Clock className="size-5 text-red-600" />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Activites en retard
-                </p>
-                <p className="text-2xl font-bold">{overdueCount ?? 0}</p>
-                {overdueTrendAdjusted && (
-                  <div
-                    className={`flex items-center gap-0.5 text-xs ${
-                      overdueTrendAdjusted.isPositive
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {overdueTrendAdjusted.isPositive ? (
-                      <TrendingDown className="size-3" />
-                    ) : (
-                      <TrendingUp className="size-3" />
-                    )}
-                    <span>{overdueTrendAdjusted.percentage}%</span>
-                  </div>
-                )}
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/campaigns" className="cursor-pointer hover:shadow-md transition">
+          <Card className="h-full">
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Taux de reponse
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {rate(totals.replied, totals.sent)}
+                  </p>
+                  {replyRateTrend && (
+                    <div
+                      className={`flex items-center gap-0.5 text-xs ${
+                        replyRateTrend.isPositive
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {replyRateTrend.isPositive ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
+                      <span>{replyRateTrend.percentage}% vs mois prec.</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50">
+                  <Reply className="size-5 text-amber-600" />
+                </div>
               </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-50">
-                <Clock className="size-5 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-0">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Taux de reponse
-                </p>
-                <p className="text-2xl font-bold">
-                  {rate(totals.replied, totals.sent)}
-                </p>
-                {emailTrend && (
-                  <div
-                    className={`flex items-center gap-0.5 text-xs ${
-                      emailTrend.isPositive
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {emailTrend.isPositive ? (
-                      <TrendingUp className="size-3" />
-                    ) : (
-                      <TrendingDown className="size-3" />
-                    )}
-                    <span>{emailTrend.percentage}% emails</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50">
-                <Reply className="size-5 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Row 3: Charts */}

@@ -584,10 +584,14 @@ async function logAction(
 async function linkedInFetch(
   url: string,
   options: RequestInit,
-  _proxyUrl?: string | null
+  proxyUrl?: string | null
 ): Promise<Response> {
-  // For MVP, direct fetch without proxy
-  // TODO: Add proxy support via https-proxy-agent
+  if (proxyUrl) {
+    const { HttpsProxyAgent } = await import("https-proxy-agent");
+    const agent = new HttpsProxyAgent(proxyUrl);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return fetch(url, { ...options, agent } as any);
+  }
   return fetch(url, options);
 }
 

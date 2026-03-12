@@ -197,19 +197,22 @@ export async function syncOutcomesToGenerations(workspaceId: string): Promise<nu
   for (const gen of unsynced) {
     if (!gen.prospect_id || !gen.campaign_id) continue;
 
-    // Find matching email in emails_sent
-    const { data: email } = await supabase
-      .from('emails_sent')
-      .select('status, opened_at, clicked_at, replied_at, bounced_at')
-      .eq('to_email', '') // We need prospect email - fetch it
-      .limit(1)
-      .single();
+    // Find campaign_prospect entries that match this prospect + campaign
+    const { data: campaignProspects } = await supabase
+      .from('campaign_prospects')
+      .select('id')
+      .eq('prospect_id', gen.prospect_id)
+      .eq('campaign_id', gen.campaign_id);
 
-    // Alternative: match via campaign_prospect -> emails_sent
+    if (!campaignProspects || campaignProspects.length === 0) continue;
+
+    const cpIds = campaignProspects.map((cp) => cp.id);
+
+    // Find the most recent email sent for these campaign_prospect entries
     const { data: emails } = await supabase
       .from('emails_sent')
       .select('opened_at, clicked_at, replied_at')
-      .eq('campaign_prospect_id', gen.prospect_id) // simplified - in real impl, join through campaign_prospects
+      .in('campaign_prospect_id', cpIds)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -226,9 +229,6 @@ export async function syncOutcomesToGenerations(workspaceId: string): Promise<nu
 
       if (!error) synced++;
     }
-
-    // Avoid hitting Supabase too hard (unused var suppressed)
-    void email;
   }
 
   return synced;

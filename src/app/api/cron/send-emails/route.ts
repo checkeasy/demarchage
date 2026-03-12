@@ -388,6 +388,15 @@ export async function POST(request: NextRequest) {
           // Handle non-email steps (LinkedIn tasks, WhatsApp, etc.)
           if (step?.step_type === "linkedin_connect" || step?.step_type === "linkedin_message") {
             await handleLinkedInStep(supabase, item, step);
+            // Do NOT advance step — pause until LinkedIn task is marked done
+            await supabase
+              .from("campaign_prospects")
+              .update({
+                status: "paused",
+                status_reason: "En attente de la tache LinkedIn",
+              })
+              .eq("id", item.campaign_prospect_id as string);
+            continue;
           } else if (step?.step_type === "whatsapp") {
             await handleWhatsAppStep(supabase, item, step);
           }
@@ -589,6 +598,34 @@ export async function POST(request: NextRequest) {
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         };
 
+        // Threading: look up previous email for follow-ups (step_order > 1)
+        let inReplyTo: string | undefined;
+        let references: string | undefined;
+        const currentStepOrder = (item.current_step_order as number) || 1;
+        if (currentStepOrder > 1) {
+          const { data: prevEmail } = await supabase
+            .from("emails_sent")
+            .select("resend_message_id, subject")
+            .eq("campaign_prospect_id", item.campaign_prospect_id as string)
+            .eq("status", "sent")
+            .order("sent_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (prevEmail?.resend_message_id) {
+            const prevMsgId = prevEmail.resend_message_id.includes("<")
+              ? prevEmail.resend_message_id
+              : `<${prevEmail.resend_message_id}>`;
+            inReplyTo = prevMsgId;
+            references = prevMsgId;
+
+            // Prepend "Re: " to subject if not already present and original subject is available
+            if (prevEmail.subject && !mergedSubject.toLowerCase().startsWith("re:")) {
+              mergedSubject = `Re: ${prevEmail.subject}`;
+            }
+          }
+        }
+
         // Build SMTP credentials (from rotation account or queue item)
         let smtpCredentials: SmtpCredentials | undefined;
         const smtpHost = activeAccount ? (activeAccount.smtp_host as string) : (item.smtp_host as string);
@@ -628,6 +665,8 @@ export async function POST(request: NextRequest) {
             from: emailRecord.from_email,
             smtpCredentials,
             headers: listUnsubscribeHeaders,
+            inReplyTo,
+            references,
           });
 
           // Fallback to Resend if Gmail SMTP fails (e.g. port blocked on cloud)

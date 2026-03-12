@@ -16,6 +16,8 @@ import {
   Send,
   Loader2,
   Zap,
+  Rocket,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +100,7 @@ export default function NewCampaignPage() {
 
   const [currentStep, setCurrentStep] = useState(draft?.currentStep ?? 0);
   const [saving, setSaving] = useState(false);
+  const [savingAndLaunching, setSavingAndLaunching] = useState(false);
 
   // Step 1: Configuration
   const [formData, setFormData] = useState<CampaignFormData>(
@@ -209,7 +212,7 @@ export default function NewCampaignPage() {
     if (!prospectSearch) return true;
     const search = prospectSearch.toLowerCase();
     return (
-      p.email.toLowerCase().includes(search) ||
+      (p.email || "").toLowerCase().includes(search) ||
       (p.first_name?.toLowerCase().includes(search) ?? false) ||
       (p.last_name?.toLowerCase().includes(search) ?? false) ||
       (p.company?.toLowerCase().includes(search) ?? false)
@@ -301,13 +304,17 @@ export default function NewCampaignPage() {
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (launch = false) => {
     if (!workspaceId) {
       toast.error("Aucun workspace selectionne");
       return;
     }
 
-    setSaving(true);
+    if (launch) {
+      setSavingAndLaunching(true);
+    } else {
+      setSaving(true);
+    }
 
     try {
       const {
@@ -409,14 +416,29 @@ export default function NewCampaignPage() {
 
       if (updateError) throw updateError;
 
+      // If launch requested, activate the campaign
+      if (launch) {
+        const statusRes = await fetch(`/api/campaigns/${campaign.id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "active" }),
+        });
+
+        if (!statusRes.ok) {
+          const statusData = await statusRes.json();
+          throw new Error(statusData.error || "Erreur lors du lancement de la campagne");
+        }
+      }
+
       clearDraft();
-      toast.success("Campagne creee avec succes !");
+      toast.success(launch ? "Campagne creee et lancee !" : "Campagne creee avec succes !");
       router.push(`/campaigns/${campaign.id}`);
     } catch (error: unknown) {
       console.error("Error creating campaign:", error);
       toast.error("Erreur lors de la creation de la campagne");
     } finally {
       setSaving(false);
+      setSavingAndLaunching(false);
     }
   };
 
@@ -674,7 +696,15 @@ export default function NewCampaignPage() {
                       </Button>
                     </div>
                   ) : (
-                    filteredProspects.map((prospect) => (
+                    filteredProspects.map((prospect) => {
+                      const emailScore = (prospect as Record<string, unknown>).email_validity_score as number | null | undefined;
+                      const leadScore = (prospect as Record<string, unknown>).lead_score as number | null | undefined;
+                      const isPlaceholderEmail = prospect.email && (
+                        prospect.email.endsWith("@linkedin-prospect.local") ||
+                        prospect.email.endsWith("@crm-import.local") ||
+                        prospect.email.endsWith("@directory-import.local")
+                      );
+                      return (
                       <label
                         key={prospect.id}
                         className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
@@ -692,13 +722,50 @@ export default function NewCampaignPage() {
                             {prospect.company && ` - ${prospect.company}`}
                           </p>
                         </div>
-                        {prospect.job_title && (
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {prospect.job_title}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Email validity indicator */}
+                          {isPlaceholderEmail ? (
+                            <span title="Email factice (placeholder)">
+                              <AlertCircle className="size-3.5 text-red-500" />
+                            </span>
+                          ) : emailScore != null ? (
+                            <span
+                              className={`inline-block size-2.5 rounded-full ${
+                                emailScore >= 75 ? "bg-green-500" :
+                                emailScore >= 50 ? "bg-amber-500" :
+                                "bg-red-500"
+                              }`}
+                              title={`Email: ${emailScore}%`}
+                            />
+                          ) : (
+                            <span
+                              className="inline-block size-2.5 rounded-full bg-gray-300"
+                              title="Email non verifie"
+                            />
+                          )}
+                          {/* AI lead score */}
+                          {leadScore != null && (
+                            <span
+                              className={`text-[10px] font-bold px-1 py-0.5 rounded ${
+                                leadScore >= 80 ? "bg-green-100 text-green-700" :
+                                leadScore >= 60 ? "bg-amber-100 text-amber-700" :
+                                leadScore >= 40 ? "bg-orange-100 text-orange-700" :
+                                "bg-red-100 text-red-700"
+                              }`}
+                              title={`Score IA: ${leadScore}`}
+                            >
+                              {leadScore}
+                            </span>
+                          )}
+                          {prospect.job_title && (
+                            <span className="text-xs text-muted-foreground">
+                              {prospect.job_title}
+                            </span>
+                          )}
+                        </div>
                       </label>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>
@@ -998,10 +1065,25 @@ export default function NewCampaignPage() {
             <ChevronRight className="size-4" />
           </Button>
         ) : (
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="size-4" />
-            {saving ? "Sauvegarde en cours..." : "Sauvegarder en brouillon"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => handleSave(false)} disabled={saving || savingAndLaunching}>
+              <Save className="size-4" />
+              {saving ? "Sauvegarde en cours..." : "Sauvegarder en brouillon"}
+            </Button>
+            <Button onClick={() => handleSave(true)} disabled={saving || savingAndLaunching}>
+              {savingAndLaunching ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Lancement en cours...
+                </>
+              ) : (
+                <>
+                  <Rocket className="size-4" />
+                  Sauvegarder et lancer
+                </>
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </div>

@@ -51,6 +51,9 @@ export default async function MissionsPage() {
       total_sent: (emailStats.total_sent || 0) + (linkedinStats.total_sent || 0) + (multiStats.total_sent || 0),
       total_replied: (emailStats.total_replied || 0) + (linkedinStats.total_replied || 0) + (multiStats.total_replied || 0),
       created_at: m.created_at,
+      campaign_email_id: m.campaign_email_id || null,
+      campaign_linkedin_id: m.campaign_linkedin_id || null,
+      campaign_multichannel_id: m.campaign_multichannel_id || null,
     };
   });
 

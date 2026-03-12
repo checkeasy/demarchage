@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createImapClient, fetchNewEmails, type ImapAccount, type InboundEmail } from "./imap-client";
+import { getOrchestrator } from "@/lib/agents/orchestrator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -396,6 +397,60 @@ async function processMatchedReply(
       last_contacted_at: email.date.toISOString(),
     })
     .eq("id", match.prospectId);
+
+  // 10. Auto-analyze reply with AI (non-blocking)
+  try {
+    const replyBody = email.textContent || email.htmlContent || "";
+    if (replyBody.trim()) {
+      // Fetch previous outbound email for context
+      const { data: sentEmail } = await supabase
+        .from("emails_sent")
+        .select("subject, body_text, sent_at")
+        .eq("id", match.emailSentId)
+        .single();
+
+      const previousInteractions: Array<{ role: string; content: string; sent_at?: string }> = [];
+      if (sentEmail) {
+        previousInteractions.push({
+          role: "assistant",
+          content: sentEmail.body_text || sentEmail.subject || "",
+          sent_at: sentEmail.sent_at || undefined,
+        });
+      }
+
+      const orchestrator = getOrchestrator();
+      const analysisResult = await orchestrator.analyzeReply(
+        match.workspaceId,
+        match.prospectId,
+        replyBody.trim(),
+        previousInteractions
+      );
+
+      // Save analysis result to prospect_activities
+      await supabase.from("prospect_activities").insert({
+        workspace_id: match.workspaceId,
+        prospect_id: match.prospectId,
+        activity_type: "ai_reply_analysis",
+        channel: "email",
+        campaign_id: match.campaignId,
+        subject: `Analyse IA: ${email.subject}`,
+        body: JSON.stringify(analysisResult.content),
+        metadata: {
+          email_sent_id: match.emailSentId,
+          sentiment: (analysisResult.content as Record<string, unknown>).sentiment,
+          intent: (analysisResult.content as Record<string, unknown>).intent,
+          next_action: (analysisResult.content as Record<string, unknown>).next_action,
+          confidence: (analysisResult.content as Record<string, unknown>).confidence,
+          cost_usd: analysisResult.metadata.costUsd,
+        },
+      });
+
+      console.log(`[ImapSync] AI analysis complete for reply from ${email.from}: sentiment=${(analysisResult.content as Record<string, unknown>).sentiment}, intent=${(analysisResult.content as Record<string, unknown>).intent}`);
+    }
+  } catch (analysisErr) {
+    // Non-blocking: don't fail the sync if analysis fails
+    console.error(`[ImapSync] AI reply analysis failed (non-blocking):`, analysisErr);
+  }
 }
 
 // ─── Bounce Email Processing ───────────────────────────────────────────────

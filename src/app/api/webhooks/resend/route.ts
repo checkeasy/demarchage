@@ -147,11 +147,30 @@ export async function POST(request: NextRequest) {
           .update({ status: "complained" })
           .eq("id", emailSent.id);
 
-        // Stop campaign for this prospect
-        await supabase
+        // Get prospect ID from campaign_prospect
+        const { data: cpComplaint } = await supabase
           .from("campaign_prospects")
-          .update({ status: "unsubscribed" })
-          .eq("id", emailSent.campaign_prospect_id);
+          .select("prospect_id")
+          .eq("id", emailSent.campaign_prospect_id)
+          .single();
+
+        if (cpComplaint) {
+          // Mark the prospect as unsubscribed (complaint = hard stop)
+          await supabase
+            .from("prospects")
+            .update({ status: "unsubscribed" })
+            .eq("id", cpComplaint.prospect_id);
+
+          // Stop ALL active campaign_prospects for this prospect
+          await supabase
+            .from("campaign_prospects")
+            .update({
+              status: "unsubscribed",
+              next_send_at: null,
+            })
+            .eq("prospect_id", cpComplaint.prospect_id)
+            .in("status", ["active", "paused"]);
+        }
 
         // Log tracking event
         await supabase.from("tracking_events").insert({

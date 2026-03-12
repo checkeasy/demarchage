@@ -11,10 +11,12 @@ import {
   type LinkedInSearchResult,
   type LinkedInCompany,
   type LinkedInConnectionInfo,
+  type LinkedInConversation,
   LinkedInError,
   LinkedInErrorType,
 } from './types';
 import { sleep } from './rate-limiter';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 // -----------------------------------------------------------------------------
 // Constantes
@@ -234,13 +236,22 @@ export class LinkedInClient {
       await sleep(2, 8);
     }
 
-    const fetchOptions: RequestInit = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fetchOptions: Record<string, any> = {
       ...options,
       headers: {
         ...this.getHeaders(),
         ...(options.headers as Record<string, string> || {}),
       },
     };
+
+    // Route through proxy if configured
+    if (this.proxyUrl) {
+      const agent = new HttpsProxyAgent(this.proxyUrl);
+      // Node.js fetch supports the dispatcher option via undici,
+      // but for compatibility we use the agent pattern
+      (fetchOptions as Record<string, unknown>).agent = agent;
+    }
 
     try {
       const response = await fetch(url, fetchOptions);
@@ -924,6 +935,96 @@ export class LinkedInClient {
   }
 
   // ---------------------------------------------------------------------------
+  // MESSAGES DE CONVERSATION (Reply Detection)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Récupère les conversations récentes de la boîte de réception LinkedIn.
+   * Utilise l'API Voyager Messaging pour lister les conversations avec messages récents.
+   */
+  async getInboxConversations(count = 20): Promise<LinkedInConversation[]> {
+    const url = `${VOYAGER_API}/messaging/conversations?keyVersion=LEGACY_INBOX&q=syncToken&count=${count}`;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await this.request<any>(url);
+      const elements = data?.elements || data?.included || [];
+
+      const conversations: LinkedInConversation[] = [];
+
+      for (const conv of elements) {
+        if (!conv.entityUrn && !conv['*participants']) continue;
+
+        const lastMessage = conv.events?.[0] || conv.lastMessage;
+        const participantUrns: string[] = [];
+
+        // Extract participant URNs
+        const participants = conv['*participants'] || conv.participants || [];
+        for (const p of participants) {
+          const urn = typeof p === 'string' ? p : p?.['*miniProfile'] || p?.entityUrn;
+          if (urn) participantUrns.push(urn);
+        }
+
+        conversations.push({
+          conversationUrn: conv.entityUrn || '',
+          participantUrns,
+          lastMessageText: lastMessage?.eventContent?.messageEvent?.body || lastMessage?.body?.text || null,
+          lastMessageSenderUrn: lastMessage?.from?.['*miniProfile'] || lastMessage?.from?.entityUrn || null,
+          lastMessageAt: lastMessage?.createdAt ? new Date(lastMessage.createdAt).toISOString() : null,
+        });
+      }
+
+      return conversations;
+    } catch (err) {
+      console.error('[LinkedIn] Error fetching inbox conversations:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Vérifie si un prospect spécifique a répondu en cherchant une conversation avec lui.
+   * @param profileUrn - URN du profil du prospect (urn:li:fsd_profile:xxx)
+   * @returns L'objet conversation si trouvé avec un message du prospect, null sinon
+   */
+  async checkForReply(profileUrn: string): Promise<{ replied: boolean; lastMessageText: string | null; lastMessageAt: string | null }> {
+    // Normaliser le profileUrn
+    const targetUrn = profileUrn.startsWith('urn:li:')
+      ? profileUrn
+      : `urn:li:fsd_profile:${profileUrn}`;
+
+    try {
+      const conversations = await this.getInboxConversations(40);
+
+      for (const conv of conversations) {
+        // Check if this conversation involves the target prospect
+        const hasTarget = conv.participantUrns.some(
+          (urn) => urn.includes(targetUrn) || targetUrn.includes(urn.split(':').pop() || '___')
+        );
+
+        if (hasTarget && conv.lastMessageSenderUrn) {
+          // Check if the last message was sent BY the prospect (not by us)
+          const senderIsTarget = conv.lastMessageSenderUrn.includes(targetUrn) ||
+            targetUrn.includes(conv.lastMessageSenderUrn.split(':').pop() || '___');
+
+          if (senderIsTarget) {
+            return {
+              replied: true,
+              lastMessageText: conv.lastMessageText,
+              lastMessageAt: conv.lastMessageAt,
+            };
+          }
+        }
+      }
+
+      return { replied: false, lastMessageText: null, lastMessageAt: null };
+    } catch (err) {
+      console.error('[LinkedIn] Error checking for reply:', err);
+      // TODO: Voyager messaging API endpoint may differ — adjust URL if needed
+      return { replied: false, lastMessageText: null, lastMessageAt: null };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // RETRAIT DE CONNEXION
   // ---------------------------------------------------------------------------
 
@@ -973,7 +1074,7 @@ export async function getLinkedInClientForUser(userId: string, workspaceId: stri
 
     const { data: account } = await supabase
       .from('linkedin_accounts')
-      .select('li_at_cookie, jsessionid_cookie')
+      .select('li_at_cookie, jsessionid_cookie, proxy_url')
       .eq('user_id', userId)
       .eq('workspace_id', workspaceId)
       .eq('is_active', true)
@@ -984,6 +1085,7 @@ export async function getLinkedInClientForUser(userId: string, workspaceId: stri
       return new LinkedInClient({
         liAt: account.li_at_cookie,
         jsessionId: account.jsessionid_cookie,
+        proxyUrl: account.proxy_url || undefined,
       });
     }
   } catch {
@@ -1005,7 +1107,7 @@ export async function getLinkedInClientForWorkspace(workspaceId: string): Promis
     // Chercher dans linkedin_accounts d'abord
     const { data: account } = await supabase
       .from('linkedin_accounts')
-      .select('li_at_cookie, jsessionid_cookie')
+      .select('li_at_cookie, jsessionid_cookie, proxy_url')
       .eq('workspace_id', workspaceId)
       .eq('is_active', true)
       .limit(1)
@@ -1015,6 +1117,7 @@ export async function getLinkedInClientForWorkspace(workspaceId: string): Promis
       return new LinkedInClient({
         liAt: account.li_at_cookie,
         jsessionId: account.jsessionid_cookie,
+        proxyUrl: account.proxy_url || undefined,
       });
     }
 

@@ -178,6 +178,14 @@ export interface LinkedInMessage {
   subject?: string;
 }
 
+export interface LinkedInConversation {
+  conversationUrn: string;
+  participantUrns: string[];
+  lastMessageText: string | null;
+  lastMessageSenderUrn: string | null;
+  lastMessageAt: string | null;
+}
+
 // -----------------------------------------------------------------------------
 // Erreurs
 // -----------------------------------------------------------------------------

@@ -384,6 +384,46 @@ PROFIL DU PROSPECT :
 
 IMPORTANT : Si des donnees du site web sont fournies ci-dessus, utilise-les pour enrichir ton analyse. Ces donnees sont reelles et fiables.
 
+DECISION D'ARBITRAGE OBLIGATOIRE :
+Tu dois IMPERATIVEMENT evaluer si ce prospect est une cible pertinente pour notre offre.
+Ajoute dans ta reponse JSON les champs suivants :
+- "should_delete": true/false — true si ce prospect N'EST PAS une bonne cible et doit etre supprime de la base
+- "delete_reason": "explication courte" — si should_delete est true, explique pourquoi (ex: "Restaurant, pas une conciergerie", "Particulier, pas un professionnel", "Secteur hors cible", "Pas de rapport avec la location courte duree")
+
+CRITERES DE SUPPRESSION (should_delete = true) :
+- Le prospect n'est PAS dans le secteur de la conciergerie / location courte duree / gestion locative / hospitality
+- Le prospect est un particulier sans activite professionnelle pertinente
+- L'entreprise n'a aucun rapport avec notre cible (ex: restaurant, garage, coiffeur, etc.)
+- Le profil est trop vague / spam / faux et ne permet aucun demarchage coherent
+- Le score ICP est inferieur a 20 ET il n'y a aucun signal de pertinence
+
+CRITERES DE CONSERVATION (should_delete = false) :
+- Le prospect gere des biens en location courte duree (Airbnb, Booking, etc.)
+- Le prospect est une conciergerie, un property manager, un channel manager
+- Le prospect est dans l'immobilier locatif, l'hospitality, ou la gestion de biens
+- Le prospect montre des signaux de besoin pour notre solution
+- En cas de doute, NE PAS supprimer (should_delete = false)
+
+CLASSIFICATION CONTACT_TYPE OBLIGATOIRE :
+Tu dois IMPERATIVEMENT classer ce prospect dans une des categories suivantes via le champ "contact_type" :
+- "prospect" : Contact identifie, pas encore contacte ou en debut de prospection. C'est le type par defaut.
+- "lead_chaud" : Prospect qui montre des signaux forts d'interet ou de besoin urgent (site mentionne des problemes, cherche activement une solution, forte presence OTA sans outils, beaucoup de biens sans PMS)
+- "client" : Deja client de CheckEasy (ne devrait pas arriver en recherche, mais au cas ou)
+- "partenaire" : Acteur complementaire - channel manager, PMS, plateforme, agence marketing, OTA manager - pas un client potentiel mais un partenaire possible
+- "concurrent" : Une autre conciergerie/solution de gestion qui fait la meme chose que CheckEasy
+- "influenceur" : Personnalite publique, blogueur, media specialise hospitality/location courte duree
+- "a_recontacter" : Le timing n'est pas bon maintenant mais le profil est pertinent (ex: conciergerie en creation, projet futur)
+- "mauvaise_cible" : Pas dans notre cible (si should_delete est true, met aussi contact_type a "mauvaise_cible")
+
+REGLES DE CLASSIFICATION :
+1. Si should_delete = true → contact_type = "mauvaise_cible"
+2. Si le prospect a un ICP score >= 70 ET des signaux de besoin urgent → contact_type = "lead_chaud"
+3. Si le prospect est un PMS, channel manager, OTA, plateforme tech → contact_type = "partenaire"
+4. Si le prospect fait exactement la meme chose que nous (conciergerie digitale / SaaS gestion locative) → contact_type = "concurrent"
+5. Si c'est un media, blog, influenceur hospitality → contact_type = "influenceur"
+6. Si le prospect est pertinent mais pas pret maintenant → contact_type = "a_recontacter"
+7. Sinon → contact_type = "prospect"
+
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
 
     const response = await getAnthropic().messages.create({
@@ -925,6 +965,26 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       ? `\nENRICHISSEMENTS IA :\n${JSON.stringify(context.prospect.enrichments, null, 2)}`
       : '';
 
+    // AI Research data from prospect_researcher agent
+    const aiResearch = cf.ai_research as Record<string, unknown> | undefined;
+    let aiResearchBlock = '';
+    if (aiResearch) {
+      const researchLines: string[] = [];
+      if (aiResearch.icp_score) researchLines.push(`- Score ICP : ${aiResearch.icp_score}/100`);
+      if (aiResearch.pain_points && Array.isArray(aiResearch.pain_points) && (aiResearch.pain_points as string[]).length > 0) {
+        researchLines.push(`- Points de douleur identifies : ${(aiResearch.pain_points as string[]).join(', ')}`);
+      }
+      if (aiResearch.recommended_angle) researchLines.push(`- Angle recommande : ${aiResearch.recommended_angle}`);
+      if (aiResearch.recommended_tone) researchLines.push(`- Ton recommande : ${aiResearch.recommended_tone}`);
+      if (aiResearch.talking_points && Array.isArray(aiResearch.talking_points) && (aiResearch.talking_points as string[]).length > 0) {
+        researchLines.push(`- Points de discussion : ${(aiResearch.talking_points as string[]).join(', ')}`);
+      }
+      if (aiResearch.company_description) researchLines.push(`- Description entreprise : ${aiResearch.company_description}`);
+      if (researchLines.length > 0) {
+        aiResearchBlock = `\nRECHERCHE IA SUR CE PROSPECT (utilise ces insights pour personnaliser, sans les citer) :\n${researchLines.join('\n')}`;
+      }
+    }
+
     // AI prompt context from step config
     const aiPromptContextBlock = task.aiPromptContext
       ? `\nINSTRUCTIONS SPECIFIQUES DU COMMERCIAL :\n${task.aiPromptContext}`
@@ -961,7 +1021,7 @@ DONNEES PROSPECT (ne pas citer, utiliser pour adapter l'angle) :
 - Entreprise : ${context.prospect.company || 'Non renseignee'}
 - Secteur : ${context.prospect.industry || (cf.industry as string) || 'Non renseigne'}
 - Ville : ${context.prospect.city || context.prospect.location || 'Non renseignee'}
-- Site web : ${context.prospect.website || 'Non renseigne'}${customFieldsBlock}${notesBlock}${enrichmentsBlock}
+- Site web : ${context.prospect.website || 'Non renseigne'}${customFieldsBlock}${notesBlock}${enrichmentsBlock}${aiResearchBlock}
 
 PERFORMANCES :
 - Taux d'ouverture : ${(context.performance.openRate * 100).toFixed(1)}%

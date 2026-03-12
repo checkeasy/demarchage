@@ -19,6 +19,8 @@ export interface SendEmailParams {
   replyTo?: string;
   smtpCredentials?: SmtpCredentials;
   headers?: Record<string, string>;
+  inReplyTo?: string;
+  references?: string;
 }
 
 export interface SendEmailResult {
@@ -130,6 +132,14 @@ export async function sendGmail(params: SendEmailParams): Promise<SendEmailResul
       text: params.text || params.html.replace(/<[^>]*>/g, ''),
       replyTo: params.replyTo || from,
     };
+
+    // Add threading headers for follow-up emails
+    if (params.inReplyTo) {
+      mailOptions.inReplyTo = params.inReplyTo;
+    }
+    if (params.references) {
+      mailOptions.references = params.references;
+    }
 
     // Add custom headers (List-Unsubscribe, etc.)
     if (params.headers && Object.keys(params.headers).length > 0) {

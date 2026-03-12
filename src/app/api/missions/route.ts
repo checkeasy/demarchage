@@ -101,8 +101,15 @@ export async function POST(request: NextRequest) {
     };
 
     try {
-      parsed = JSON.parse(aiText);
-    } catch {
+      // Strip markdown code fences if present (```json ... ```)
+      let cleanJson = aiText.trim();
+      const fenceMatch = cleanJson.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) {
+        cleanJson = fenceMatch[1].trim();
+      }
+      parsed = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      console.error("[API Missions] AI response was not valid JSON:", aiText);
       return NextResponse.json(
         { error: "Erreur de parsing de la reponse IA" },
         { status: 500 }
@@ -130,9 +137,9 @@ export async function POST(request: NextRequest) {
     // 4. Create a generic prospect profile for sequence generation
     const genericProfile: ProspectProfile = {
       jobTitle: parsed.target_profile?.job_titles?.[0] || "Manager",
-      company: "{{company}}",
-      firstName: "{{first_name}}",
-      lastName: "{{last_name}}",
+      company: "{company}",
+      firstName: "{firstName}",
+      lastName: "{lastName}",
       industry: parsed.target_profile?.industries?.[0] || undefined,
       location: parsed.target_profile?.locations?.[0] || undefined,
     };

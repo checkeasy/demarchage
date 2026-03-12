@@ -28,12 +28,19 @@ import {
   Users,
   SearchX,
   ExternalLink,
+  Copy,
+  Zap,
+  Save,
+  BookmarkCheck,
+  Phone,
+  Brain,
+  ClipboardCopy,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS, BUSINESS_TYPES, SIZE_TIERS, TOURIST_ZONES, OTA_STRATEGIES, REVIEW_QUALITY } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, INDUSTRIES, EMPLOYEE_COUNTS, LEAD_SCORE_RANGES, DEPARTMENTS, BUSINESS_TYPES, SIZE_TIERS, TOURIST_ZONES, OTA_STRATEGIES, REVIEW_QUALITY, CONTACT_TYPES } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -79,8 +86,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AddProspectDialog } from "@/components/prospects/AddProspectDialog";
 import { SmartCampaignDialog } from "@/components/campaigns/SmartCampaignDialog";
+import ContactBadges from "@/components/prospects/ContactBadges";
 
 const ITEMS_PER_PAGE = 100;
 
@@ -114,6 +133,7 @@ export function ProspectPageClient({
   const [crmStatusFilter, setCrmStatusFilter] = useState<string>("all");
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [contactTypeFilter, setContactTypeFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [industryFilter, setIndustryFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("all");
@@ -138,6 +158,177 @@ export function ProspectPageClient({
   const [addDialogOpen, setAddDialogOpen] = useState(searchParams.get("action") === "add");
   const [smartCampaignOpen, setSmartCampaignOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Saved filters (Fix #10)
+  interface SavedFilter {
+    name: string;
+    filters: {
+      search: string;
+      statusFilter: string;
+      crmStatusFilter: string;
+      pipelineFilter: string;
+      countryFilter: string;
+      contactTypeFilter: string;
+      sourceFilter: string;
+      industryFilter: string;
+      cityFilter: string;
+      employeeCountFilter: string;
+      tagFilter: string;
+      departmentFilter: string;
+      leadScoreFilter: string;
+      emailQualityFilter: string;
+      businessTypeFilter: string;
+      sizeTierFilter: string;
+      zoneFilter: string;
+      otaFilter: string;
+      reviewFilter: string;
+      emailTypeFilter: string;
+      contactableFilter: string;
+      websiteFilter: string;
+    };
+  }
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("coldreach_saved_filters");
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [saveFilterName, setSaveFilterName] = useState("");
+  const [showSaveFilterInput, setShowSaveFilterInput] = useState(false);
+
+  function getCurrentFilters() {
+    return {
+      search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter,
+      contactTypeFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter,
+      tagFilter, departmentFilter, leadScoreFilter, emailQualityFilter,
+      businessTypeFilter, sizeTierFilter, zoneFilter, otaFilter, reviewFilter,
+      emailTypeFilter, contactableFilter, websiteFilter,
+    };
+  }
+
+  function handleSaveFilter() {
+    const name = saveFilterName.trim();
+    if (!name) return;
+    const newFilter: SavedFilter = { name, filters: getCurrentFilters() };
+    const updated = [...savedFilters, newFilter];
+    setSavedFilters(updated);
+    localStorage.setItem("coldreach_saved_filters", JSON.stringify(updated));
+    setSaveFilterName("");
+    setShowSaveFilterInput(false);
+    toast.success(`Filtre "${name}" sauvegarde`);
+  }
+
+  function handleApplyFilter(f: SavedFilter) {
+    setSearch(f.filters.search);
+    setStatusFilter(f.filters.statusFilter);
+    setCrmStatusFilter(f.filters.crmStatusFilter);
+    setPipelineFilter(f.filters.pipelineFilter);
+    setCountryFilter(f.filters.countryFilter);
+    setContactTypeFilter(f.filters.contactTypeFilter);
+    setSourceFilter(f.filters.sourceFilter);
+    setIndustryFilter(f.filters.industryFilter);
+    setCityFilter(f.filters.cityFilter);
+    setEmployeeCountFilter(f.filters.employeeCountFilter);
+    setTagFilter(f.filters.tagFilter);
+    setDepartmentFilter(f.filters.departmentFilter);
+    setLeadScoreFilter(f.filters.leadScoreFilter);
+    setEmailQualityFilter(f.filters.emailQualityFilter);
+    setBusinessTypeFilter(f.filters.businessTypeFilter);
+    setSizeTierFilter(f.filters.sizeTierFilter);
+    setZoneFilter(f.filters.zoneFilter);
+    setOtaFilter(f.filters.otaFilter);
+    setReviewFilter(f.filters.reviewFilter);
+    setEmailTypeFilter(f.filters.emailTypeFilter);
+    setContactableFilter(f.filters.contactableFilter);
+    setWebsiteFilter(f.filters.websiteFilter);
+    setPage(1);
+    toast.success(`Filtre "${f.name}" applique`);
+  }
+
+  function handleDeleteFilter(index: number) {
+    const updated = savedFilters.filter((_, i) => i !== index);
+    setSavedFilters(updated);
+    localStorage.setItem("coldreach_saved_filters", JSON.stringify(updated));
+    toast.success("Filtre supprime");
+  }
+
+  // Quick actions state (Fix #11)
+  const [quickActionCampaignProspectId, setQuickActionCampaignProspectId] = useState<string | null>(null);
+  const [availableCampaigns, setAvailableCampaigns] = useState<{id: string; name: string}[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+
+  async function loadCampaigns() {
+    setLoadingCampaigns(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("current_workspace_id").eq("id", user.id).single();
+      if (!profile?.current_workspace_id) return;
+      const { data: camps } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .eq("workspace_id", profile.current_workspace_id)
+        .in("status", ["draft", "active", "paused"]);
+      setAvailableCampaigns(camps || []);
+    } catch { /* ignore */ } finally {
+      setLoadingCampaigns(false);
+    }
+  }
+
+  async function handleQuickEnroll(prospectId: string, campaignId: string) {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectIds: [prospectId] }),
+      });
+      if (res.ok) {
+        toast.success("Prospect ajoute a la campagne");
+        setQuickActionCampaignProspectId(null);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur");
+      }
+    } catch { toast.error("Erreur"); }
+  }
+
+  async function handleMarkContacted(prospectId: string) {
+    const { error } = await supabase
+      .from("prospects")
+      .update({ pipeline_stage: "contacted" })
+      .eq("id", prospectId);
+    if (error) { toast.error("Erreur"); return; }
+    toast.success("Prospect marque comme contacte");
+    router.refresh();
+  }
+
+  async function handleQuickResearch(prospectId: string) {
+    toast.info("Analyse IA lancee...");
+    try {
+      const res = await fetch("/api/agents/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectId }),
+      });
+      if (res.ok) {
+        toast.success("Analyse terminee");
+        router.refresh();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur d'analyse");
+      }
+    } catch { toast.error("Erreur d'analyse"); }
+  }
+
+  function handleCopyEmail(email: string | null) {
+    if (!email || email.endsWith("@crm-import.local") || email.endsWith("@directory-import.local") || email.endsWith("@linkedin-prospect.local")) {
+      toast.error("Pas d'email disponible");
+      return;
+    }
+    navigator.clipboard.writeText(email);
+    toast.success("Email copie");
+  }
 
   // Extract unique values from data for dynamic filters
   const availableCountries = useMemo(() => {
@@ -195,7 +386,7 @@ export function ProspectPageClient({
         (p) =>
           (p.first_name && p.first_name.toLowerCase().includes(term)) ||
           (p.last_name && p.last_name.toLowerCase().includes(term)) ||
-          p.email.toLowerCase().includes(term) ||
+          (p.email && p.email.toLowerCase().includes(term)) ||
           (p.company && p.company.toLowerCase().includes(term)) ||
           (p.organization && p.organization.toLowerCase().includes(term)) ||
           (p.industry && p.industry.toLowerCase().includes(term)) ||
@@ -225,6 +416,11 @@ export function ProspectPageClient({
     // Filter by country
     if (countryFilter !== "all") {
       result = result.filter((p) => p.country === countryFilter);
+    }
+
+    // Filter by contact type
+    if (contactTypeFilter !== "all") {
+      result = result.filter((p) => (p.contact_type || "prospect") === contactTypeFilter);
     }
 
     // Filter by source
@@ -365,7 +561,7 @@ export function ProspectPageClient({
     });
 
     return result;
-  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, departmentFilter, tagFilter, leadScoreFilter, emailQualityFilter, businessTypeFilter, sizeTierFilter, zoneFilter, otaFilter, reviewFilter, emailTypeFilter, contactableFilter, websiteFilter, sortField, sortDirection]);
+  }, [prospects, search, statusFilter, crmStatusFilter, pipelineFilter, countryFilter, contactTypeFilter, sourceFilter, industryFilter, cityFilter, employeeCountFilter, departmentFilter, tagFilter, leadScoreFilter, emailQualityFilter, businessTypeFilter, sizeTierFilter, zoneFilter, otaFilter, reviewFilter, emailTypeFilter, contactableFilter, websiteFilter, sortField, sortDirection]);
 
   // Stats
   const stats = useMemo(() => {
@@ -635,7 +831,7 @@ export function ProspectPageClient({
     );
   }
 
-  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || departmentFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || businessTypeFilter !== "all" || sizeTierFilter !== "all" || zoneFilter !== "all" || otaFilter !== "all" || reviewFilter !== "all" || emailTypeFilter !== "all" || contactableFilter !== "all" || websiteFilter !== "all" || search.trim() !== "";
+  const hasActiveFilters = statusFilter !== "all" || crmStatusFilter !== "all" || pipelineFilter !== "all" || countryFilter !== "all" || contactTypeFilter !== "all" || sourceFilter !== "all" || industryFilter !== "all" || cityFilter !== "all" || employeeCountFilter !== "all" || departmentFilter !== "all" || tagFilter !== "all" || leadScoreFilter !== "all" || emailQualityFilter !== "all" || businessTypeFilter !== "all" || sizeTierFilter !== "all" || zoneFilter !== "all" || otaFilter !== "all" || reviewFilter !== "all" || emailTypeFilter !== "all" || contactableFilter !== "all" || websiteFilter !== "all" || search.trim() !== "";
 
   const advancedFilterCount = [
     departmentFilter !== "all",
@@ -758,6 +954,27 @@ export function ProspectPageClient({
               </SelectContent>
             </Select>
 
+            {/* Contact Type */}
+            <Select
+              value={contactTypeFilter}
+              onValueChange={(value) => { setContactTypeFilter(value); setPage(1); }}
+            >
+              <SelectTrigger className="w-full sm:w-[145px] h-9">
+                <SelectValue placeholder="Type contact" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous types</SelectItem>
+                {Object.entries(CONTACT_TYPES).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`size-2 rounded-full ${config.color}`} />
+                      {config.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {/* Toggle advanced filters */}
             <Button
               variant={showAdvancedFilters ? "secondary" : "outline"}
@@ -774,10 +991,87 @@ export function ProspectPageClient({
               )}
               <ChevronDown className={`size-3.5 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`} />
             </Button>
+
+            {/* Saved filters */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                  <BookmarkCheck className="size-3.5" />
+                  Filtres sauvegardes
+                  {savedFilters.length > 0 && (
+                    <Badge variant="secondary" className="size-5 p-0 flex items-center justify-center text-[10px] bg-amber-100 text-amber-700">
+                      {savedFilters.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" align="start">
+                {savedFilters.length > 0 ? (
+                  <div className="space-y-1 mb-2">
+                    {savedFilters.map((f, i) => (
+                      <div key={i} className="flex items-center gap-1 group">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1 justify-start h-7 text-xs"
+                          onClick={() => handleApplyFilter(f)}
+                        >
+                          {f.name}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600"
+                          onClick={() => handleDeleteFilter(i)}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-2">Aucun filtre sauvegarde</p>
+                )}
+                <div className="border-t pt-2">
+                  {showSaveFilterInput ? (
+                    <div className="flex gap-1">
+                      <Input
+                        placeholder="Nom du filtre..."
+                        value={saveFilterName}
+                        onChange={(e) => setSaveFilterName(e.target.value)}
+                        className="h-7 text-xs flex-1"
+                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveFilter(); }}
+                        autoFocus
+                      />
+                      <Button size="sm" className="h-7 px-2 text-xs" onClick={handleSaveFilter} disabled={!saveFilterName.trim()}>
+                        <Save className="size-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full h-7 text-xs gap-1"
+                      onClick={() => setShowSaveFilterInput(true)}
+                      disabled={!hasActiveFilters}
+                    >
+                      <Save className="size-3" />
+                      Sauvegarder ce filtre
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Action buttons */}
           <div className="flex gap-2 shrink-0 ml-auto">
+            <Button variant="outline" size="sm" className="h-9" asChild>
+              <Link href="/prospects/deduplicate">
+                <Copy className="size-4" />
+                Doublons
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" className="h-9" asChild>
               <Link href="/prospects/import">
                 <Upload className="size-4" />
@@ -1137,6 +1431,12 @@ export function ProspectPageClient({
                 <X className="size-3" />
               </Badge>
             )}
+            {contactTypeFilter !== "all" && (
+              <Badge variant="secondary" className={`gap-1 text-xs cursor-pointer hover:bg-slate-200 ${CONTACT_TYPES[contactTypeFilter as keyof typeof CONTACT_TYPES]?.textColor || ""} ${CONTACT_TYPES[contactTypeFilter as keyof typeof CONTACT_TYPES]?.bgLight || ""}`} onClick={() => { setContactTypeFilter("all"); setPage(1); }}>
+                {CONTACT_TYPES[contactTypeFilter as keyof typeof CONTACT_TYPES]?.label || contactTypeFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
             {countryFilter !== "all" && (
               <Badge variant="secondary" className="gap-1 text-xs cursor-pointer hover:bg-slate-200" onClick={() => { setCountryFilter("all"); setPage(1); }}>
                 {COUNTRIES[countryFilter as keyof typeof COUNTRIES]?.flag} {countryFilter}
@@ -1247,6 +1547,7 @@ export function ProspectPageClient({
                 setCrmStatusFilter("all");
                 setPipelineFilter("all");
                 setCountryFilter("all");
+                setContactTypeFilter("all");
                 setSourceFilter("all");
                 setIndustryFilter("all");
                 setCityFilter("all");
@@ -1372,23 +1673,26 @@ export function ProspectPageClient({
               </TableHead>
               <SortableHeader field="first_name" label="Nom" />
               <SortableHeader field="company" label="Entreprise" className="hidden sm:table-cell" />
+              <TableHead className="hidden lg:table-cell">Badges</TableHead>
               <SortableHeader field="website" label="Site" className="hidden lg:table-cell" />
               <SortableHeader field="nb_properties" label="Biens" className="hidden xl:table-cell" />
               <SortableHeader field="country" label="Pays" className="hidden xl:table-cell" />
+              <SortableHeader field="contact_type" label="Type" className="hidden sm:table-cell" />
               <SortableHeader field="pipeline_stage" label="Pipeline" className="hidden md:table-cell" />
               <SortableHeader field="status" label="Statut" />
               <SortableHeader field="source" label="Source" className="hidden lg:table-cell" />
               <SortableHeader field="lead_score" label="Score IA" className="hidden sm:table-cell" />
               <SortableHeader field="email_validity_score" label="Fiabilité" className="hidden xl:table-cell" />
               <SortableHeader field="email" label="Email" className="hidden md:table-cell" />
-              <SortableHeader field="created_at" label="Date" className="hidden xl:table-cell" />
+              <SortableHeader field="last_contacted_at" label="Dernier contact" className="hidden lg:table-cell" />
+              <SortableHeader field="created_at" label="Ajout" className="hidden xl:table-cell" />
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedProspects.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="p-0">
+                <TableCell colSpan={17} className="p-0">
                   {prospects.length === 0 ? (
                     <EmptyState
                       icon={Users}
@@ -1458,6 +1762,20 @@ export function ProspectPageClient({
                         )}
                       </span>
                     </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <ContactBadges
+                        tags={prospect.tags || []}
+                        compact
+                        onUpdate={async (newTags) => {
+                          const res = await fetch(`/api/prospects/${prospect.id}/tags`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ add: newTags.filter(t => !(prospect.tags || []).includes(t)), remove: (prospect.tags || []).filter(t => !newTags.includes(t)) }),
+                          });
+                          if (res.ok) router.refresh();
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm">
                       {prospect.website ? (
                         <a
@@ -1479,6 +1797,18 @@ export function ProspectPageClient({
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-sm">
                       {getCountryDisplay(prospect)}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {(() => {
+                        const ct = (prospect.contact_type || "prospect") as keyof typeof CONTACT_TYPES;
+                        const config = CONTACT_TYPES[ct];
+                        if (!config) return <span className="text-muted-foreground text-xs">-</span>;
+                        return (
+                          <Badge variant="secondary" className={`text-[10px] ${config.textColor} ${config.bgLight}`}>
+                            {config.label}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{getPipelineBadge(prospect)}</TableCell>
                     <TableCell>
@@ -1539,34 +1869,74 @@ export function ProspectPageClient({
                         prospect.email
                       )}
                     </TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm">
+                      {prospect.last_contacted_at ? (
+                        <span className="text-muted-foreground">{formatDate(prospect.last_contacted_at)}</span>
+                      ) : (
+                        <span className="text-orange-500 text-xs italic">Jamais</span>
+                      )}
+                    </TableCell>
                     <TableCell className="hidden xl:table-cell text-muted-foreground text-sm">
                       {formatDate(prospect.created_at)}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="size-8 p-0" aria-label="Plus d'options">
-                            <MoreHorizontal className="size-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/prospects/${prospect.id}`}>
-                              <Eye className="size-4" />
-                              Voir le detail
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => setDeleteConfirmId(prospect.id)}
-                          >
-                            <Trash2 className="size-4" />
-                            Supprimer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-0.5">
+                        {/* Quick actions */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="size-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50" aria-label="Actions rapides">
+                              <Zap className="size-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => {
+                              setQuickActionCampaignProspectId(prospect.id);
+                              loadCampaigns();
+                            }}>
+                              <Mail className="size-4" />
+                              Ajouter a une campagne
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleMarkContacted(prospect.id)}>
+                              <Phone className="size-4" />
+                              Marquer contacte
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleQuickResearch(prospect.id)}>
+                              <Brain className="size-4" />
+                              Analyser (IA)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCopyEmail(prospect.email)}>
+                              <ClipboardCopy className="size-4" />
+                              Copier email
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* More options */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="size-7 p-0" aria-label="Plus d'options">
+                              <MoreHorizontal className="size-4" />
+                              <span className="sr-only">Actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/prospects/${prospect.id}`}>
+                                <Eye className="size-4" />
+                                Voir le detail
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteConfirmId(prospect.id)}
+                            >
+                              <Trash2 className="size-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -1666,6 +2036,40 @@ export function ProspectPageClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Quick Action: Campaign select dialog */}
+      <Dialog open={!!quickActionCampaignProspectId} onOpenChange={(open) => { if (!open) setQuickActionCampaignProspectId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajouter a une campagne</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {loadingCampaigns ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableCampaigns.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Aucune campagne disponible</p>
+            ) : (
+              availableCampaigns.map((camp) => (
+                <Button
+                  key={camp.id}
+                  variant="outline"
+                  className="w-full justify-start text-sm"
+                  onClick={() => {
+                    if (quickActionCampaignProspectId) {
+                      handleQuickEnroll(quickActionCampaignProspectId, camp.id);
+                    }
+                  }}
+                >
+                  <Mail className="size-4 mr-2" />
+                  {camp.name}
+                </Button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

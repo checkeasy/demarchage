@@ -14,6 +14,8 @@ import {
   Mail,
   Send,
   Loader2,
+  Sparkles,
+  CalendarCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { sanitizeHtml } from "@/lib/utils";
@@ -25,6 +27,8 @@ interface Thread {
   last_message_at: string;
   message_count: number;
   prospect_id: string | null;
+  campaign_id: string | null;
+  email_account_id: string | null;
   prospects?: {
     first_name: string | null;
     last_name: string | null;
@@ -61,6 +65,8 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [suggestingResponse, setSuggestingResponse] = useState(false);
+  const [suggestingMeeting, setSuggestingMeeting] = useState(false);
   const supabase = createClient();
 
   const loadThreads = useCallback(async () => {
@@ -122,6 +128,9 @@ export default function InboxPage() {
           to: selectedThread.prospects.email,
           subject: `Re: ${selectedThread.subject || ""}`,
           body: replyText.replace(/\n/g, "<br />"),
+          campaignId: selectedThread.campaign_id || undefined,
+          prospectId: selectedThread.prospect_id || undefined,
+          threadId: selectedThread.id,
         }),
       });
       if (!res.ok) {
@@ -135,6 +144,77 @@ export default function InboxPage() {
       toast.error("Erreur de connexion");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleSuggestResponse() {
+    if (!selectedThread?.prospect_id) return;
+    // Find the last inbound message for context
+    const lastInbound = [...messages].reverse().find((m) => m.direction === "inbound");
+    if (!lastInbound) {
+      toast.error("Aucun message entrant trouve");
+      return;
+    }
+    setSuggestingResponse(true);
+    try {
+      const res = await fetch("/api/agents/value-response", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prospectId: selectedThread.prospect_id,
+          replyText: lastInbound.body_text || lastInbound.body_html || "",
+          replyAnalysis: {},
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Erreur lors de la generation");
+        return;
+      }
+      const data = await res.json();
+      const content = data.result?.content;
+      const suggested = content?.full_response || content?.message || "";
+      if (suggested) {
+        setReplyText(suggested);
+        toast.success("Reponse suggeree generee");
+      } else {
+        toast.error("Reponse vide de l'IA");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setSuggestingResponse(false);
+    }
+  }
+
+  async function handleSuggestMeeting() {
+    if (!selectedThread?.prospect_id) return;
+    setSuggestingMeeting(true);
+    try {
+      const res = await fetch("/api/agents/meeting-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prospectId: selectedThread.prospect_id,
+          channel: "email",
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Erreur lors de la generation");
+        return;
+      }
+      const data = await res.json();
+      const content = data.result?.content;
+      const suggested = content?.message || content?.full_response || "";
+      if (suggested) {
+        setReplyText(suggested);
+        toast.success("Message meeting genere");
+      } else {
+        toast.error("Reponse vide de l'IA");
+      }
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setSuggestingMeeting(false);
     }
   }
 
@@ -297,6 +377,38 @@ export default function InboxPage() {
                 ))}
               </div>
             </ScrollArea>
+
+            {/* AI suggestion buttons */}
+            {messages.length > 0 && messages[messages.length - 1]?.direction === "inbound" && (
+              <div className="border-t px-3 pt-2 flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSuggestResponse}
+                  disabled={suggestingResponse || suggestingMeeting}
+                >
+                  {suggestingResponse ? (
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-3 w-3" />
+                  )}
+                  Suggerer une reponse
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSuggestMeeting}
+                  disabled={suggestingResponse || suggestingMeeting}
+                >
+                  {suggestingMeeting ? (
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  ) : (
+                    <CalendarCheck className="mr-2 h-3 w-3" />
+                  )}
+                  Message meeting
+                </Button>
+              </div>
+            )}
 
             {/* Reply input */}
             <div className="border-t p-3">

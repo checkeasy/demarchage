@@ -125,22 +125,22 @@ export default function LinkedInPage() {
   }, []);
 
   async function markAsDone(taskId: string) {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const response = await fetch(`/api/linkedin/tasks/${taskId}/done`, {
+        method: "POST",
+      });
 
-    await supabase
-      .from("linkedin_tasks")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        completed_by: user?.id,
-      })
-      .eq("id", taskId);
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || "Erreur lors de la completion");
+        return;
+      }
 
-    toast.success("Tache marquee comme terminee");
-    loadTasks();
+      toast.success("Tache marquee comme terminee");
+      loadTasks();
+    } catch {
+      toast.error("Erreur reseau");
+    }
   }
 
   async function skipTask(taskId: string) {
