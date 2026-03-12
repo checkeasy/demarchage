@@ -29,10 +29,11 @@ export default async function ProspectsPage() {
   // Fetch ALL prospects (Supabase default limit = 1000, we need all)
   const allProspects: any[] = [];
   const PAGE_SIZE = 1000;
+  const MAX_PROSPECTS = 5000;
   let from = 0;
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && allProspects.length < MAX_PROSPECTS) {
     const { data } = await supabase
       .from("prospects")
       .select("*")

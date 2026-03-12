@@ -118,12 +118,10 @@ export function prospectToTemplateData(prospect: {
 export function extractTemplateVariables(template: string): string[] {
   const variables = new Set<string>();
 
-  // Match {variableName} (excluding conditional syntax)
+  // Match {variableName}
   const simpleMatches = template.matchAll(/\{(\w+)\}/g);
   for (const match of simpleMatches) {
-    if (!["#if", "/if"].includes(match[1])) {
-      variables.add(match[1]);
-    }
+    variables.add(match[1]);
   }
 
   // Match variables inside conditionals

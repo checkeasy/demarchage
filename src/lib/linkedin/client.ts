@@ -790,7 +790,7 @@ export class LinkedInClient {
       employeeCount: companyEntity.staffCount || null,
       website: companyEntity.companyPageUrl || companyEntity.website || null,
       headquartersLocation: companyEntity.headquarter
-        ? `${companyEntity.headquarter.city || ''}, ${companyEntity.headquarter.country || ''}`.trim()
+        ? [companyEntity.headquarter.city, companyEntity.headquarter.country].filter(Boolean).join(', ') || null
         : null,
       logoUrl,
       specialities: companyEntity.specialities || [],
@@ -1048,10 +1048,13 @@ export class LinkedInClient {
 // -----------------------------------------------------------------------------
 
 let defaultClient: LinkedInClient | null = null;
+let defaultClientCreatedAt = 0;
+const CLIENT_TTL_MS = 30 * 60 * 1000;
 
 export function getLinkedInClient(): LinkedInClient {
-  if (!defaultClient) {
+  if (!defaultClient || Date.now() - defaultClientCreatedAt > CLIENT_TTL_MS) {
     defaultClient = new LinkedInClient();
+    defaultClientCreatedAt = Date.now();
   }
   return defaultClient;
 }

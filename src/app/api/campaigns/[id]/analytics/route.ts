@@ -6,7 +6,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: campaignId } = await params;
-  const supabase = await createClient();
+
+  // Auth check
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = authClient;
 
   // Verify user has access to this campaign
   const { data: campaign, error: campError } = await supabase
@@ -69,16 +77,18 @@ export async function GET(
       const stats = statsMap.get(e.step_id);
       if (!stats) continue;
 
+      if (e.status === "bounced") {
+        stats.total_sent++;
+        stats.total_bounced++;
+        // Don't count opens/clicks/replies for bounced emails
+        continue;
+      }
       if (e.status === "sent" || e.status === "delivered" || e.status === "opened" || e.status === "clicked" || e.status === "replied") {
         stats.total_sent++;
       }
       if (e.opened_at) stats.total_opened++;
       if (e.clicked_at) stats.total_clicked++;
       if (e.replied_at) stats.total_replied++;
-      if (e.status === "bounced") {
-        stats.total_sent++;
-        stats.total_bounced++;
-      }
     }
   }
 

@@ -17,6 +17,11 @@ export async function POST(
     return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
   }
 
+  // Get user's workspace
+  const { data: profile } = await adminSupabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
+
   const body = await request.json();
   const { prospectIds } = body;
 
@@ -29,6 +34,7 @@ export async function POST(
     .from("outreach_missions")
     .select("id, campaign_email_id, campaign_linkedin_id, campaign_multichannel_id")
     .eq("id", missionId)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (missionError || !mission) {
@@ -39,7 +45,8 @@ export async function POST(
   const { data: prospects } = await adminSupabase
     .from("prospects")
     .select("id, email, linkedin_url, phone, status")
-    .in("id", prospectIds);
+    .in("id", prospectIds)
+    .eq("workspace_id", workspaceId);
 
   if (!prospects || prospects.length === 0) {
     return NextResponse.json({ error: "Aucun prospect trouve" }, { status: 404 });

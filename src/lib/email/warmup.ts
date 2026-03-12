@@ -76,6 +76,12 @@ export function getWarmupDailyVolume(
 
   // Phase 2: Linear ramp from day 14 value (50) to target (days 15-28)
   const day14Volume = 50;
+
+  // If target is already at or below day 14 volume, no ramp needed
+  if (warmupDailyTarget <= day14Volume) {
+    return Math.min(warmupDailyTarget, THRESHOLDS.MAX_COLD_PER_INBOX);
+  }
+
   const rampDays = 14; // 2 more weeks to reach target
   const daysSince14 = dayNumber - 14;
   const rampVolume = Math.floor(

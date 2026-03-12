@@ -83,7 +83,7 @@ function isValidEmail(email: string): boolean {
   if (BLACKLISTED_DOMAINS.some((b) => domain.includes(b))) return false;
   // Domain must end with a valid TLD (2-6 chars only) — rejects "company.froffre"
   const tld = domain.split('.').pop();
-  if (!tld || tld.length < 2 || tld.length > 6) return false;
+  if (!tld || tld.length < 2 || tld.length > 15) return false;
   // Domain part before TLD shouldn't be too short
   const domainParts = domain.split('.');
   if (domainParts.length < 2) return false;

@@ -25,21 +25,20 @@ export async function POST(request: NextRequest) {
       .not("campaign_prospect_id", "is", null);
 
     if (bouncedEmails && bouncedEmails.length > 0) {
-      for (const email of bouncedEmails) {
-        const { data: cp } = await supabase
-          .from("campaign_prospects")
-          .select("id, status")
-          .eq("id", email.campaign_prospect_id)
-          .eq("status", "active")
-          .single();
+      // Batch update: collect all bounced campaign_prospect_ids, then update in one query
+      const bouncedCpIds = bouncedEmails
+        .map((e) => e.campaign_prospect_id as string)
+        .filter(Boolean);
 
-        if (cp) {
-          await supabase
-            .from("campaign_prospects")
-            .update({ status: "bounced" })
-            .eq("id", cp.id);
-          bouncesHandled++;
-        }
+      if (bouncedCpIds.length > 0) {
+        const { data: updated } = await supabase
+          .from("campaign_prospects")
+          .update({ status: "bounced" })
+          .in("id", bouncedCpIds)
+          .eq("status", "active")
+          .select("id");
+
+        bouncesHandled = updated?.length || 0;
       }
     }
 
@@ -92,11 +91,19 @@ export async function POST(request: NextRequest) {
         }
 
         // Check replies for each prospect using the appropriate LinkedIn account
+        let linkedinCallIndex = 0;
         for (const prospect of linkedinProspects) {
           if (!prospect.linkedin_profile_urn) continue;
 
           const accountConfig = sequenceAccountMap.get(prospect.sequence_id);
           if (!accountConfig) continue;
+
+          // Add a 1-2 second delay between LinkedIn API calls to avoid rate limiting
+          if (linkedinCallIndex > 0) {
+            const delay = 1000 + Math.random() * 1000;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+          linkedinCallIndex++;
 
           try {
             const client = new LinkedInClient({

@@ -6,7 +6,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: campaignId } = await params;
-  const supabase = await createClient();
+
+  // Auth check
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = authClient;
 
   // Verify user has access to this campaign
   const { data: campaign, error: campError } = await supabase

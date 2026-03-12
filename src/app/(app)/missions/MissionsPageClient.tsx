@@ -13,6 +13,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CreateMissionDialog } from "@/components/missions/CreateMissionDialog";
 
 interface MissionWithStats {
@@ -90,9 +100,11 @@ function getLanguageBadge(language: string) {
 function MissionCard({
   mission,
   onStatusChange,
+  onArchiveRequest,
 }: {
   mission: MissionWithStats;
   onStatusChange: (id: string, newStatus: string) => void;
+  onArchiveRequest: (id: string) => void;
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -133,26 +145,8 @@ function MissionCard({
     }
   }
 
-  async function handleArchive() {
-    if (!window.confirm("Archiver cette mission ? Cette action est irreversible.")) return;
-    setIsUpdating(true);
-    try {
-      const res = await fetch(`/api/missions/${mission.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "archived" }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Erreur lors de l'archivage");
-      }
-      toast.success("Mission archivee");
-      onStatusChange(mission.id, "archived");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
-    } finally {
-      setIsUpdating(false);
-    }
+  function handleArchive() {
+    onArchiveRequest(mission.id);
   }
 
   return (
@@ -328,11 +322,33 @@ export function MissionsPageClient({ missions: initialMissions }: MissionsPageCl
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [missions, setMissions] = useState<MissionWithStats[]>(initialMissions);
+  const [archiveConfirmId, setArchiveConfirmId] = useState<string | null>(null);
 
   function handleStatusChange(id: string, newStatus: string) {
     setMissions((prev) =>
       prev.map((m) => (m.id === id ? { ...m, status: newStatus } : m))
     );
+  }
+
+  async function handleConfirmArchive() {
+    if (!archiveConfirmId) return;
+    const missionId = archiveConfirmId;
+    setArchiveConfirmId(null);
+    try {
+      const res = await fetch(`/api/missions/${missionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "archived" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erreur lors de l'archivage");
+      }
+      toast.success("Mission archivee");
+      handleStatusChange(missionId, "archived");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+    }
   }
 
   function handleDialogOpenChange(open: boolean) {
@@ -389,12 +405,30 @@ export function MissionsPageClient({ missions: initialMissions }: MissionsPageCl
               key={mission.id}
               mission={mission}
               onStatusChange={handleStatusChange}
+              onArchiveRequest={setArchiveConfirmId}
             />
           ))}
         </div>
       )}
 
       <CreateMissionDialog open={dialogOpen} onOpenChange={handleDialogOpenChange} />
+
+      <AlertDialog open={!!archiveConfirmId} onOpenChange={(open) => { if (!open) setArchiveConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archiver cette mission ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irreversible. La mission sera archivee et ne pourra plus etre relancee.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmArchive}>
+              Archiver
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

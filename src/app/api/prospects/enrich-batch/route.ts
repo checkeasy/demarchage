@@ -25,11 +25,17 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
+    // Get user's workspace
+    const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    const workspaceId = profile.current_workspace_id;
+
     // Fetch prospects
     const { data: prospects, error: fetchError } = await admin
       .from('prospects')
       .select('id, first_name, last_name, company, job_title, location, city, industry, employee_count, lead_score, linkedin_url, website, phone, nb_properties, pipeline_stage, loss_reason, source, custom_fields')
-      .in('id', prospectIds);
+      .in('id', prospectIds)
+      .eq('workspace_id', workspaceId);
 
     if (fetchError || !prospects) {
       return NextResponse.json({ error: 'Erreur lecture prospects' }, { status: 500 });

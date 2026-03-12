@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
 import { mergeTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
+import {
+  generateConnectionMessage,
+  type ProspectProfile,
+} from "@/lib/ai/message-generator";
 
 const BATCH_SIZE = 5; // Process 5 prospects per run (conservative for LinkedIn)
 
@@ -523,19 +527,31 @@ async function advanceAutomationStep(
       })
       .eq("id", item.automation_prospect_id as string);
 
-    // Increment sequence completed count
-    const { data: seq } = await supabase
-      .from("automation_sequences")
-      .select("total_processed")
-      .eq("id", item.sequence_id as string)
-      .single();
+    // Increment sequence completed count (atomic increment to avoid race condition)
+    // NOTE: If increment_linkedin_usage-style RPC is available, prefer that.
+    // Using raw SQL via rpc to atomically increment total_processed.
+    await supabase.rpc("increment_field_by_one", {
+      p_table: "automation_sequences",
+      p_column: "total_processed",
+      p_id: item.sequence_id as string,
+    }).then(async (rpcResult) => {
+      // Fallback: if RPC doesn't exist, do a read-then-write (with race condition warning)
+      if (rpcResult.error) {
+        // WARN: This read-then-write has a race condition under concurrent execution
+        const { data: seq } = await supabase
+          .from("automation_sequences")
+          .select("total_processed")
+          .eq("id", item.sequence_id as string)
+          .single();
 
-    if (seq) {
-      await supabase
-        .from("automation_sequences")
-        .update({ total_processed: (seq.total_processed || 0) + 1 })
-        .eq("id", item.sequence_id as string);
-    }
+        if (seq) {
+          await supabase
+            .from("automation_sequences")
+            .update({ total_processed: (seq.total_processed || 0) + 1 })
+            .eq("id", item.sequence_id as string);
+        }
+      }
+    });
     return;
   }
 
@@ -611,28 +627,19 @@ async function generateAIMessage(
   item: Record<string, unknown>
 ): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/generate-message`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "connection",
-          profile: {
-            firstName: item.first_name,
-            lastName: item.last_name,
-            company: item.company,
-            jobTitle: item.job_title,
-          },
-          context: item.ai_prompt_context || "",
-        }),
-      }
-    );
+    const profile: ProspectProfile = {
+      firstName: item.first_name as string || "",
+      lastName: item.last_name as string || "",
+      company: item.company as string || "",
+      jobTitle: item.job_title as string || "",
+    };
 
-    if (response.ok) {
-      const data = await response.json();
-      return data.message;
-    }
+    const context = item.ai_prompt_context
+      ? { additionalContext: item.ai_prompt_context as string }
+      : {};
+
+    const result = await generateConnectionMessage(profile, context);
+    return (result as { message?: string })?.message || null;
   } catch {
     // Fallback to template if AI fails
   }
@@ -640,10 +647,5 @@ async function generateAIMessage(
 }
 
 function generateTrackingId(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 16; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  return crypto.randomUUID();
 }

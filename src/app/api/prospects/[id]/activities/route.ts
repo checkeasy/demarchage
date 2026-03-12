@@ -17,6 +17,14 @@ export async function GET(
 
     const admin = createAdminClient();
 
+    // Verify prospect belongs to user's workspace
+    const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    const workspaceId = profile.current_workspace_id;
+
+    const { data: prospect } = await admin.from('prospects').select('id').eq('id', id).eq('workspace_id', workspaceId).single();
+    if (!prospect) return NextResponse.json({ error: 'Prospect introuvable dans votre workspace' }, { status: 404 });
+
     const { data: activities, error } = await admin
       .from('prospect_activities')
       .select('id, activity_type, channel, subject, body, metadata, created_at')
@@ -61,11 +69,17 @@ export async function POST(
 
     const admin = createAdminClient();
 
+    // Verify prospect belongs to user's workspace
+    const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    const workspaceId = profile.current_workspace_id;
+
     // Get prospect's workspace_id
     const { data: prospect } = await admin
       .from('prospects')
       .select('workspace_id')
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     if (!prospect) {

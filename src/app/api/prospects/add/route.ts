@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { findExistingProspect, mergeProspectData } from '@/lib/utils/prospect-matcher';
 import { PROTECTED_STATUSES } from '@/lib/utils/contactability';
 
 export async function POST(request: NextRequest) {
   try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const supabase = createAdminClient();
 

@@ -34,11 +34,17 @@ export async function POST(
 
     const admin = createAdminClient();
 
+    // Verify prospect belongs to user's workspace
+    const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+    const workspaceId = profile.current_workspace_id;
+
     // Get prospect info
     const { data: prospect } = await admin
       .from('prospects')
       .select('workspace_id, first_name, last_name, company')
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     if (!prospect) {

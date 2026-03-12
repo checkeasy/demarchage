@@ -25,6 +25,25 @@ export async function POST(
 
   const admin = createAdminClient();
 
+  // Get workspace
+  const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  const workspaceId = profile.current_workspace_id;
+
+  // Verify campaign belongs to workspace
+  const { data: campaignCheck } = await admin
+    .from("campaigns")
+    .select("id")
+    .eq("id", campaignId)
+    .eq("workspace_id", workspaceId)
+    .single();
+
+  if (!campaignCheck) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
+
   // 1. Find all completed prospects who never replied
   const { data: completedProspects, error: cpError } = await admin
     .from("campaign_prospects")

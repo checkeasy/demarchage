@@ -32,9 +32,13 @@ export interface SendEmailResult {
 // ─── Gmail SMTP IPv4 Address ────────────────────────────────────────────────
 
 let resolvedSmtpHost: string | null = null;
+let resolvedSmtpHostAt = 0;
+const DNS_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 async function resolveGmailIPv4(): Promise<string> {
-  if (resolvedSmtpHost) return resolvedSmtpHost;
+  if (resolvedSmtpHost && Date.now() - resolvedSmtpHostAt < DNS_CACHE_TTL_MS) {
+    return resolvedSmtpHost;
+  }
 
   return new Promise((resolve) => {
     dns.resolve4('smtp.gmail.com', (err, addresses) => {
@@ -44,6 +48,7 @@ async function resolveGmailIPv4(): Promise<string> {
         return;
       }
       resolvedSmtpHost = addresses[0];
+      resolvedSmtpHostAt = Date.now();
       console.log(`[GmailSender] Resolved smtp.gmail.com → ${resolvedSmtpHost} (IPv4)`);
       resolve(resolvedSmtpHost);
     });
@@ -171,8 +176,8 @@ export async function sendBulkGmail(
   let sent = 0;
   let failed = 0;
 
-  for (const email of emails) {
-    const result = await sendGmail(email);
+  for (let i = 0; i < emails.length; i++) {
+    const result = await sendGmail(emails[i]);
     results.push(result);
 
     if (result.success) {
@@ -182,7 +187,7 @@ export async function sendBulkGmail(
     }
 
     // Delay between emails to respect Gmail rate limits
-    if (emails.indexOf(email) < emails.length - 1) {
+    if (i < emails.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }

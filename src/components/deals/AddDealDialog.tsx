@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +59,17 @@ export function AddDealDialog({
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [probability, setProbability] = useState(50);
   const [prospectSearch, setProspectSearch] = useState("");
+
+  useEffect(() => {
+    setStageId(defaultStageId || "");
+  }, [defaultStageId]);
+
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Filter prospects by search
   const filteredProspects = prospects.filter((p) => {
@@ -131,7 +142,10 @@ export function AddDealDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(value) => {
+      if (!value) resetForm();
+      onOpenChange(value);
+    }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau deal</DialogTitle>

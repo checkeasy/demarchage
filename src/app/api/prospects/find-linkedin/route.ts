@@ -49,11 +49,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Aucun prospect fourni" }, { status: 400 });
   }
 
-  // Get prospects WITHOUT linkedin_url
+  // Get prospects WITHOUT linkedin_url (filtered by workspace)
   const { data: prospects } = await admin
     .from("prospects")
     .select("id, first_name, last_name, company, organization, job_title, linkedin_url")
-    .in("id", prospectIds);
+    .in("id", prospectIds)
+    .eq("workspace_id", workspaceId);
 
   const toSearch = (prospects || []).filter(
     (p) => !p.linkedin_url && (p.first_name || p.last_name)
@@ -117,7 +118,8 @@ export async function POST(request: NextRequest) {
         await admin
           .from("prospects")
           .update({ linkedin_url: bestMatch.profileUrl })
-          .eq("id", prospect.id);
+          .eq("id", prospect.id)
+          .eq("workspace_id", workspaceId);
 
         found++;
         results.push({

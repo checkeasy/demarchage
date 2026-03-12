@@ -35,7 +35,7 @@ export async function enrollProspectInMission(
 ): Promise<{ enrolled: boolean; campaignId?: string; bucket: OutreachBucket }> {
   // Block hard-blocked statuses immediately
   if ((HARD_BLOCKED_STATUSES as readonly string[]).includes(prospect.status)) {
-    return { enrolled: false, bucket: "no_data" as OutreachBucket };
+    return { enrolled: false, bucket: "incomplete" };
   }
 
   // Full contactability check (skip cooldown for mission auto-enrollment)
@@ -45,7 +45,7 @@ export async function enrollProspectInMission(
     { ignoreCooldown: true }
   );
   if (contactable.length === 0) {
-    return { enrolled: false, bucket: "no_data" as OutreachBucket };
+    return { enrolled: false, bucket: "incomplete" };
   }
 
   const bucket = classifyProspect({
@@ -72,7 +72,7 @@ export async function enrollProspectInMission(
     .eq("campaign_id", campaignId)
     .eq("prospect_id", prospect.id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     return { enrolled: false, bucket };

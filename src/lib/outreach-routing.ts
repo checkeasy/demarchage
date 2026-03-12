@@ -98,26 +98,26 @@ export function classifyProspect(prospect: {
 // --- Language detection ---
 
 const FRENCH_COUNTRIES = new Set([
-  "France", "Belgium", "Belgique", "Switzerland", "Suisse",
-  "Luxembourg", "Monaco", "Senegal", "Morocco", "Maroc",
-  "Tunisia", "Tunisie", "Cameroon", "Cameroun", "Congo",
-  "Cote d'Ivoire", "Madagascar", "Mali", "Niger",
-  "Burkina Faso", "Togo", "Benin", "Gabon", "Haiti",
-  "Reunion", "Guadeloupe", "Martinique", "Guyane", "Mayotte",
+  "france", "belgium", "belgique", "switzerland", "suisse",
+  "luxembourg", "monaco", "senegal", "morocco", "maroc",
+  "tunisia", "tunisie", "cameroon", "cameroun", "congo",
+  "cote d'ivoire", "madagascar", "mali", "niger",
+  "burkina faso", "togo", "benin", "gabon", "haiti",
+  "reunion", "guadeloupe", "martinique", "guyane", "mayotte",
 ]);
 
 const SPANISH_COUNTRIES = new Set([
-  "Spain", "Espagne", "Mexico", "Mexique", "Colombia", "Colombie",
-  "Argentina", "Argentine", "Chile", "Chili", "Peru", "Perou",
-  "Venezuela", "Ecuador", "Equateur", "Bolivia", "Bolivie",
-  "Paraguay", "Uruguay", "Costa Rica", "Panama",
-  "Cuba", "Dominican Republic", "Republique Dominicaine",
-  "Guatemala", "Honduras", "El Salvador", "Nicaragua",
+  "spain", "espagne", "mexico", "mexique", "colombia", "colombie",
+  "argentina", "argentine", "chile", "chili", "peru", "perou",
+  "venezuela", "ecuador", "equateur", "bolivia", "bolivie",
+  "paraguay", "uruguay", "costa rica", "panama",
+  "cuba", "dominican republic", "republique dominicaine",
+  "guatemala", "honduras", "el salvador", "nicaragua",
 ]);
 
 export function detectLanguage(country: string | null): "fr" | "es" | "en" {
   if (!country) return "en";
-  const trimmed = country.trim();
+  const trimmed = country.trim().toLowerCase();
   if (FRENCH_COUNTRIES.has(trimmed)) return "fr";
   if (SPANISH_COUNTRIES.has(trimmed)) return "es";
   return "en";

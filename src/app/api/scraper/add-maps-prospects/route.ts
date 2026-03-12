@@ -150,7 +150,8 @@ async function findExistingProspect(
       .select(selectFields)
       .eq('workspace_id', workspaceId)
       .not('phone', 'is', null)
-      .neq('phone', '');
+      .neq('phone', '')
+      .limit(1000);
 
     if (data && data.length > 0) {
       const match = data.find(

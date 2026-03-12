@@ -32,36 +32,40 @@ export async function POST(request: NextRequest) {
     let checked = 0;
     let disabled = 0;
 
-    for (const account of accounts) {
-      // Count emails sent in the last 7 days
-      const { count: sentCount } = await supabase
-        .from("emails_sent")
-        .select("id", { count: "exact", head: true })
-        .eq("email_account_id", account.id)
-        .gte("sent_at", sevenDaysAgo)
-        .in("status", ["sent", "delivered", "opened", "clicked", "replied", "bounced", "complained"]);
+    // --- Single query to get all email stats for all accounts in the last 7 days ---
+    const accountIds = accounts.map((a) => a.id);
+    const { data: emailStats } = await supabase
+      .from("emails_sent")
+      .select("email_account_id, status")
+      .gte("sent_at", sevenDaysAgo)
+      .in("email_account_id", accountIds);
 
-      const totalSent = sentCount || 0;
+    // Aggregate counts in JS by account_id
+    const statsMap = new Map<string, { total: number; bounces: number; complaints: number }>();
+    if (emailStats) {
+      for (const row of emailStats) {
+        const accId = row.email_account_id as string;
+        if (!statsMap.has(accId)) {
+          statsMap.set(accId, { total: 0, bounces: 0, complaints: 0 });
+        }
+        const entry = statsMap.get(accId)!;
+        const status = row.status as string;
+        // Count all relevant statuses as "sent"
+        if (["sent", "delivered", "opened", "clicked", "replied", "bounced", "complained"].includes(status)) {
+          entry.total++;
+        }
+        if (status === "bounced") entry.bounces++;
+        if (status === "complained") entry.complaints++;
+      }
+    }
+
+    for (const account of accounts) {
+      const stats = statsMap.get(account.id) || { total: 0, bounces: 0, complaints: 0 };
+      const totalSent = stats.total;
       if (totalSent < MIN_EMAILS_FOR_CHECK) continue;
 
-      // Count bounces
-      const { count: bounceCount } = await supabase
-        .from("emails_sent")
-        .select("id", { count: "exact", head: true })
-        .eq("email_account_id", account.id)
-        .gte("sent_at", sevenDaysAgo)
-        .eq("status", "bounced");
-
-      // Count complaints
-      const { count: complaintCount } = await supabase
-        .from("emails_sent")
-        .select("id", { count: "exact", head: true })
-        .eq("email_account_id", account.id)
-        .gte("sent_at", sevenDaysAgo)
-        .eq("status", "complained");
-
-      const bounces = bounceCount || 0;
-      const complaints = complaintCount || 0;
+      const bounces = stats.bounces;
+      const complaints = stats.complaints;
       const bounceRate = (bounces / totalSent) * 100;
       const complaintRate = (complaints / totalSent) * 100;
 

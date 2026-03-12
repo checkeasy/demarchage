@@ -5,6 +5,8 @@
  * Activated via instrumentation.ts (Next.js server startup hook).
  */
 
+import { toZonedTime } from 'date-fns-tz';
+
 const CRON_SECRET = process.env.CRON_SECRET;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL
   || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
@@ -51,9 +53,9 @@ const JOBS: CronJob[] = [
 ];
 
 function isBusinessHours(): boolean {
-  // Get current time in Paris
+  // Get current time in Paris using proper timezone conversion
   const now = new Date();
-  const parisTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+  const parisTime = toZonedTime(now, 'Europe/Paris');
   const hour = parisTime.getHours();
   const day = parisTime.getDay(); // 0=Sun, 6=Sat
 
@@ -90,6 +92,7 @@ async function executeCronJob(job: CronJob): Promise<void> {
 }
 
 const intervals: NodeJS.Timeout[] = [];
+const timeouts: NodeJS.Timeout[] = [];
 let started = false;
 
 export function startCronScheduler(): void {
@@ -102,7 +105,7 @@ export function startCronScheduler(): void {
     // Initial delay: stagger jobs to avoid all firing at once
     const initialDelay = Math.random() * 30000; // 0-30s random delay
 
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       // Run immediately
       executeCronJob(job);
 
@@ -110,12 +113,17 @@ export function startCronScheduler(): void {
       const interval = setInterval(() => executeCronJob(job), job.intervalMs);
       intervals.push(interval);
     }, initialDelay);
+    timeouts.push(timeout);
 
     console.log(`[Cron] Scheduled: ${job.name} every ${job.intervalMs / 1000}s`);
   }
 }
 
 export function stopCronScheduler(): void {
+  for (const timeout of timeouts) {
+    clearTimeout(timeout);
+  }
+  timeouts.length = 0;
   for (const interval of intervals) {
     clearInterval(interval);
   }

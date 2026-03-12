@@ -48,13 +48,13 @@ export async function POST(request: NextRequest) {
       count: count ?? 25,
     };
 
-    // Resolve workspace for DB-stored LinkedIn cookies
-    let workspaceId = body.workspace_id as string | undefined;
-    if (!workspaceId) {
-      const admin = createAdminClient();
-      const { data: ws } = await admin.from('workspaces').select('id').limit(1).single();
-      workspaceId = ws?.id;
+    // Resolve workspace from user profile
+    const admin = createAdminClient();
+    const { data: profile } = await admin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) {
+      return NextResponse.json({ error: "No workspace" }, { status: 403 });
     }
+    const workspaceId = profile.current_workspace_id;
 
     const client = await getLinkedInClientForUser(user.id, workspaceId || '');
     const results = await client.searchPeople(searchParams);

@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
+    // Clean up stale "sending" records (crashed before completing)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabase.from('emails_sent').update({ status: 'queued' }).eq('status', 'sending').lt('updated_at', fiveMinAgo);
+
     // --- A/B Winner Auto-Selection ---
     // Check steps where A/B testing is active but no winner has been selected yet
     const { data: abSteps } = await supabase
@@ -280,6 +284,34 @@ export async function POST(request: NextRequest) {
           const cid = row.campaign_id as string;
           if (!rotationAccountsMap.has(cid)) rotationAccountsMap.set(cid, []);
           rotationAccountsMap.get(cid)!.push(row);
+        }
+      }
+    }
+
+    // --- Pre-fetch previous emails for threading (avoid N+1 in send loop) ---
+    const threadingCpIds = queue
+      .filter((q) => ((q.current_step_order as number) || 1) > 1)
+      .map((q) => q.campaign_prospect_id as string);
+
+    const threadingEmailsMap = new Map<string, { resend_message_id: string | null; subject: string | null }>();
+    if (threadingCpIds.length > 0) {
+      const { data: threadingEmails } = await supabase
+        .from("emails_sent")
+        .select("campaign_prospect_id, resend_message_id, subject, sent_at")
+        .in("campaign_prospect_id", threadingCpIds)
+        .eq("status", "sent")
+        .order("sent_at", { ascending: false });
+
+      if (threadingEmails) {
+        // Store only the most recent email per campaign_prospect_id
+        for (const e of threadingEmails) {
+          const cpId = e.campaign_prospect_id as string;
+          if (!threadingEmailsMap.has(cpId)) {
+            threadingEmailsMap.set(cpId, {
+              resend_message_id: e.resend_message_id as string | null,
+              subject: e.subject as string | null,
+            });
+          }
         }
       }
     }
@@ -621,19 +653,12 @@ export async function POST(request: NextRequest) {
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         };
 
-        // Threading: look up previous email for follow-ups (step_order > 1)
+        // Threading: look up previous email for follow-ups (step_order > 1) using pre-fetched map
         let inReplyTo: string | undefined;
         let references: string | undefined;
         const currentStepOrder = (item.current_step_order as number) || 1;
         if (currentStepOrder > 1) {
-          const { data: prevEmail } = await supabase
-            .from("emails_sent")
-            .select("resend_message_id, subject")
-            .eq("campaign_prospect_id", item.campaign_prospect_id as string)
-            .eq("status", "sent")
-            .order("sent_at", { ascending: false })
-            .limit(1)
-            .single();
+          const prevEmail = threadingEmailsMap.get(item.campaign_prospect_id as string);
 
           if (prevEmail?.resend_message_id) {
             const prevMsgId = prevEmail.resend_message_id.includes("<")

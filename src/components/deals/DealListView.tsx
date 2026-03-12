@@ -40,7 +40,7 @@ function formatDate(dateStr: string | null) {
 export function DealListView({ stages, deals }: DealListViewProps) {
   const router = useRouter();
 
-  const stageMap = new Map(stages.map((s) => [s.id, s]));
+  const stageMap = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages]);
 
   type SortCol = "deal" | "contact" | "stage" | "amount" | "probability" | "close_date" | "created";
   const [sortCol, setSortCol] = useState<SortCol | null>(null);

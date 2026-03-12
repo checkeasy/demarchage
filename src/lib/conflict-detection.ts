@@ -62,6 +62,6 @@ export async function checkProspectConflicts(
     activeCampaigns,
     activeAutomations,
     lastContactedAt: prospect?.last_contacted_at || null,
-    hasConflict: activeCampaigns.length > 0 && activeAutomations.length > 0,
+    hasConflict: activeCampaigns.length > 0 || activeAutomations.length > 0,
   };
 }

@@ -59,6 +59,8 @@ async function syncAccount(
 ) {
   // Resolve IMAP credentials (fallback to env vars for unconfigured accounts)
   const imapUser = (account.imap_user as string) || process.env.GMAIL_USER;
+  // NOTE: imap_pass_encrypted is a misnomer — the value is stored as plaintext.
+  // TODO: implement actual encryption/decryption if sensitive data handling is required.
   const imapPass = (account.imap_pass_encrypted as string) || process.env.GMAIL_APP_PASSWORD;
 
   if (!imapUser || !imapPass) {
@@ -174,7 +176,7 @@ async function matchReplyToSentEmail(
 
   // Strategy 3: Subject + sender fallback
   const cleanSubject = email.subject
-    .replace(/^(Re|Fwd|Tr|RE|FW|Fw|re):\s*/g, "")
+    .replace(/^(?:(?:Re|Fwd|Tr|RE|FW|Fw|re):\s*)+/, "")
     .trim();
 
   if (cleanSubject && email.from) {

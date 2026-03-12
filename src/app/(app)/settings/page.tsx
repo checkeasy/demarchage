@@ -1,3 +1,5 @@
+// TODO: This file is very large and should be split into separate components
+// (e.g. EmailAccountsTab, WorkspaceSettingsTab, ProfileTab, etc.) in a future refactor.
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";

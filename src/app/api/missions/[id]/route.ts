@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/missions/[id] — Mission detail with stats
 export async function GET(
@@ -14,10 +15,16 @@ export async function GET(
     return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
   }
 
+  const supabaseAdmin = createAdminClient();
+  const { data: profile } = await supabaseAdmin.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
+
   const { data: mission, error } = await supabase
     .from("outreach_missions")
     .select("*")
     .eq("id", id)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (error || !mission) {
@@ -79,10 +86,16 @@ export async function PATCH(
     );
   }
 
+  const supabaseAdmin2 = createAdminClient();
+  const { data: profile2 } = await supabaseAdmin2.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile2?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId2 = profile2.current_workspace_id;
+
   const { data: mission, error } = await supabase
     .from("outreach_missions")
     .update({ status })
     .eq("id", id)
+    .eq("workspace_id", workspaceId2)
     .select("*")
     .single();
 

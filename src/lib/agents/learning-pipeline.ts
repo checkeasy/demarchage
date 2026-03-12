@@ -147,7 +147,8 @@ export async function runLearningPipeline(workspaceId: string): Promise<{
 
   if (strategies) {
     for (const strategy of strategies) {
-      const metrics = groups.get(`email_writer__${strategy.segment_key}`);
+      const metrics = groups.get(`email_writer__${strategy.segment_key}`)
+        || groups.get(`linkedin_writer__${strategy.segment_key}`);
       if (!metrics || metrics.total_sent < 20) continue;
 
       const currentReplyRate = metrics.total_sent > 0

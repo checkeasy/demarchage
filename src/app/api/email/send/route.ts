@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendGmail } from '@/lib/email/gmail-sender';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorise' }, { status: 401 });
     }
 
-    const { to, subject, body, from, replyTo, campaignId, prospectId, threadId } = await request.json();
+    // Get workspace
+    const adminClient = createAdminClient();
+    const { data: profile } = await adminClient.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) {
+      return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+    }
+    const workspaceId = profile.current_workspace_id;
+
+    const { to, subject, body, replyTo, campaignId, prospectId, threadId } = await request.json();
 
     if (!to || !subject || !body) {
       return NextResponse.json(
@@ -19,11 +28,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify campaignId and prospectId belong to workspace if provided
+    if (campaignId) {
+      const { data: campaign } = await adminClient
+        .from('campaigns')
+        .select('id')
+        .eq('id', campaignId)
+        .eq('workspace_id', workspaceId)
+        .single();
+
+      if (!campaign) {
+        return NextResponse.json({ error: 'Campaign not found in workspace' }, { status: 404 });
+      }
+    }
+
+    if (prospectId) {
+      const { data: prospect } = await adminClient
+        .from('prospects')
+        .select('id')
+        .eq('id', prospectId)
+        .eq('workspace_id', workspaceId)
+        .single();
+
+      if (!prospect) {
+        return NextResponse.json({ error: 'Prospect not found in workspace' }, { status: 404 });
+      }
+    }
+
     const result = await sendGmail({
       to,
       subject,
       html: body,
-      from,
       replyTo,
     });
 
@@ -37,13 +72,7 @@ export async function POST(request: NextRequest) {
     // Track reply in campaign context if applicable
     if (campaignId && prospectId) {
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('current_workspace_id')
-          .eq('id', user.id)
-          .single();
-
-        const workspaceId = profile?.current_workspace_id;
+        const supabase = authClient;
 
         // Find the campaign_prospect record for tracking
         const { data: cp } = await supabase
@@ -74,22 +103,20 @@ export async function POST(request: NextRequest) {
         }
 
         // Log the sent reply as a prospect activity
-        if (workspaceId) {
-          await supabase.from('prospect_activities').insert({
-            workspace_id: workspaceId,
-            prospect_id: prospectId,
-            activity_type: 'reply_sent',
-            channel: 'email',
-            campaign_id: campaignId,
-            subject: subject,
-            body: body,
-            metadata: {
-              sent_from_inbox: true,
-              thread_id: threadId || null,
-              message_id: result.messageId || null,
-            },
-          });
-        }
+        await supabase.from('prospect_activities').insert({
+          workspace_id: workspaceId,
+          prospect_id: prospectId,
+          activity_type: 'reply_sent',
+          channel: 'email',
+          campaign_id: campaignId,
+          subject: subject,
+          body: body,
+          metadata: {
+            sent_from_inbox: true,
+            thread_id: threadId || null,
+            message_id: result.messageId || null,
+          },
+        });
 
         // Update prospect.last_contacted_at
         await supabase
@@ -102,7 +129,7 @@ export async function POST(request: NextRequest) {
           await supabase.from('inbox_messages').insert({
             thread_id: threadId,
             direction: 'outbound',
-            from_email: from || '',
+            from_email: '',
             to_email: to,
             subject: subject,
             body_html: body,

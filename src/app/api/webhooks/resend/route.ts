@@ -1,14 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Webhook } from "svix";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+
+    // Verify webhook signature
+    const svixId = request.headers.get("svix-id");
+    const svixTimestamp = request.headers.get("svix-timestamp");
+    const svixSignature = request.headers.get("svix-signature");
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
+    }
+
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("RESEND_WEBHOOK_SECRET is not configured");
+      return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      const wh = new Webhook(webhookSecret);
+      body = wh.verify(rawBody, {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      }) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
+    }
+
     const supabase = createAdminClient();
 
-    const { type, data } = body;
+    const type = body.type as string;
+    const data = body.data as Record<string, unknown>;
 
-    if (!data?.email_id) {
+    if (!data || !(data as Record<string, unknown>).email_id) {
       return NextResponse.json({ error: "Missing email_id" }, { status: 400 });
     }
 
@@ -16,7 +46,7 @@ export async function POST(request: NextRequest) {
     const { data: emailSent } = await supabase
       .from("emails_sent")
       .select("id, campaign_prospect_id, status")
-      .eq("resend_message_id", data.email_id)
+      .eq("resend_message_id", (data as Record<string, string>).email_id)
       .single();
 
     if (!emailSent) {
@@ -41,7 +71,7 @@ export async function POST(request: NextRequest) {
           .update({
             status: "bounced",
             bounced_at: new Date().toISOString(),
-            error_message: data.bounce?.message || "Bounced",
+            error_message: (data as Record<string, Record<string, string>>).bounce?.message || "Bounced",
           })
           .eq("id", emailSent.id);
 
@@ -80,6 +110,11 @@ export async function POST(request: NextRequest) {
       }
 
       case "email.opened": {
+        // Don't count opens for bounced emails
+        if (emailSent.status === "bounced") {
+          break;
+        }
+
         await supabase
           .from("emails_sent")
           .update({ opened_at: new Date().toISOString() })
@@ -111,6 +146,11 @@ export async function POST(request: NextRequest) {
       }
 
       case "email.clicked": {
+        // Don't count clicks for bounced emails
+        if (emailSent.status === "bounced") {
+          break;
+        }
+
         await supabase
           .from("emails_sent")
           .update({ clicked_at: new Date().toISOString() })
@@ -119,7 +159,7 @@ export async function POST(request: NextRequest) {
         await supabase.from("tracking_events").insert({
           email_sent_id: emailSent.id,
           event_type: "click",
-          metadata: { url: data.click?.link || null },
+          metadata: { url: (data as Record<string, Record<string, string>>).click?.link || null },
         });
 
         if (emailSent.campaign_prospect_id) {

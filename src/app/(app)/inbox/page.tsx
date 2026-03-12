@@ -87,12 +87,15 @@ function InboxPageContent() {
       setMissionCampaignIds(null);
       return;
     }
+    let cancelled = false;
     async function loadMissionCampaigns() {
       const { data: mission } = await supabase
         .from("outreach_missions")
         .select("campaign_email_id, campaign_linkedin_id, campaign_multichannel_id")
         .eq("id", missionId!)
         .single();
+
+      if (cancelled) return;
 
       if (mission) {
         const ids = [
@@ -106,6 +109,7 @@ function InboxPageContent() {
       }
     }
     loadMissionCampaigns();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [missionId]);
 
@@ -138,7 +142,15 @@ function InboxPageContent() {
   }, []);
 
   useEffect(() => {
-    loadThreads();
+    let cancelled = false;
+    async function load() {
+      await loadThreads();
+      // State is set inside loadThreads; if component unmounted, React handles it
+    }
+    if (!cancelled) {
+      load();
+    }
+    return () => { cancelled = true; };
   }, [loadThreads]);
 
   async function loadMessages(threadId: string) {

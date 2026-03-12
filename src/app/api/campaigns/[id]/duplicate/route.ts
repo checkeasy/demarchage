@@ -1,29 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   }
 
-  const { data: original, error } = await supabase
+  const adminClient = createAdminClient();
+
+  // Get workspace
+  const { data: profile } = await adminClient.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  const workspaceId = profile.current_workspace_id;
+
+  const { data: original, error } = await adminClient
     .from("campaigns")
     .select("*")
     .eq("id", id)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (error || !original) {
     return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
   }
 
-  const { data: newCampaign, error: createError } = await supabase
+  const { data: newCampaign, error: createError } = await adminClient
     .from("campaigns")
     .insert({
       workspace_id: original.workspace_id,
@@ -47,14 +58,14 @@ export async function POST(
   }
 
   // Duplicate sequence steps
-  const { data: steps } = await supabase
+  const { data: steps } = await adminClient
     .from("sequence_steps")
     .select("*")
     .eq("campaign_id", id)
     .order("step_order", { ascending: true });
 
   if (steps && steps.length > 0) {
-    await supabase.from("sequence_steps").insert(
+    const { error: stepsError } = await adminClient.from("sequence_steps").insert(
       steps.map((s) => ({
         campaign_id: newCampaign.id,
         step_order: s.step_order,
@@ -67,6 +78,11 @@ export async function POST(
         is_active: s.is_active,
       }))
     );
+
+    if (stepsError) {
+      console.error("[Campaign Duplicate] Error duplicating steps:", stepsError);
+      return NextResponse.json({ error: "Erreur lors de la duplication des etapes" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ id: newCampaign.id });

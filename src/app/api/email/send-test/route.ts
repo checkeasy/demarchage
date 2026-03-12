@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sendGmail } from '@/lib/email/gmail-sender';
 
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const supabase = await createClient();
+    const authClient = await createClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (!user) {
       return NextResponse.json(
@@ -16,6 +17,14 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Get workspace
+    const adminClient = createAdminClient();
+    const { data: profile } = await adminClient.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) {
+      return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+    }
+    const workspaceId = profile.current_workspace_id;
 
     const { to, subject, body_text, body_html, email_account_id } =
       await request.json();
@@ -36,13 +45,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If an email_account_id is provided, look up the from address
+    // If an email_account_id is provided, look up the from address (with workspace isolation)
     let fromEmail: string | undefined;
     if (email_account_id) {
-      const { data: account } = await supabase
+      const { data: account } = await adminClient
         .from('email_accounts')
         .select('email_address, display_name')
         .eq('id', email_account_id)
+        .eq('workspace_id', workspaceId)
         .single();
 
       if (account) {

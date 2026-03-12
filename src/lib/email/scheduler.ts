@@ -74,7 +74,7 @@ function findNextValidSlot(
 
   // Try up to 14 days ahead to find a valid sending day
   for (let i = 0; i < 14; i++) {
-    candidate.setDate(candidate.getDate() + (i === 0 ? 1 : 1));
+    candidate.setDate(candidate.getDate() + (i === 0 ? 0 : 1));
 
     const zonedCandidate = toZonedTime(candidate, timezone);
     const candidateDay = zonedCandidate.getDay();

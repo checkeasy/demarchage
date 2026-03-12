@@ -101,8 +101,10 @@ export async function PUT(
       );
     }
 
-    // Save A/B variants if any steps have them
+    // Save A/B variants if any steps have them (batched insert)
     if (inserted) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allVariants: any[] = [];
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         if (step.ab_enabled && step.ab_variants?.length > 0) {
@@ -111,16 +113,24 @@ export async function PUT(
           );
           if (insertedStep) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const variantsToInsert = step.ab_variants.map((v: any) => ({
-              step_id: insertedStep.id,
-              variant_label: v.variant_label || "A",
-              subject: v.subject || null,
-              body_html: v.body_html || null,
-              body_text: v.body_text || null,
-              weight: v.weight ?? 50,
-            }));
-            await supabase.from("ab_variants").insert(variantsToInsert);
+            for (const v of step.ab_variants as any[]) {
+              allVariants.push({
+                step_id: insertedStep.id,
+                variant_label: v.variant_label || "A",
+                subject: v.subject || null,
+                body_html: v.body_html || null,
+                body_text: v.body_text || null,
+                weight: v.weight ?? 50,
+              });
+            }
           }
+        }
+      }
+
+      if (allVariants.length > 0) {
+        const { error: variantsError } = await supabase.from("ab_variants").insert(allVariants);
+        if (variantsError) {
+          console.error("[Campaign] A/B variants insert error:", variantsError);
         }
       }
 
