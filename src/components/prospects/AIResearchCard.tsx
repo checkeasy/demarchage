@@ -26,7 +26,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useAIGeneration } from "@/hooks/useAIGeneration";
 import { createClient } from "@/lib/supabase/client";
 import type { Prospect } from "@/lib/types/database";
 
@@ -142,7 +141,6 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
 }
 
 export function AIResearchCard({ prospect }: AIResearchCardProps) {
-  const { researchProspect, isLoading } = useAIGeneration();
   const supabase = createClient();
   const router = useRouter();
 
@@ -236,7 +234,7 @@ export function AIResearchCard({ prospect }: AIResearchCardProps) {
   };
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const loading = isLoading || isAnalyzing;
+  const loading = isAnalyzing;
 
   async function handleConfirmDelete() {
     setDeleted(true);

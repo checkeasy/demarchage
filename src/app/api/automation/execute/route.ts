@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend-client";
 import { mergeTemplate as mergeEmailTemplate, prospectToTemplateData } from "@/lib/email/template-engine";
@@ -17,7 +17,14 @@ import { WhatsAppActionType } from "@/lib/whatsapp/types";
 const BATCH_SIZE = 5;
 
 // POST /api/automation/execute — Manually trigger automation queue processing
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // CRON_SECRET auth check
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const supabase = createAdminClient();
 
   try {

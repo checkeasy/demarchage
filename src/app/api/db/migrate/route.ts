@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST() {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = createAdminClient();
 
-  // Get workspace
-  const { data: workspace } = await supabase
-    .from('workspaces')
-    .select('id')
-    .limit(1)
-    .single();
-
-  if (!workspace) {
-    return NextResponse.json({ error: 'No workspace found' }, { status: 500 });
-  }
+  // Get the user's workspace
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   // Check if columns already exist by trying to query them
   const { error: checkError } = await supabase
@@ -22,7 +21,7 @@ export async function POST() {
     .limit(1);
 
   if (!checkError) {
-    return NextResponse.json({ message: 'Migration already applied - columns exist', workspace_id: workspace.id });
+    return NextResponse.json({ message: 'Migration already applied - columns exist', workspace_id: workspaceId });
   }
 
   // Columns don't exist yet - we need to add them via direct SQL
@@ -61,6 +60,6 @@ CREATE INDEX IF NOT EXISTS idx_prospects_country ON public.prospects (workspace_
 CREATE INDEX IF NOT EXISTS idx_prospects_pipeline ON public.prospects (workspace_id, pipeline_stage);
 CREATE INDEX IF NOT EXISTS idx_prospects_organization ON public.prospects (workspace_id, organization);
     `,
-    workspace_id: workspace.id,
+    workspace_id: workspaceId,
   }, { status: 400 });
 }

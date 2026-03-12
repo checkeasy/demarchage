@@ -22,7 +22,7 @@ SELECT
     p.company           AS prospect_company,
     p.phone             AS prospect_phone,
     p.custom_fields,
-    p.email_validity_score,
+    p.email_score AS email_validity_score,
     p.website           AS prospect_website,
     p.linkedin_url      AS prospect_linkedin_url,
     p.job_title         AS prospect_job_title,

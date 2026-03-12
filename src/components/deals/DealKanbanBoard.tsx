@@ -209,7 +209,6 @@ export function DealKanbanBoard({
   useEffect(() => {
     if (!activeDeal || !scrollRef.current) return;
 
-    let animFrame: number;
     const scrollEl = scrollRef.current;
 
     function handlePointerMove(e: PointerEvent) {
@@ -222,14 +221,11 @@ export function DealKanbanBoard({
       } else if (e.clientX > rect.right - edgeZone) {
         scrollEl.scrollLeft += speed;
       }
-
-      animFrame = requestAnimationFrame(() => {});
     }
 
     window.addEventListener("pointermove", handlePointerMove);
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
-      if (animFrame) cancelAnimationFrame(animFrame);
     };
   }, [activeDeal]);
 

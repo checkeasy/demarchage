@@ -770,6 +770,8 @@ Reponds en JSON : { "subject": "...", "value_insight": "Le conseil principal en 
         strategy,
         expires_at: expiresAt.toISOString(),
         is_active: true,
+        created_at: new Date().toISOString(),
+        performance_snapshot: null,
       };
     }
 
@@ -1341,12 +1343,20 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
     }
 
     // Fetch enrichments if table exists
-    const { data: enrichments } = await supabase
-      .from('prospect_enrichments')
-      .select('data')
-      .eq('prospect_id', prospectId)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    // NOTE: prospect_enrichments table must be created via migration 20260316000002
+    let enrichments: { data: Record<string, unknown> }[] | null = null;
+    try {
+      const { data: enrichmentData } = await supabase
+        .from('prospect_enrichments')
+        .select('data')
+        .eq('prospect_id', prospectId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      enrichments = enrichmentData;
+    } catch {
+      // Table may not exist yet — silently ignore
+      enrichments = null;
+    }
 
     return {
       id: prospect.id,

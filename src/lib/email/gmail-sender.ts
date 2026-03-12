@@ -60,14 +60,22 @@ async function resolveGmailIPv4(): Promise<string> {
 // Force IPv4 globally at process level
 dns.setDefaultResultOrder('ipv4first');
 
-// Cache transporters by key: "user@host"
-const transporterCache = new Map<string, nodemailer.Transporter>();
+// Cache transporters by key: "user@host" with TTL-based eviction
+const TRANSPORTER_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const transporterCache = new Map<string, { transporter: nodemailer.Transporter; createdAt: number }>();
 
 async function getTransporter(smtpCredentials?: SmtpCredentials): Promise<nodemailer.Transporter> {
   if (smtpCredentials) {
     const cacheKey = `${smtpCredentials.user}@${smtpCredentials.host}`;
     const cached = transporterCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      if (Date.now() - cached.createdAt < TRANSPORTER_TTL_MS) {
+        return cached.transporter;
+      }
+      // TTL expired — close and evict
+      cached.transporter.close();
+      transporterCache.delete(cacheKey);
+    }
 
     const isGmailHost = smtpCredentials.host === 'smtp.gmail.com';
     let host = smtpCredentials.host;
@@ -88,7 +96,7 @@ async function getTransporter(smtpCredentials?: SmtpCredentials): Promise<nodema
       ...(isGmailHost ? { tls: { servername: 'smtp.gmail.com' } } : {}),
     });
 
-    transporterCache.set(cacheKey, transport);
+    transporterCache.set(cacheKey, { transporter: transport, createdAt: Date.now() });
     return transport;
   }
 
@@ -103,8 +111,15 @@ async function getTransporter(smtpCredentials?: SmtpCredentials): Promise<nodema
   }
 
   const cacheKey = `${user}@gmail-env`;
-  const cached = transporterCache.get(cacheKey);
-  if (cached) return cached;
+  const envCached = transporterCache.get(cacheKey);
+  if (envCached) {
+    if (Date.now() - envCached.createdAt < TRANSPORTER_TTL_MS) {
+      return envCached.transporter;
+    }
+    // TTL expired — close and evict
+    envCached.transporter.close();
+    transporterCache.delete(cacheKey);
+  }
 
   const smtpHost = await resolveGmailIPv4();
   const transport = nodemailer.createTransport({
@@ -118,7 +133,7 @@ async function getTransporter(smtpCredentials?: SmtpCredentials): Promise<nodema
     tls: { servername: 'smtp.gmail.com' },
   });
 
-  transporterCache.set(cacheKey, transport);
+  transporterCache.set(cacheKey, { transporter: transport, createdAt: Date.now() });
   return transport;
 }
 
@@ -127,7 +142,10 @@ async function getTransporter(smtpCredentials?: SmtpCredentials): Promise<nodema
 export async function sendGmail(params: SendEmailParams): Promise<SendEmailResult> {
   try {
     const transport = await getTransporter(params.smtpCredentials);
-    const from = params.from || (params.smtpCredentials?.user) || process.env.GMAIL_USER!;
+    const from = params.from || params.smtpCredentials?.user || process.env.GMAIL_USER;
+    if (!from) {
+      throw new Error('No "from" address available: set params.from, smtpCredentials.user, or GMAIL_USER env var');
+    }
 
     const mailOptions: nodemailer.SendMailOptions = {
       from,

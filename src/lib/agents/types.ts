@@ -146,6 +146,8 @@ export interface AgentStrategy {
   strategy: StrategyContent;
   expires_at: string;
   is_active: boolean;
+  created_at?: string;
+  performance_snapshot?: Record<string, number> | null;
 }
 
 export interface StrategyContent {

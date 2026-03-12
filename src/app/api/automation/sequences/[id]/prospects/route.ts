@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // DELETE /api/automation/sequences/[id]/prospects — Remove prospects from sequence
@@ -6,8 +7,16 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id: sequenceId } = await params;
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const body = await request.json();
@@ -17,11 +26,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Aucun prospect fourni" }, { status: 400 });
     }
 
-    // Verify sequence exists
+    // Verify sequence exists and belongs to the workspace
     const { data: sequence, error: seqError } = await supabase
       .from("automation_sequences")
       .select("id")
       .eq("id", sequenceId)
+      .eq("workspace_id", workspaceId)
       .single();
 
     if (seqError || !sequence) {

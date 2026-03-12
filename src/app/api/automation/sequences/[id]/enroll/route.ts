@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // POST /api/automation/sequences/[id]/enroll — Add prospects to sequence
@@ -6,8 +7,16 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id: sequenceId } = await params;
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const body = await request.json();
@@ -17,11 +26,12 @@ export async function POST(
       return NextResponse.json({ error: "Aucun prospect fourni" }, { status: 400 });
     }
 
-    // Get sequence and its first step
+    // Get sequence and its first step (with workspace isolation)
     const { data: sequence, error: seqError } = await supabase
       .from("automation_sequences")
       .select("id, status")
       .eq("id", sequenceId)
+      .eq("workspace_id", workspaceId)
       .single();
 
     if (seqError || !sequence) {
@@ -41,10 +51,11 @@ export async function POST(
       return NextResponse.json({ error: "Aucune etape dans la sequence" }, { status: 400 });
     }
 
-    // Get prospects with their LinkedIn data
+    // Get prospects with their LinkedIn data (with workspace isolation)
     const { data: prospects } = await supabase
       .from("prospects")
       .select("id, linkedin_url, first_name, last_name")
+      .eq("workspace_id", workspaceId)
       .in("id", prospectIds);
 
     if (!prospects || prospects.length === 0) {

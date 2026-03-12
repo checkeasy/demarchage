@@ -13,19 +13,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const supabase = createAdminClient();
 
-    // Get the first workspace (outil interne = single workspace)
-    const { data: workspace } = await supabase
-      .from('workspaces')
-      .select('id')
-      .limit(1)
-      .single();
-
-    if (!workspace) {
-      return NextResponse.json(
-        { error: 'Aucun workspace trouve. Creez-en un d\'abord.' },
-        { status: 400 }
-      );
+    // Get the authenticated user's workspace from their profile
+    const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+    if (!profile?.current_workspace_id) {
+      return NextResponse.json({ error: "No workspace" }, { status: 403 });
     }
+    const workspaceId = profile.current_workspace_id;
 
     function generateEmail(firstName: string, lastName: string, linkedinUrl: string): string {
       const match = linkedinUrl?.match(/\/in\/([^/?]+)/);
@@ -52,7 +45,7 @@ export async function POST(request: NextRequest) {
           location: p.location || '',
           source: 'linkedin',
           status: 'active',
-          workspace_id: workspace.id,
+          workspace_id: workspaceId,
           industry: p.industry || null,
           employee_count: p.company_size || null,
           city: p.location ? String(p.location).split(',')[0].trim() : null,
@@ -64,7 +57,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Try to find existing prospect
-        const existingId = await findExistingProspect(supabase, workspace.id, {
+        const existingId = await findExistingProspect(supabase, workspaceId, {
           email: prospectData.email as string,
           linkedin_url: p.linkedin_url || '',
           organization: p.company || '',
@@ -113,7 +106,7 @@ export async function POST(request: NextRequest) {
             const { data: newProspects } = await supabase
               .from('prospects')
               .select('id, email, linkedin_url, phone, status')
-              .eq('workspace_id', workspace.id)
+              .eq('workspace_id', workspaceId)
               .eq('mission_id', missionId)
               .order('created_at', { ascending: false })
               .limit(inserted);
@@ -153,7 +146,7 @@ export async function POST(request: NextRequest) {
       location: body.location || '',
       source: 'linkedin',
       status: 'active',
-      workspace_id: workspace.id,
+      workspace_id: workspaceId,
       industry: body.industry || null,
       employee_count: body.company_size || null,
       city: body.location ? String(body.location).split(',')[0].trim() : null,
@@ -164,7 +157,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    const existingId = await findExistingProspect(supabase, workspace.id, {
+    const existingId = await findExistingProspect(supabase, workspaceId, {
       email: prospectData.email as string,
       linkedin_url: body.linkedin_url || '',
       organization: body.company || '',
@@ -216,7 +209,7 @@ export async function POST(request: NextRequest) {
           const { data: newProspect } = await supabase
             .from('prospects')
             .select('id, email, linkedin_url, phone, status')
-            .eq('workspace_id', workspace.id)
+            .eq('workspace_id', workspaceId)
             .eq('mission_id', missionId)
             .order('created_at', { ascending: false })
             .limit(1)

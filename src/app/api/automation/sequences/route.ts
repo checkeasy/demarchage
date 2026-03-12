@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/automation/sequences — List all sequences with stats
 export async function GET() {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const { data: sequences, error } = await supabase
@@ -13,6 +22,7 @@ export async function GET() {
         automation_steps(id, step_order, action_type, delay_days, delay_hours, message_template, subject_template, use_ai_generation, condition_type, is_active),
         automation_prospects(id, status)
       `)
+      .eq('workspace_id', workspaceId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -47,7 +57,15 @@ export async function GET() {
 
 // POST /api/automation/sequences — Create a new sequence with steps
 export async function POST(request: NextRequest) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const body = await request.json();
@@ -55,17 +73,6 @@ export async function POST(request: NextRequest) {
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Nom de sequence requis" }, { status: 400 });
-    }
-
-    // Get workspace
-    const { data: workspace } = await supabase
-      .from("workspaces")
-      .select("id")
-      .limit(1)
-      .single();
-
-    if (!workspace) {
-      return NextResponse.json({ error: "Aucun workspace trouve" }, { status: 400 });
     }
 
     // Get or create LinkedIn account from env cookies
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
       const { data: existingAccount } = await supabase
         .from("linkedin_accounts")
         .select("id")
-        .eq("workspace_id", workspace.id)
+        .eq("workspace_id", workspaceId)
         .limit(1)
         .single();
 
@@ -98,7 +105,7 @@ export async function POST(request: NextRequest) {
         const { data: newAccount, error: accError } = await supabase
           .from("linkedin_accounts")
           .insert({
-            workspace_id: workspace.id,
+            workspace_id: workspaceId,
             name: "Compte principal",
             li_at_cookie: liAt,
             jsessionid_cookie: jsessionId,
@@ -120,7 +127,7 @@ export async function POST(request: NextRequest) {
     const { data: sequence, error: seqError } = await supabase
       .from("automation_sequences")
       .insert({
-        workspace_id: workspace.id,
+        workspace_id: workspaceId,
         name: name.trim(),
         status: "active",
         daily_connection_limit: config?.maxConnectionsDay || 20,

@@ -137,19 +137,16 @@ export async function enrollProspectInMission(
     .update({ total_prospects: count || 0 })
     .eq("id", campaignId);
 
-  // Update mission total_enrolled
-  const { data: missionData } = await supabase
-    .from("outreach_missions")
-    .select("total_enrolled")
-    .eq("id", mission.id)
-    .single();
+  // Update mission total_enrolled using COUNT to avoid read-then-write race condition
+  const { count: enrolledCount } = await supabase
+    .from("campaign_prospects")
+    .select("id", { count: "exact", head: true })
+    .in("campaign_id", [mission.campaign_email_id, mission.campaign_linkedin_id, mission.campaign_multichannel_id].filter(Boolean) as string[]);
 
-  if (missionData) {
-    await supabase
-      .from("outreach_missions")
-      .update({ total_enrolled: (missionData.total_enrolled || 0) + 1 })
-      .eq("id", mission.id);
-  }
+  await supabase
+    .from("outreach_missions")
+    .update({ total_enrolled: enrolledCount || 0 })
+    .eq("id", mission.id);
 
   return { enrolled: true, campaignId, bucket };
 }

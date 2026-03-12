@@ -88,6 +88,9 @@ export async function POST(request: NextRequest) {
     } = adminSupabase.storage.from(BUCKET_NAME).getPublicUrl(fileName);
 
     // 5. Transcription via OpenAI Whisper
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 });
+    }
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     // Convert buffer to a File object for the OpenAI SDK

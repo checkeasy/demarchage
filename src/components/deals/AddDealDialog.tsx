@@ -117,7 +117,7 @@ export function AddDealDialog({
           title: title.trim(),
           value: value ? parseFloat(value) : 0,
           stage_id: selectedStage,
-          prospect_id: prospectId || null,
+          prospect_id: prospectId === "none" || !prospectId ? null : prospectId,
           expected_close_date: expectedCloseDate || null,
           probability,
         }),

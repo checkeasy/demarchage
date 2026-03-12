@@ -118,8 +118,8 @@ export function AddActivityDialog({
             ? parseInt(durationMinutes, 10)
             : null,
           priority,
-          deal_id: dealId || null,
-          prospect_id: prospectId || null,
+          deal_id: dealId === "none" || !dealId ? null : dealId,
+          prospect_id: prospectId === "none" || !prospectId ? null : prospectId,
         }),
       });
 

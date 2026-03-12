@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/automation/sequences/[id] — Get single sequence with details
@@ -6,8 +7,16 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     // Fetch sequence with steps
@@ -18,6 +27,7 @@ export async function GET(
         automation_steps(id, step_order, action_type, delay_days, delay_hours, message_template, subject_template, use_ai_generation, condition_type, is_active)
       `)
       .eq("id", id)
+      .eq("workspace_id", workspaceId)
       .single();
 
     if (error || !sequence) {
@@ -123,8 +133,16 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const body = await request.json();
@@ -151,7 +169,8 @@ export async function PUT(
       const { error } = await supabase
         .from("automation_sequences")
         .update(updates)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("workspace_id", workspaceId);
 
       if (error) {
         console.error("[Automation] Update config error:", error);
@@ -161,6 +180,18 @@ export async function PUT(
 
     // Update steps if provided
     if (steps && Array.isArray(steps)) {
+      // Verify the sequence belongs to the workspace before deleting steps
+      const { data: seq } = await supabase
+        .from("automation_sequences")
+        .select("id")
+        .eq("id", id)
+        .eq("workspace_id", workspaceId)
+        .single();
+
+      if (!seq) {
+        return NextResponse.json({ error: "Sequence non trouvee" }, { status: 404 });
+      }
+
       // Delete existing steps
       await supabase
         .from("automation_steps")
@@ -208,8 +239,16 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const body = await request.json();
@@ -217,6 +256,18 @@ export async function PATCH(
 
     if (!["active", "paused", "completed"].includes(status)) {
       return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
+    }
+
+    // Verify the sequence belongs to the workspace
+    const { data: seq } = await supabase
+      .from("automation_sequences")
+      .select("id")
+      .eq("id", id)
+      .eq("workspace_id", workspaceId)
+      .single();
+
+    if (!seq) {
+      return NextResponse.json({ error: "Sequence non trouvee" }, { status: 404 });
     }
 
     const updates: Record<string, unknown> = { status };
@@ -252,7 +303,8 @@ export async function PATCH(
     const { error } = await supabase
       .from("automation_sequences")
       .update(updates)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("workspace_id", workspaceId);
 
     if (error) {
       console.error("[Automation] Update status error:", error);

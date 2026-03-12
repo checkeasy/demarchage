@@ -16,11 +16,24 @@ export async function GET(
 
   const supabase = authClient;
 
+  // Get user's workspace
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("current_workspace_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.current_workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  const workspaceId = profile.current_workspace_id;
+
   // Verify user has access to this campaign
   const { data: campaign, error: campError } = await supabase
     .from("campaigns")
     .select("id, workspace_id")
     .eq("id", campaignId)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (campError || !campaign) {

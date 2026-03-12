@@ -24,7 +24,10 @@ export async function POST(request: NextRequest) {
     .select("current_workspace_id")
     .eq("id", user.id)
     .single();
-  const workspaceId = profile?.current_workspace_id || "";
+  if (!profile?.current_workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
+  const workspaceId = profile.current_workspace_id;
 
   // Get prospect IDs based on input
   let prospectIds: string[] = body.prospectIds || [];

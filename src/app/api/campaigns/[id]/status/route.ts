@@ -37,8 +37,9 @@ export async function PATCH(
 
   const validTransitions: Record<string, string[]> = {
     draft: ["active"],
-    active: ["paused"],
-    paused: ["active"],
+    active: ["paused", "completed"],
+    paused: ["active", "completed", "archived"],
+    completed: ["archived"],
   };
 
   // Get current campaign with workspace isolation

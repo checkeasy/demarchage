@@ -189,7 +189,7 @@ export function CampaignDetailTabs({
         saveToDb(queued);
       }
     }
-  }, [campaign.id, supabase]);
+  }, [campaign.id]);
 
   const handleStepsChange = useCallback((newSteps: StepData[]) => {
     setEditableSteps(newSteps);

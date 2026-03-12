@@ -1,10 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getOrchestrator } from '@/lib/agents/orchestrator';
 
 // POST: Check for new replies and auto-analyze with AI
 // Can be called by cron or manually
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // CRON_SECRET auth check
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const supabase = createAdminClient();
 

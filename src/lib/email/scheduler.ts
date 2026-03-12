@@ -70,6 +70,9 @@ function findNextValidSlot(
   windowStart: string,
   sendingDays: number[]
 ): Date {
+  // Guard: if no sending days configured, return fromDate as-is
+  if (!sendingDays || sendingDays.length === 0) return fromDate;
+
   const candidate = new Date(fromDate);
 
   // Try up to 14 days ahead to find a valid sending day

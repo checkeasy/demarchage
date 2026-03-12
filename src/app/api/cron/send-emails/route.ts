@@ -577,6 +577,27 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Threading: look up previous email for follow-ups (step_order > 1) using pre-fetched map
+        let inReplyTo: string | undefined;
+        let references: string | undefined;
+        const currentStepOrder = (item.current_step_order as number) || 1;
+        if (currentStepOrder > 1) {
+          const prevEmail = threadingEmailsMap.get(item.campaign_prospect_id as string);
+
+          if (prevEmail?.resend_message_id) {
+            const prevMsgId = prevEmail.resend_message_id.includes("<")
+              ? prevEmail.resend_message_id
+              : `<${prevEmail.resend_message_id}>`;
+            inReplyTo = prevMsgId;
+            references = prevMsgId;
+
+            // Prepend "Re: " to subject if not already present and original subject is available
+            if (prevEmail.subject && !mergedSubject.toLowerCase().startsWith("re:")) {
+              mergedSubject = `Re: ${prevEmail.subject}`;
+            }
+          }
+        }
+
         // Resolve account data: use rotation account or default from queue
         const fromEmailAddress = activeAccount
           ? (activeAccount.email_address as string)
@@ -652,27 +673,6 @@ export async function POST(request: NextRequest) {
           "List-Unsubscribe": `<${unsubscribeUrl}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         };
-
-        // Threading: look up previous email for follow-ups (step_order > 1) using pre-fetched map
-        let inReplyTo: string | undefined;
-        let references: string | undefined;
-        const currentStepOrder = (item.current_step_order as number) || 1;
-        if (currentStepOrder > 1) {
-          const prevEmail = threadingEmailsMap.get(item.campaign_prospect_id as string);
-
-          if (prevEmail?.resend_message_id) {
-            const prevMsgId = prevEmail.resend_message_id.includes("<")
-              ? prevEmail.resend_message_id
-              : `<${prevEmail.resend_message_id}>`;
-            inReplyTo = prevMsgId;
-            references = prevMsgId;
-
-            // Prepend "Re: " to subject if not already present and original subject is available
-            if (prevEmail.subject && !mergedSubject.toLowerCase().startsWith("re:")) {
-              mergedSubject = `Re: ${prevEmail.subject}`;
-            }
-          }
-        }
 
         // Build SMTP credentials (from rotation account or queue item)
         let smtpCredentials: SmtpCredentials | undefined;

@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/automation/activity — Get recent automation activity
 export async function GET() {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = createAdminClient();
+
+  const { data: profile } = await supabase.from('profiles').select('current_workspace_id').eq('id', user.id).single();
+  if (!profile?.current_workspace_id) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const workspaceId = profile.current_workspace_id;
 
   try {
     const { data: logs, error } = await supabase
@@ -16,6 +25,7 @@ export async function GET() {
         error_message,
         created_at
       `)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(50);
 

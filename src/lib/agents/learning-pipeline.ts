@@ -185,13 +185,15 @@ export async function syncOutcomesToGenerations(workspaceId: string): Promise<nu
   let synced = 0;
 
   // Find generations that haven't had outcomes synced yet
+  // TODO: Batch the N+1 queries below — currently each generation triggers individual DB lookups
   const { data: unsynced } = await supabase
     .from('agent_generation_log')
     .select('id, prospect_id, campaign_id')
     .eq('workspace_id', workspaceId)
     .in('agent_type', ['email_writer', 'linkedin_writer'])
     .is('outcome_open', null)
-    .eq('was_used', true);
+    .eq('was_used', true)
+    .limit(500);
 
   if (!unsynced || unsynced.length === 0) return 0;
 

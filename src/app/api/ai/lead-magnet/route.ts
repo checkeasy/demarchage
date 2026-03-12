@@ -180,10 +180,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('current_workspace_id')
+      .eq('id', user.id)
+      .single();
+
+    const workspaceId = profile?.current_workspace_id;
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'Aucun workspace actif' }, { status: 400 });
+    }
+
     const { error } = await supabase
       .from('lead_magnets')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('workspace_id', workspaceId);
 
     if (error) {
       return NextResponse.json({ error: 'Erreur de suppression' }, { status: 500 });
