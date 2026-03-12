@@ -16,8 +16,11 @@ export async function POST(request: NextRequest) {
   let workspaceId: string;
 
   // Support CRON_SECRET auth for server-side triggers
-  const cronSecret = request.headers.get("x-cron-secret");
-  if (cronSecret && cronSecret === process.env.CRON_SECRET) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecretHeader = request.headers.get("x-cron-secret");
+  const cronSecret = process.env.CRON_SECRET;
+  const isCronAuth = cronSecret && (authHeader === `Bearer ${cronSecret}` || cronSecretHeader === cronSecret);
+  if (isCronAuth) {
     // Use first workspace + first user
     const { data: workspace } = await supabase.from("workspaces").select("id").limit(1).single();
     const { data: profile } = await supabase.from("profiles").select("id, current_workspace_id").limit(1).single();
