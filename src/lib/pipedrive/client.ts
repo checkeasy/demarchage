@@ -106,10 +106,9 @@ export function mapPipedriveType(type: string): string {
 /**
  * Map Pipedrive priority to our priority
  */
-export function mapPipedrivePriority(priority: string | null): string {
+export function mapPipedrivePriority(priority: string | number | null | undefined): string {
   if (!priority) return "normal";
-  // Pipedrive doesn't have a strong priority system, but just in case
-  const p = priority.toLowerCase();
+  const p = String(priority).toLowerCase();
   if (p.includes("high") || p.includes("important")) return "high";
   if (p.includes("urgent") || p.includes("critical")) return "urgent";
   if (p.includes("low")) return "low";
