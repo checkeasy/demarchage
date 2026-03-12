@@ -138,4 +138,98 @@ export function parseDuration(duration: string): number | null {
   return null;
 }
 
-export type { PipedriveActivity };
+/**
+ * Map Pipedrive call outcome to our structured call_outcome
+ */
+export function mapPipedriveCallOutcome(note: string | null, done: boolean, type: string): string | null {
+  if (type !== "call") return null;
+  if (!done) return null;
+  const lower = (note || "").toLowerCase();
+  if (lower.includes("pas de reponse") || lower.includes("no answer") || lower.includes("pas repondu")) return "no_answer";
+  if (lower.includes("messagerie") || lower.includes("voicemail")) return "left_voicemail";
+  if (lower.includes("message laisse") || lower.includes("left message")) return "left_message";
+  if (lower.includes("mauvais numero") || lower.includes("wrong number")) return "wrong_number";
+  if (lower.includes("occupe") || lower.includes("busy")) return "busy";
+  if (lower.includes("rappel") || lower.includes("callback")) return "callback_scheduled";
+  return "connected";
+}
+
+// ============================================================================
+// NOTES
+// ============================================================================
+
+interface PipedriveNote {
+  id: number;
+  content: string;
+  org_id: number | null;
+  person_id: number | null;
+  deal_id: number | null;
+  organization: { name: string } | null;
+  person: { name: string } | null;
+  deal: { title: string } | null;
+  add_time: string;
+  update_time: string;
+  pinned_to_organization_flag: boolean;
+  pinned_to_person_flag: boolean;
+  pinned_to_deal_flag: boolean;
+  user: { name: string } | null;
+  active_flag: boolean;
+}
+
+/**
+ * Fetch all notes from Pipedrive (handles pagination)
+ */
+export async function fetchAllPipedriveNotes(options?: {
+  limit?: number;
+}): Promise<PipedriveNote[]> {
+  if (!PIPEDRIVE_API_TOKEN) {
+    throw new Error("PIPEDRIVE_API_TOKEN is not configured");
+  }
+
+  const maxTotal = options?.limit || 10000;
+  const all: PipedriveNote[] = [];
+  let start = 0;
+  const batchSize = 500;
+  let hasMore = true;
+
+  while (hasMore && all.length < maxTotal) {
+    const url = `${BASE_URL}/notes?api_token=${PIPEDRIVE_API_TOKEN}&limit=${batchSize}&start=${start}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      throw new Error(`Pipedrive API error: ${res.status} ${res.statusText}`);
+    }
+
+    const json: PipedriveResponse<PipedriveNote> = await res.json();
+
+    if (!json.success || !json.data) {
+      break;
+    }
+
+    all.push(...json.data);
+    hasMore = json.additional_data?.pagination?.more_items_in_collection || false;
+    start = json.additional_data?.pagination?.next_start || start + batchSize;
+  }
+
+  return all;
+}
+
+/**
+ * Strip HTML tags from Pipedrive note content
+ */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export type { PipedriveActivity, PipedriveNote };

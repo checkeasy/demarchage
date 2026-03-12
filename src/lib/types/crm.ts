@@ -28,6 +28,9 @@ export interface Deal {
   notes: string | null;
   custom_fields: Record<string, unknown>;
   last_activity_at: string | null;
+  last_email_sent_at: string | null;
+  last_email_received_at: string | null;
+  email_count: number;
   stage_entered_at: string;
   created_by: string | null;
   created_at: string;
@@ -36,6 +39,17 @@ export interface Deal {
   prospect?: { id: string; first_name: string | null; last_name: string | null; email: string; company: string | null; last_contacted_at: string | null; contact_type: string | null };
   stage?: PipelineStageConfig;
   owner?: { id: string; full_name: string | null };
+  contacts?: DealContact[];
+}
+
+export interface DealContact {
+  id: string;
+  deal_id: string;
+  prospect_id: string;
+  role: 'primary' | 'contact' | 'decision_maker' | 'influencer' | 'champion' | 'blocker';
+  created_at: string;
+  // Joined
+  prospect?: { id: string; first_name: string | null; last_name: string | null; email: string; company: string | null };
 }
 
 export interface Activity {
@@ -53,6 +67,7 @@ export interface Activity {
   done_at: string | null;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   outcome: string | null;
+  call_outcome: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -73,5 +88,6 @@ export interface Note {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom_fields: Record<string, unknown>;
   author?: { id: string; full_name: string | null };
 }
