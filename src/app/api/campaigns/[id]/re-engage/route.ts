@@ -107,6 +107,9 @@ export async function POST(
         current_step_id: firstStep.id,
         next_send_at: nextSendAt.toISOString(),
         completed_at: null,
+        has_replied: false,
+        has_opened: false,
+        has_clicked: false,
       })
       .in("id", reEngageIds)
       .select("id");

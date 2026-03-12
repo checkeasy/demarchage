@@ -6,9 +6,8 @@
  */
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-  : 'http://localhost:3000';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL
+  || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 
 interface CronJob {
   name: string;
@@ -36,6 +35,18 @@ const JOBS: CronJob[] = [
     path: '/api/cron/automation',
     intervalMs: 10 * 60 * 1000, // Every 10 minutes
     businessHoursOnly: true,
+  },
+  {
+    name: 'health-check',
+    path: '/api/cron/health-check',
+    intervalMs: 6 * 60 * 60 * 1000, // Every 6 hours
+    businessHoursOnly: false,
+  },
+  {
+    name: 'learning-pipeline',
+    path: '/api/agents/cron',
+    intervalMs: 6 * 60 * 60 * 1000, // Every 6 hours
+    businessHoursOnly: false,
   },
 ];
 

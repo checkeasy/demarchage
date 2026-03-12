@@ -288,6 +288,9 @@ export interface ProspectResearch {
   recommended_angle: string;
   recommended_tone: string;
   icp_score: number;
+  should_delete?: boolean;
+  delete_reason?: string;
+  contact_type?: 'prospect' | 'lead_chaud' | 'client' | 'ancien_client' | 'partenaire' | 'concurrent' | 'influenceur' | 'a_recontacter' | 'mauvaise_cible';
 }
 
 // ─── Generation Result ──────────────────────────────────────────────────────

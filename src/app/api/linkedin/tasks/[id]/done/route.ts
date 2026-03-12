@@ -22,13 +22,26 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Get user's workspace
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("current_workspace_id")
+    .eq("id", user.id)
+    .single();
+
+  const workspaceId = profile?.current_workspace_id;
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No active workspace" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
 
-  // 1. Get the task details
+  // 1. Get the task details (scoped to user's workspace)
   const { data: task, error: taskError } = await admin
     .from("linkedin_tasks")
     .select("id, campaign_prospect_id, step_id, status")
     .eq("id", taskId)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (taskError || !task) {

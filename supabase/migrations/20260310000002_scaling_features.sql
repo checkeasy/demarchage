@@ -22,26 +22,22 @@ CREATE TABLE IF NOT EXISTS public.campaign_email_accounts (
 -- Enable RLS
 ALTER TABLE public.campaign_email_accounts ENABLE ROW LEVEL SECURITY;
 
--- RLS policies
-CREATE POLICY "Users can view campaign email accounts in their workspaces"
-    ON public.campaign_email_accounts
-    FOR SELECT
-    USING (
-        campaign_id IN (
-            SELECT id FROM public.campaigns
-            WHERE workspace_id IN (SELECT public.get_user_workspace_ids())
-        )
-    );
+-- RLS policies (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view campaign email accounts in their workspaces' AND tablename = 'campaign_email_accounts') THEN
+    CREATE POLICY "Users can view campaign email accounts in their workspaces"
+        ON public.campaign_email_accounts FOR SELECT
+        USING (campaign_id IN (SELECT id FROM public.campaigns WHERE workspace_id IN (SELECT public.get_user_workspace_ids())));
+  END IF;
+END $$;
 
-CREATE POLICY "Users can manage campaign email accounts in their workspaces"
-    ON public.campaign_email_accounts
-    FOR ALL
-    USING (
-        campaign_id IN (
-            SELECT id FROM public.campaigns
-            WHERE workspace_id IN (SELECT public.get_user_workspace_ids())
-        )
-    );
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage campaign email accounts in their workspaces' AND tablename = 'campaign_email_accounts') THEN
+    CREATE POLICY "Users can manage campaign email accounts in their workspaces"
+        ON public.campaign_email_accounts FOR ALL
+        USING (campaign_id IN (SELECT id FROM public.campaigns WHERE workspace_id IN (SELECT public.get_user_workspace_ids())));
+  END IF;
+END $$;
 
 -- 2. Account health logs for domain reputation monitoring
 CREATE TABLE IF NOT EXISTS public.account_health_logs (
@@ -61,15 +57,13 @@ CREATE TABLE IF NOT EXISTS public.account_health_logs (
 
 ALTER TABLE public.account_health_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view health logs in their workspaces"
-    ON public.account_health_logs
-    FOR SELECT
-    USING (
-        email_account_id IN (
-            SELECT id FROM public.email_accounts
-            WHERE workspace_id IN (SELECT public.get_user_workspace_ids())
-        )
-    );
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view health logs in their workspaces' AND tablename = 'account_health_logs') THEN
+    CREATE POLICY "Users can view health logs in their workspaces"
+        ON public.account_health_logs FOR SELECT
+        USING (email_account_id IN (SELECT id FROM public.email_accounts WHERE workspace_id IN (SELECT public.get_user_workspace_ids())));
+  END IF;
+END $$;
 
 -- 3. Add tracking_domain and provider_daily_max to email_accounts
 ALTER TABLE public.email_accounts

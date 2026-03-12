@@ -15,6 +15,7 @@ import {
   CheckSquare,
   FileText,
   Target,
+  Building2,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Pipeline", href: "/deals", icon: Kanban, group: "crm" },
   { label: "Activites", href: "/activities", icon: CheckSquare, group: "crm" },
   { label: "Prospects", href: "/prospects", icon: Users, group: "crm" },
+  { label: "Organisations", href: "/organizations", icon: Building2, group: "crm" },
   // Outreach
   { label: "Missions", href: "/missions", icon: Target, group: "outreach" },
   { label: "Campagnes", href: "/campaigns", icon: Send, group: "outreach" },
@@ -85,6 +87,8 @@ export const PAGE_TITLES: Record<string, string> = {
   "/settings": "Parametres",
   "/admin": "Administration",
   "/activities": "Activites",
+  "/organizations": "Organisations",
+  "/prospects/deduplicate": "Doublons",
   "/automation": "Automation",
   "/scraper": "Scraper",
   "/maps-scraper": "Google Maps",
@@ -136,6 +140,19 @@ export const PIPELINE_STAGES = {
   standby: { label: "Stand-by", color: "bg-yellow-500", order: 8 },
   lost_recontact: { label: "Perdu - A relancer", color: "bg-orange-500", order: 9 },
   lost: { label: "Perdu", color: "bg-red-500", order: 10 },
+} as const;
+
+// Contact types (badge on each prospect)
+export const CONTACT_TYPES = {
+  prospect: { label: "Prospect", color: "bg-blue-500", textColor: "text-blue-700", bgLight: "bg-blue-50", icon: "Target" },
+  lead_chaud: { label: "Lead chaud", color: "bg-orange-500", textColor: "text-orange-700", bgLight: "bg-orange-50", icon: "Flame" },
+  client: { label: "Client", color: "bg-green-500", textColor: "text-green-700", bgLight: "bg-green-50", icon: "CheckCircle2" },
+  ancien_client: { label: "Ancien client", color: "bg-emerald-400", textColor: "text-emerald-700", bgLight: "bg-emerald-50", icon: "History" },
+  partenaire: { label: "Partenaire", color: "bg-purple-500", textColor: "text-purple-700", bgLight: "bg-purple-50", icon: "Handshake" },
+  concurrent: { label: "Concurrent", color: "bg-slate-500", textColor: "text-slate-700", bgLight: "bg-slate-100", icon: "Swords" },
+  influenceur: { label: "Influenceur", color: "bg-pink-500", textColor: "text-pink-700", bgLight: "bg-pink-50", icon: "Star" },
+  a_recontacter: { label: "A recontacter", color: "bg-amber-500", textColor: "text-amber-700", bgLight: "bg-amber-50", icon: "Clock" },
+  mauvaise_cible: { label: "Mauvaise cible", color: "bg-red-500", textColor: "text-red-700", bgLight: "bg-red-50", icon: "Ban" },
 } as const;
 
 // Countries for targeting

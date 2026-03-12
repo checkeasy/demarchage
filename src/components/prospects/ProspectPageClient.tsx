@@ -257,6 +257,7 @@ export function ProspectPageClient({
   const [quickActionCampaignProspectId, setQuickActionCampaignProspectId] = useState<string | null>(null);
   const [availableCampaigns, setAvailableCampaigns] = useState<{id: string; name: string}[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [quickEnrolling, setQuickEnrolling] = useState(false);
 
   async function loadCampaigns() {
     setLoadingCampaigns(true);
@@ -271,12 +272,15 @@ export function ProspectPageClient({
         .eq("workspace_id", profile.current_workspace_id)
         .in("status", ["draft", "active", "paused"]);
       setAvailableCampaigns(camps || []);
-    } catch { /* ignore */ } finally {
+    } catch {
+      toast.error("Impossible de charger les campagnes");
+    } finally {
       setLoadingCampaigns(false);
     }
   }
 
   async function handleQuickEnroll(prospectId: string, campaignId: string) {
+    setQuickEnrolling(true);
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/enroll`, {
         method: "POST",
@@ -286,11 +290,14 @@ export function ProspectPageClient({
       if (res.ok) {
         toast.success("Prospect ajoute a la campagne");
         setQuickActionCampaignProspectId(null);
+        router.refresh();
       } else {
         const data = await res.json();
         toast.error(data.error || "Erreur");
       }
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error("Erreur"); } finally {
+      setQuickEnrolling(false);
+    }
   }
 
   async function handleMarkContacted(prospectId: string) {
@@ -2056,13 +2063,14 @@ export function ProspectPageClient({
                   key={camp.id}
                   variant="outline"
                   className="w-full justify-start text-sm"
+                  disabled={quickEnrolling}
                   onClick={() => {
                     if (quickActionCampaignProspectId) {
                       handleQuickEnroll(quickActionCampaignProspectId, camp.id);
                     }
                   }}
                 >
-                  <Mail className="size-4 mr-2" />
+                  {quickEnrolling ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Mail className="size-4 mr-2" />}
                   {camp.name}
                 </Button>
               ))

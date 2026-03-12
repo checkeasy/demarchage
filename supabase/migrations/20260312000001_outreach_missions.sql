@@ -47,6 +47,14 @@ CREATE INDEX idx_prospects_mission ON public.prospects (mission_id) WHERE missio
 -- 4. UPDATED_AT TRIGGER
 -- ============================================================================
 
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER set_outreach_missions_updated_at
     BEFORE UPDATE ON public.outreach_missions
     FOR EACH ROW

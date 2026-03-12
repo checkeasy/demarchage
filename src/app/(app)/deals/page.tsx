@@ -39,7 +39,7 @@ export default async function DealsPage() {
     .select(
       `
       *,
-      prospect:prospects(id, first_name, last_name, email, company),
+      prospect:prospects(id, first_name, last_name, email, company, last_contacted_at, contact_type),
       stage:pipeline_stages_config(id, name, color, slug)
     `
     )

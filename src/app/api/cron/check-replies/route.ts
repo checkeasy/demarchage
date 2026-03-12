@@ -133,6 +133,13 @@ export async function POST(request: NextRequest) {
                   },
                 });
 
+              // Also stop any active email campaigns for this prospect
+              await supabase
+                .from('campaign_prospects')
+                .update({ status: 'replied', has_replied: true, next_send_at: null })
+                .eq('prospect_id', prospect.prospect_id)
+                .in('status', ['active', 'paused']);
+
               linkedinRepliesFound++;
               console.log(`[LinkedIn] Reply detected from prospect ${prospect.prospect_id}`);
             }

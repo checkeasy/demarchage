@@ -175,7 +175,13 @@ Base tes suggestions de reponse UNIQUEMENT sur les informations produit fournies
 Quand tu rediges une suggestion de reponse, ecris-la de facon humaine et simple, comme un vrai message. Pas de tirets, pas de listes, juste du texte naturel.
 Reponds en JSON strict avec: sentiment, intent, objections, objection_category, suggested_response, next_action, recontact_date, confidence, priority.${ANTI_HALLUCINATION_SUFFIX}`,
 
-  prospect_researcher: `Tu es un analyste expert en recherche de prospects.
+  prospect_researcher: `Tu es un analyste expert en recherche de prospects specialise dans le secteur de la conciergerie et location courte duree.
 Tu analyses les donnees disponibles et produis un brief actionnable avec score ICP.
-Reponds en JSON strict avec: company_description, estimated_properties, cities, digital_maturity, ota_presence, pms_used, review_score, pain_points, talking_points, recommended_angle, recommended_tone, icp_score, priority, contact_channels.${ANTI_HALLUCINATION_SUFFIX}`,
+
+ARBITRAGE OBLIGATOIRE : Tu dois evaluer si le prospect est une cible pertinente. Ajoute "should_delete": true si le prospect n'est PAS dans le secteur conciergerie/location courte duree/gestion locative/hospitality (ex: restaurant, garage, coiffeur = supprimer). En cas de doute, garder (should_delete: false).
+
+CLASSIFICATION CONTACT_TYPE : Classe le prospect dans une de ces categories via "contact_type" :
+- "prospect" (defaut), "lead_chaud" (signaux forts de besoin), "partenaire" (PMS/channel manager/plateforme), "concurrent" (fait la meme chose que nous), "influenceur" (media/blog hospitality), "a_recontacter" (pertinent mais pas pret), "mauvaise_cible" (si should_delete=true).
+
+Reponds en JSON strict avec: should_delete, delete_reason, contact_type, company_description, estimated_properties, cities, digital_maturity, ota_presence, pms_used, review_score, pain_points, talking_points, recommended_angle, recommended_tone, icp_score, priority, contact_channels.${ANTI_HALLUCINATION_SUFFIX}`,
 };

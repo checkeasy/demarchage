@@ -202,6 +202,56 @@ export interface Database {
           updated_at?: string;
         };
       };
+      organizations: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          website: string | null;
+          domain: string | null;
+          industry: string | null;
+          city: string | null;
+          country: string | null;
+          phone: string | null;
+          description: string | null;
+          custom_fields: Json;
+          contact_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          website?: string | null;
+          domain?: string | null;
+          industry?: string | null;
+          city?: string | null;
+          country?: string | null;
+          phone?: string | null;
+          description?: string | null;
+          custom_fields?: Json;
+          contact_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          workspace_id?: string;
+          name?: string;
+          website?: string | null;
+          domain?: string | null;
+          industry?: string | null;
+          city?: string | null;
+          country?: string | null;
+          phone?: string | null;
+          description?: string | null;
+          custom_fields?: Json;
+          contact_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       prospects: {
         Row: {
           id: string;
@@ -211,6 +261,7 @@ export interface Database {
           last_name: string | null;
           company: string | null;
           organization: string | null;
+          organization_id: string | null;
           job_title: string | null;
           phone: string | null;
           linkedin_url: string | null;
@@ -234,6 +285,7 @@ export interface Database {
           status: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
           mission_id: string | null;
+          contact_type: "prospect" | "lead_chaud" | "client" | "ancien_client" | "partenaire" | "concurrent" | "influenceur" | "a_recontacter" | "mauvaise_cible";
           last_contacted_at: string | null;
           created_at: string;
           updated_at: string;
@@ -246,6 +298,7 @@ export interface Database {
           last_name?: string | null;
           company?: string | null;
           organization?: string | null;
+          organization_id?: string | null;
           job_title?: string | null;
           phone?: string | null;
           linkedin_url?: string | null;
@@ -268,6 +321,7 @@ export interface Database {
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
+          contact_type?: "prospect" | "lead_chaud" | "client" | "ancien_client" | "partenaire" | "concurrent" | "influenceur" | "a_recontacter" | "mauvaise_cible";
           last_contacted_at?: string | null;
           mission_id?: string | null;
           created_at?: string;
@@ -281,6 +335,7 @@ export interface Database {
           last_name?: string | null;
           company?: string | null;
           organization?: string | null;
+          organization_id?: string | null;
           job_title?: string | null;
           phone?: string | null;
           linkedin_url?: string | null;
@@ -303,6 +358,7 @@ export interface Database {
           email_verified_at?: string | null;
           status?: "active" | "bounced" | "unsubscribed" | "replied" | "converted" | "lost" | "standby" | "to_contact";
           source?: "manual" | "csv_import" | "api" | "linkedin" | "google_maps" | "crm_import" | "directory_import";
+          contact_type?: "prospect" | "lead_chaud" | "client" | "ancien_client" | "partenaire" | "concurrent" | "influenceur" | "a_recontacter" | "mauvaise_cible";
           last_contacted_at?: string | null;
           mission_id?: string | null;
           created_at?: string;
@@ -553,6 +609,7 @@ export type Prospect = Database["public"]["Tables"]["prospects"]["Row"];
 export type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
 export type SequenceStep = Database["public"]["Tables"]["sequence_steps"]["Row"];
 export type EmailSent = Database["public"]["Tables"]["emails_sent"]["Row"];
+export type Organization = Database["public"]["Tables"]["organizations"]["Row"];
 export type OutreachMission = Database["public"]["Tables"]["outreach_missions"]["Row"];
 
 // ─── Prospect Activity Types ─────────────────────────────────────────────────

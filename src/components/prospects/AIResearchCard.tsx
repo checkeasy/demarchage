@@ -403,7 +403,7 @@ export function AIResearchCard({ prospect }: AIResearchCardProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-5 px-1.5 text-[10px] shrink-0"
+                    className="h-8 px-3 text-xs min-w-[44px] min-h-[44px] shrink-0"
                     onClick={() => handleApplyEnrichment("linkedin_url", enrichment.linkedin_url!)}
                     disabled={applyingLinkedin}
                   >
@@ -428,7 +428,7 @@ export function AIResearchCard({ prospect }: AIResearchCardProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-5 px-1.5 text-[10px] shrink-0"
+                    className="h-8 px-3 text-xs min-w-[44px] min-h-[44px] shrink-0"
                     onClick={() => handleApplyEnrichment("email", enrichment.email!)}
                     disabled={applyingEmail}
                   >

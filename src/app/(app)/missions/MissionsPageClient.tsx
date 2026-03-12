@@ -134,6 +134,7 @@ function MissionCard({
   }
 
   async function handleArchive() {
+    if (!window.confirm("Archiver cette mission ? Cette action est irreversible.")) return;
     setIsUpdating(true);
     try {
       const res = await fetch(`/api/missions/${mission.id}`, {

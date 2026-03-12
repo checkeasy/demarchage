@@ -31,12 +31,17 @@ export async function GET(
 
   const stepIds = steps.map((s) => s.id);
 
-  // Get all emails_sent for these steps with timestamps
+  // Limit to last 30 days to prevent loading all emails into memory
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Get emails_sent for these steps within last 30 days
   const { data: emails, error: emailsError } = await supabase
     .from("emails_sent")
     .select("id, status, sent_at, opened_at, replied_at")
     .in("step_id", stepIds)
     .not("sent_at", "is", null)
+    .gte("sent_at", thirtyDaysAgo.toISOString())
     .order("sent_at", { ascending: true });
 
   if (emailsError) {

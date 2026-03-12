@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,14 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 };
 
 export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-muted-foreground">Chargement...</p></div>}>
+      <InboxPageContent />
+    </Suspense>
+  );
+}
+
+function InboxPageContent() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -67,7 +76,38 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [suggestingResponse, setSuggestingResponse] = useState(false);
   const [suggestingMeeting, setSuggestingMeeting] = useState(false);
+  const [missionCampaignIds, setMissionCampaignIds] = useState<string[] | null>(null);
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const missionId = searchParams.get("mission_id");
+
+  // Load mission campaign IDs when mission_id is present
+  useEffect(() => {
+    if (!missionId) {
+      setMissionCampaignIds(null);
+      return;
+    }
+    async function loadMissionCampaigns() {
+      const { data: mission } = await supabase
+        .from("outreach_missions")
+        .select("campaign_email_id, campaign_linkedin_id, campaign_multichannel_id")
+        .eq("id", missionId!)
+        .single();
+
+      if (mission) {
+        const ids = [
+          mission.campaign_email_id,
+          mission.campaign_linkedin_id,
+          mission.campaign_multichannel_id,
+        ].filter(Boolean) as string[];
+        setMissionCampaignIds(ids.length > 0 ? ids : []);
+      } else {
+        setMissionCampaignIds([]);
+      }
+    }
+    loadMissionCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missionId]);
 
   const loadThreads = useCallback(async () => {
     setLoading(true);
@@ -148,7 +188,10 @@ export default function InboxPage() {
   }
 
   async function handleSuggestResponse() {
-    if (!selectedThread?.prospect_id) return;
+    if (!selectedThread?.prospect_id) {
+      toast.error("Aucun prospect lie a cette conversation");
+      return;
+    }
     // Find the last inbound message for context
     const lastInbound = [...messages].reverse().find((m) => m.direction === "inbound");
     if (!lastInbound) {
@@ -187,7 +230,10 @@ export default function InboxPage() {
   }
 
   async function handleSuggestMeeting() {
-    if (!selectedThread?.prospect_id) return;
+    if (!selectedThread?.prospect_id) {
+      toast.error("Aucun prospect lie a cette conversation");
+      return;
+    }
     setSuggestingMeeting(true);
     try {
       const res = await fetch("/api/agents/meeting-message", {
@@ -219,6 +265,9 @@ export default function InboxPage() {
   }
 
   const filteredThreads = threads.filter((t) => {
+    if (missionCampaignIds !== null) {
+      if (!t.campaign_id || !missionCampaignIds.includes(t.campaign_id)) return false;
+    }
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (search) {
       const searchLower = search.toLowerCase();
@@ -379,7 +428,7 @@ export default function InboxPage() {
             </ScrollArea>
 
             {/* AI suggestion buttons */}
-            {messages.length > 0 && messages[messages.length - 1]?.direction === "inbound" && (
+            {messages.length > 0 && messages.some(m => m.direction === "inbound") && (
               <div className="border-t px-3 pt-2 flex gap-2">
                 <Button
                   variant="outline"

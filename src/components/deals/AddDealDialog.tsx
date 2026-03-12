@@ -67,7 +67,7 @@ export function AddDealDialog({
     return (
       (p.first_name && p.first_name.toLowerCase().includes(term)) ||
       (p.last_name && p.last_name.toLowerCase().includes(term)) ||
-      p.email.toLowerCase().includes(term) ||
+      (p.email && p.email.toLowerCase().includes(term)) ||
       (p.company && p.company.toLowerCase().includes(term))
     );
   });

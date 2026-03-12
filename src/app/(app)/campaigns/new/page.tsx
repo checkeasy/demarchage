@@ -425,8 +425,10 @@ export default function NewCampaignPage() {
         });
 
         if (!statusRes.ok) {
-          const statusData = await statusRes.json();
-          throw new Error(statusData.error || "Erreur lors du lancement de la campagne");
+          clearDraft();
+          toast.error("Campagne sauvegardee en brouillon. Lancez-la depuis la page campagne.");
+          router.push(`/campaigns/${campaign.id}`);
+          return;
         }
       }
 

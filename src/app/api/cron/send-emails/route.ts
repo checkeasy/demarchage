@@ -490,11 +490,18 @@ export async function POST(request: NextRequest) {
           mergedText = bodyText || undefined;
         } else {
           const templateData = prospectToTemplateData({
-            email: item.prospect_email,
-            first_name: item.prospect_first_name,
-            last_name: item.prospect_last_name,
-            company: item.prospect_company,
-            custom_fields: item.custom_fields,
+            email: item.prospect_email as string,
+            first_name: item.prospect_first_name as string | null,
+            last_name: item.prospect_last_name as string | null,
+            company: item.prospect_company as string | null,
+            job_title: item.prospect_job_title as string | null,
+            city: item.prospect_city as string | null,
+            location: item.prospect_location as string | null,
+            industry: item.prospect_industry as string | null,
+            website: item.prospect_website as string | null,
+            linkedin_url: item.prospect_linkedin_url as string | null,
+            phone: item.prospect_phone as string | null,
+            custom_fields: item.custom_fields as Record<string, string> | null,
           });
 
           // Add booking URL from email account
@@ -509,6 +516,22 @@ export async function POST(request: NextRequest) {
           mergedText = bodyText
             ? mergeTemplate(bodyText, templateData)
             : undefined;
+        }
+
+        // Safety: detect unresolved template variables (e.g. leftover {someVar})
+        if (!aiGenerated) {
+          const unresolvedInBody = (mergedBody.match(/\{(?!#if|\/if|#else)(\w+)\}/g) || []);
+          const unresolvedInSubject = (mergedSubject.match(/\{(?!#if|\/if|#else)(\w+)\}/g) || []);
+          const allUnresolved = [...new Set([...unresolvedInSubject, ...unresolvedInBody])];
+          if (allUnresolved.length > 0) {
+            console.warn(`[SendEmails] Skipping ${item.prospect_email}: unresolved variables: ${allUnresolved.join(', ')}`);
+            await supabase
+              .from("campaign_prospects")
+              .update({ next_send_at: null, status: "error", status_reason: `Variables non resolues: ${allUnresolved.join(', ')}` })
+              .eq("id", item.campaign_prospect_id);
+            skippedCount++;
+            continue;
+          }
         }
 
         // Safety: skip if subject is empty after merge (missing variables)

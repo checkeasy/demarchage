@@ -8,6 +8,8 @@ interface TemplateData {
   linkedinUrl?: string | null;
   website?: string | null;
   location?: string | null;
+  city?: string | null;
+  industry?: string | null;
   [key: string]: string | null | undefined;
 }
 
@@ -17,6 +19,8 @@ const VARIABLE_ALIASES: Record<string, string> = {
   nom: "lastName",
   entreprise: "company",
   poste: "jobTitle",
+  ville: "city",
+  secteur: "industry",
 };
 
 /**
@@ -31,16 +35,16 @@ export function mergeTemplate(
 ): string {
   let result = template;
 
-  // Handle conditional blocks: {#if varName}...content...{/if}
+  // Handle conditional blocks: {#if varName}...{#else}...{/if}
   result = result.replace(
-    /\{#if\s+(\w+)\}([\s\S]*?)\{\/if\}/g,
-    (_match, varName: string, content: string) => {
+    /\{#if\s+(\w+)\}([\s\S]*?)(?:\{#else\}([\s\S]*?))?\{\/if\}/g,
+    (_match, varName: string, ifContent: string, elseContent?: string) => {
       const resolvedName = VARIABLE_ALIASES[varName] || varName;
       const value = data[resolvedName];
       if (value && value.trim() !== "") {
-        return mergeTemplate(content, data);
+        return mergeTemplate(ifContent, data);
       }
-      return "";
+      return elseContent ? mergeTemplate(elseContent, data) : "";
     }
   );
 
@@ -80,6 +84,8 @@ export function prospectToTemplateData(prospect: {
   linkedin_url?: string | null;
   website?: string | null;
   location?: string | null;
+  city?: string | null;
+  industry?: string | null;
   custom_fields?: Record<string, string> | null;
 }): TemplateData {
   const data: TemplateData = {
@@ -92,6 +98,8 @@ export function prospectToTemplateData(prospect: {
     linkedinUrl: prospect.linkedin_url,
     website: prospect.website,
     location: prospect.location,
+    city: prospect.city || prospect.location,
+    industry: prospect.industry,
   };
 
   // Add custom fields

@@ -359,6 +359,7 @@ async function processMatchedReply(
     .update({
       status: "replied",
       has_replied: true,
+      next_send_at: null,
     })
     .eq("id", match.campaignProspectId);
 

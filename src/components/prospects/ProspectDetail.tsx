@@ -38,7 +38,7 @@ import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, CONTACT_TYPES } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ import { AISuggestedReplyCard } from "./AISuggestedReplyCard";
 import { AIValueResponseCard } from "./AIValueResponseCard";
 import { HotProspectBanner } from "./HotProspectBanner";
 import { NoteList } from "@/components/notes/NoteList";
+import ContactBadges from "@/components/prospects/ContactBadges";
 import { AddActivityDialog } from "./AddActivityDialog";
 import { ImportCrmHistoryDialog } from "./ImportCrmHistoryDialog";
 
@@ -489,6 +490,54 @@ export function ProspectDetail({
               {pipelineConfig.label}
             </Badge>
           )}
+          <Select
+            value={prospect.contact_type || "prospect"}
+            onValueChange={async (value) => {
+              const { error } = await supabase
+                .from("prospects")
+                .update({ contact_type: value })
+                .eq("id", prospect.id);
+              if (!error) router.refresh();
+            }}
+          >
+            <SelectTrigger className="w-auto h-7 text-xs gap-1 border-dashed">
+              {(() => {
+                const ct = (prospect.contact_type || "prospect") as keyof typeof CONTACT_TYPES;
+                const config = CONTACT_TYPES[ct];
+                return config ? (
+                  <span className={`flex items-center gap-1.5 ${config.textColor}`}>
+                    <span className={`size-2 rounded-full ${config.color}`} />
+                    {config.label}
+                  </span>
+                ) : <SelectValue />;
+              })()}
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(CONTACT_TYPES).map(([key, config]) => (
+                <SelectItem key={key} value={key}>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`size-2 rounded-full ${config.color}`} />
+                    {config.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <ContactBadges
+            tags={prospect.tags || []}
+            onUpdate={async (newTags) => {
+              const current = prospect.tags || [];
+              const res = await fetch(`/api/prospects/${prospect.id}/tags`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  add: newTags.filter(t => !current.includes(t)),
+                  remove: current.filter(t => !newTags.includes(t)),
+                }),
+              });
+              if (res.ok) router.refresh();
+            }}
+          />
           {isEditing ? (
             <div className="flex gap-2">
               <Button

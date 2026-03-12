@@ -28,6 +28,7 @@ interface LinkedInTask {
   priority: number;
   due_at: string | null;
   created_at: string;
+  campaign_prospect_id: string | null;
   prospects: {
     first_name: string | null;
     last_name: string | null;
@@ -149,6 +150,16 @@ export default function LinkedInPage() {
       .from("linkedin_tasks")
       .update({ status: "skipped" })
       .eq("id", taskId);
+
+    // Resume campaign prospect that was paused for this task
+    const task = tasks.find((t) => t.id === taskId);
+    if (task?.campaign_prospect_id) {
+      await supabase
+        .from("campaign_prospects")
+        .update({ status: "active" })
+        .eq("id", task.campaign_prospect_id)
+        .eq("status", "paused");
+    }
 
     toast.success("Tache passee");
     loadTasks();

@@ -1281,6 +1281,7 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
       content: result.content,
       segment_key: this.computeSegmentKey(context.prospect),
       ab_variant: task.abTestVariant || null,
+      was_used: true,
     });
   }
 
@@ -1441,10 +1442,30 @@ Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
           .single()
       : { data: null };
 
-    const totalSent = campaign?.total_sent || 0;
-    const openRate = totalSent > 0 ? (campaign?.total_opened || 0) / totalSent : 0;
-    const replyRate = totalSent > 0 ? (campaign?.total_replied || 0) / totalSent : 0;
-    const clickRate = totalSent > 0 ? (campaign?.total_clicked || 0) / totalSent : 0;
+    let totalSent = campaign?.total_sent || 0;
+    let totalOpened = campaign?.total_opened || 0;
+    let totalReplied = campaign?.total_replied || 0;
+    let totalClicked = campaign?.total_clicked || 0;
+
+    // If campaign has 0 sends, fall back to workspace-level aggregate stats
+    if (totalSent === 0) {
+      const { data: wsStats } = await supabase
+        .from('campaigns')
+        .select('total_sent, total_opened, total_replied, total_clicked')
+        .eq('workspace_id', workspaceId)
+        .gt('total_sent', 0);
+
+      if (wsStats && wsStats.length > 0) {
+        totalSent = wsStats.reduce((sum, c) => sum + (c.total_sent || 0), 0);
+        totalOpened = wsStats.reduce((sum, c) => sum + (c.total_opened || 0), 0);
+        totalReplied = wsStats.reduce((sum, c) => sum + (c.total_replied || 0), 0);
+        totalClicked = wsStats.reduce((sum, c) => sum + (c.total_clicked || 0), 0);
+      }
+    }
+
+    const openRate = totalSent > 0 ? totalOpened / totalSent : 0;
+    const replyRate = totalSent > 0 ? totalReplied / totalSent : 0;
+    const clickRate = totalSent > 0 ? totalClicked / totalSent : 0;
 
     // Fetch best-performing subject patterns from generation log
     const { data: subjectLogs } = await supabase

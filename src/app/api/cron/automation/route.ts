@@ -230,7 +230,13 @@ async function executeAction(
 
       // Merge template variables
       if (message) {
-        message = mergeSimpleTemplate(message, item);
+        message = mergeTemplate(message, prospectToTemplateData({
+          email: (item.prospect_email as string) || "",
+          first_name: item.first_name as string | null,
+          last_name: item.last_name as string | null,
+          company: item.company as string | null,
+          job_title: item.job_title as string | null,
+        }));
       }
 
       const profileUrn = item.linkedin_profile_urn as string;
@@ -276,7 +282,13 @@ async function executeAction(
       }
 
       if (message) {
-        message = mergeSimpleTemplate(message, item);
+        message = mergeTemplate(message, prospectToTemplateData({
+          email: (item.prospect_email as string) || "",
+          first_name: item.first_name as string | null,
+          last_name: item.last_name as string | null,
+          company: item.company as string | null,
+          job_title: item.job_title as string | null,
+        }));
       }
 
       if (!message) {
@@ -625,18 +637,6 @@ async function generateAIMessage(
     // Fallback to template if AI fails
   }
   return null;
-}
-
-function mergeSimpleTemplate(
-  template: string,
-  data: Record<string, unknown>
-): string {
-  return template
-    .replace(/\{firstName\}/g, (data.first_name as string) || "")
-    .replace(/\{lastName\}/g, (data.last_name as string) || "")
-    .replace(/\{company\}/g, (data.company as string) || "")
-    .replace(/\{jobTitle\}/g, (data.job_title as string) || "")
-    .replace(/\{email\}/g, (data.prospect_email as string) || "");
 }
 
 function generateTrackingId(): string {

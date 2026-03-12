@@ -552,7 +552,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Taux de reponse",
-      value: rate(totals.replied, totals.sent),
+      value: rate(repliesThisMonth ?? 0, emailsSentThisMonth ?? 0),
       icon: Reply,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
@@ -1006,7 +1006,7 @@ export default async function DashboardPage() {
                     Taux de reponse
                   </p>
                   <p className="text-2xl font-bold">
-                    {rate(totals.replied, totals.sent)}
+                    {rate(repliesThisMonth ?? 0, emailsSentThisMonth ?? 0)}
                   </p>
                   {replyRateTrend && (
                     <div
