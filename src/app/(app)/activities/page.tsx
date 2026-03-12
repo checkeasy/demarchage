@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ActivityList } from "@/components/activities/ActivityList";
+import { ActivityCalendar } from "@/components/activities/ActivityCalendar";
 
 export default async function ActivitiesPage() {
   const supabase = await createClient();
@@ -26,8 +26,14 @@ export default async function ActivitiesPage() {
     redirect("/onboarding");
   }
 
-  // Fetch pending activities (is_done = false, ordered by due_date ASC NULLS LAST)
-  const { data: pendingActivities } = await supabase
+  // Fetch ALL activities (calendar needs full range, not just pending + done today)
+  // Get activities from 3 months ago to 3 months ahead
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const threeMonthsAhead = new Date();
+  threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
+
+  const { data: allActivities } = await supabase
     .from("activities")
     .select(
       `
@@ -38,30 +44,11 @@ export default async function ActivitiesPage() {
     `
     )
     .eq("workspace_id", workspaceId)
-    .eq("is_done", false)
-    .order("due_date", { ascending: true, nullsFirst: false });
-
-  // Fetch activities done today
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const { data: doneToday } = await supabase
-    .from("activities")
-    .select(
-      `
-      *,
-      deal:deals(id, title),
-      prospect:prospects(id, first_name, last_name, email),
-      assignee:profiles!activities_assigned_to_fkey(id, full_name)
-    `
+    .or(
+      `due_date.gte.${threeMonthsAgo.toISOString()},due_date.is.null`
     )
-    .eq("workspace_id", workspaceId)
-    .eq("is_done", true)
-    .gte("done_at", todayStart.toISOString())
-    .order("done_at", { ascending: false });
-
-  // Combine all activities
-  const activities = [...(pendingActivities || []), ...(doneToday || [])];
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .limit(2000);
 
   // Fetch deals list (for dropdown in AddActivityDialog)
   const { data: deals } = await supabase
@@ -81,8 +68,8 @@ export default async function ActivitiesPage() {
 
   return (
     <div className="space-y-6">
-      <ActivityList
-        activities={activities ?? []}
+      <ActivityCalendar
+        activities={allActivities ?? []}
         deals={deals ?? []}
         prospects={prospects ?? []}
       />
