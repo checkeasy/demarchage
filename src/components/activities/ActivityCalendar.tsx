@@ -17,6 +17,8 @@ import {
   CalendarDays,
   Clock,
   LayoutGrid,
+  Loader2,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -654,6 +656,7 @@ export function ActivityCalendar({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [defaultDueDate, setDefaultDueDate] = useState<string>("");
+  const [syncing, setSyncing] = useState(false);
 
   // Group activities by date key
   const activitiesByDate = useMemo(() => {
@@ -749,6 +752,27 @@ export function ActivityCalendar({
     setDialogOpen(true);
   }
 
+  // Pipedrive sync
+  async function handlePipedriveSync() {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/pipedrive/sync-activities", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Erreur de synchronisation");
+        return;
+      }
+      toast.success(
+        `Pipedrive sync: ${data.created} creees, ${data.updated} mises a jour, ${data.matched_prospects} prospects lies`
+      );
+      router.refresh();
+    } catch {
+      toast.error("Erreur de connexion");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   // Title based on view mode
   const viewTitle = useMemo(() => {
     if (viewMode === "month") return formatMonthYear(currentDate);
@@ -773,6 +797,10 @@ export function ActivityCalendar({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handlePipedriveSync} disabled={syncing}>
+              {syncing ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {syncing ? "Sync..." : "Pipedrive"}
+            </Button>
             <ViewToggle viewMode={viewMode} onChange={setViewMode} />
             <Button onClick={() => handleAddOnDate()}>
               <Plus className="size-4" />
@@ -814,6 +842,10 @@ export function ActivityCalendar({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handlePipedriveSync} disabled={syncing}>
+            {syncing ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            {syncing ? "Sync..." : "Pipedrive"}
+          </Button>
           <ViewToggle viewMode={viewMode} onChange={setViewMode} />
           <Button onClick={() => handleAddOnDate(viewMode === "day" ? currentDate : undefined)}>
             <Plus className="size-4" />

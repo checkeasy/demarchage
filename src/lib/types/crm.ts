@@ -56,6 +56,7 @@ export interface Activity {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom_fields: Record<string, unknown>;
   // Joined
   deal?: { id: string; title: string };
   prospect?: { id: string; first_name: string | null; last_name: string | null; email: string };
