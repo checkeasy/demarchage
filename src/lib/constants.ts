@@ -17,6 +17,7 @@ import {
   Target,
   Building2,
   Signal,
+  Eye,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -53,6 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
   { label: "Lead Magnets", href: "/lead-magnets", icon: FileText, group: "tools" },
   { label: "Signaux", href: "/signals", icon: Signal, group: "tools" },
+  { label: "Veille Web", href: "/web-watch", icon: Eye, group: "tools" },
   // Settings
   { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
 ];
@@ -96,6 +98,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/maps-scraper": "Google Maps",
   "/missions": "Missions",
   "/signals": "Signaux d'intention",
+  "/web-watch": "Veille Web",
   "/onboarding": "Onboarding",
 };
 
