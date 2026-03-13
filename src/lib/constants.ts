@@ -18,6 +18,7 @@ import {
   Building2,
   Signal,
   Eye,
+  Bell,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -55,6 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Lead Magnets", href: "/lead-magnets", icon: FileText, group: "tools" },
   { label: "Signaux", href: "/signals", icon: Signal, group: "tools" },
   { label: "Veille Web", href: "/web-watch", icon: Eye, group: "tools" },
+  { label: "Alertes", href: "/alerts", icon: Bell, group: "tools" },
   // Settings
   { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
 ];
@@ -99,6 +101,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/missions": "Missions",
   "/signals": "Signaux d'intention",
   "/web-watch": "Veille Web",
+  "/alerts": "Alertes Business",
   "/onboarding": "Onboarding",
 };
 
@@ -479,114 +482,5 @@ export const SIGNAL_SOURCES = {
   content_tracking: { label: "Tracking contenu" },
 } as const;
 
-// Qualification criteria (Pipedrive-style, multi-select)
-export const QUALIFICATION_CRITERIA: Record<string, {
-  label: string;
-  icon: string;
-  options: readonly { value: string; label: string }[];
-}> = {
-  objectif_parc: {
-    label: "Objectif sur le parc",
-    icon: "Target",
-    options: [
-      { value: "reduire", label: "Reduire" },
-      { value: "maintenir", label: "Maintenir" },
-      { value: "grandir", label: "Grandir" },
-    ],
-  },
-  type_organisation: {
-    label: "Type d'organisation",
-    icon: "Building2",
-    options: [
-      { value: "interne", label: "Interne" },
-      { value: "externe", label: "Externe" },
-    ],
-  },
-  qui_controle: {
-    label: "Qui realise le controle",
-    icon: "ClipboardCheck",
-    options: [
-      { value: "agents_menage", label: "Agents de menage" },
-      { value: "voyageurs", label: "Voyageurs" },
-    ],
-  },
-  taille_conciergerie: {
-    label: "Taille de la conciergerie",
-    icon: "Scaling",
-    options: [
-      { value: "petits_moyens", label: "Petits & moyens" },
-      { value: "grands", label: "Grands" },
-    ],
-  },
-  positionnement_logement: {
-    label: "Positionnement du logement",
-    icon: "Star",
-    options: [
-      { value: "luxe", label: "Luxe" },
-      { value: "haut_de_gamme", label: "Haut de gamme" },
-      { value: "standard", label: "Standard" },
-    ],
-  },
-  type_structure: {
-    label: "Type de structure",
-    icon: "Network",
-    options: [
-      { value: "independante", label: "Independante" },
-      { value: "reseau_independants", label: "Reseau d'independants" },
-      { value: "reseau_franchise", label: "Reseau franchise" },
-    ],
-  },
-  region: {
-    label: "Region",
-    icon: "MapPin",
-    options: [
-      { value: "ile_de_france", label: "Ile-de-France" },
-      { value: "paca", label: "PACA" },
-      { value: "occitanie", label: "Occitanie" },
-      { value: "nouvelle_aquitaine", label: "Nouvelle-Aquitaine" },
-      { value: "auvergne_rhone_alpes", label: "Auvergne-Rhone-Alpes" },
-      { value: "bretagne", label: "Bretagne" },
-      { value: "pays_de_la_loire", label: "Pays de la Loire" },
-      { value: "normandie", label: "Normandie" },
-      { value: "grand_est", label: "Grand Est" },
-      { value: "hauts_de_france", label: "Hauts-de-France" },
-      { value: "bourgogne_franche_comte", label: "Bourgogne-Franche-Comte" },
-      { value: "centre_val_de_loire", label: "Centre-Val de Loire" },
-      { value: "corse", label: "Corse" },
-      { value: "dom_tom", label: "DOM-TOM" },
-      { value: "international", label: "International" },
-    ],
-  },
-  pays: {
-    label: "Pays",
-    icon: "Flag",
-    options: [
-      { value: "france", label: "France" },
-      { value: "espagne", label: "Espagne" },
-      { value: "portugal", label: "Portugal" },
-      { value: "italie", label: "Italie" },
-      { value: "grece", label: "Grece" },
-      { value: "croatie", label: "Croatie" },
-      { value: "thailande", label: "Thailande" },
-      { value: "maurice", label: "Maurice" },
-      { value: "republique_dominicaine", label: "Republique Dominicaine" },
-      { value: "maroc", label: "Maroc" },
-      { value: "autre", label: "Autre" },
-    ],
-  },
-  source_acquisition: {
-    label: "Source d'acquisition",
-    icon: "Megaphone",
-    options: [
-      { value: "google_maps", label: "Google Maps" },
-      { value: "linkedin", label: "LinkedIn" },
-      { value: "bouche_a_oreille", label: "Bouche a oreille" },
-      { value: "site_web", label: "Site web" },
-      { value: "cold_email", label: "Cold email" },
-      { value: "cold_call", label: "Cold call" },
-      { value: "salon", label: "Salon/Evenement" },
-      { value: "partenaire", label: "Partenaire" },
-      { value: "annuaire", label: "Annuaire pro" },
-    ],
-  },
-};
+// Qualification criteria are now stored per workspace in workspace.settings.custom_qualification_criteria
+// Use the /api/workspaces/criteria API to manage them

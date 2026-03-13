@@ -33,12 +33,14 @@ import {
   BarChart3,
   Upload,
   PhoneCall,
+  Sparkles,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, CONTACT_TYPES, QUALIFICATION_CRITERIA } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, CONTACT_TYPES } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
 import { MultiSelectField } from "@/components/ui/multi-select-field";
 
@@ -72,6 +74,7 @@ import { AddActivityDialog } from "./AddActivityDialog";
 import { ImportCrmHistoryDialog } from "./ImportCrmHistoryDialog";
 import { AddCriteriaInline } from "./AddCriteriaInline";
 import { SignalBadges } from "./SignalBadges";
+import { GenerateSignalEmail } from "./GenerateSignalEmail";
 import { AddSignalDialog } from "./AddSignalDialog";
 import type { CustomQualificationCriteria } from "@/lib/types/database";
 
@@ -215,66 +218,28 @@ export function ProspectDetail({
   const [isEditingCrm, setIsEditingCrm] = useState(false);
   const [isSavingCrm, setIsSavingCrm] = useState(false);
   const [crmFormData, setCrmFormData] = useState({
-    type_biens: cf.type_biens || '',
-    type_conciergerie: cf.type_conciergerie || '',
-    standing: cf.standing || '',
-    vision_conciergerie: cf.vision_conciergerie || '',
     nb_properties: cf.nb_properties ?? '',
-    source_lead_original: cf.source_lead_original || '',
-    // Qualification criteria (multi-select)
-    objectif_parc: (cf.objectif_parc as string[]) || [],
-    type_organisation: (cf.type_organisation as string[]) || [],
-    qui_controle: (cf.qui_controle as string[]) || [],
-    taille_conciergerie: (cf.taille_conciergerie as string[]) || [],
-    positionnement_logement: (cf.positionnement_logement as string[]) || [],
-    type_structure: (cf.type_structure as string[]) || [],
-    region: (cf.region as string[]) || [],
-    pays_activite: (cf.pays_activite as string[]) || [],
-    source_acquisition: (cf.source_acquisition as string[]) || [],
   });
 
   function cancelCrmEdit() {
     setIsEditingCrm(false);
     setCrmFormData({
-      type_biens: cf.type_biens || '',
-      type_conciergerie: cf.type_conciergerie || '',
-      standing: cf.standing || '',
-      vision_conciergerie: cf.vision_conciergerie || '',
       nb_properties: cf.nb_properties ?? '',
-      source_lead_original: cf.source_lead_original || '',
-      objectif_parc: (cf.objectif_parc as string[]) || [],
-      type_organisation: (cf.type_organisation as string[]) || [],
-      qui_controle: (cf.qui_controle as string[]) || [],
-      taille_conciergerie: (cf.taille_conciergerie as string[]) || [],
-      positionnement_logement: (cf.positionnement_logement as string[]) || [],
-      type_structure: (cf.type_structure as string[]) || [],
-      region: (cf.region as string[]) || [],
-      pays_activite: (cf.pays_activite as string[]) || [],
-      source_acquisition: (cf.source_acquisition as string[]) || [],
     });
+    // Reset criteria values from prospect data
+    const vals: Record<string, string[]> = {};
+    for (const c of customCriteria) {
+      vals[c.key] = (cf[c.key] as string[]) || [];
+    }
+    setCustomCriteriaValues(vals);
   }
 
   async function handleSaveCrm() {
     setIsSavingCrm(true);
     const updatedFields = {
       ...prospect.custom_fields as Record<string, unknown>,
-      type_biens: crmFormData.type_biens || undefined,
-      type_conciergerie: crmFormData.type_conciergerie || undefined,
-      standing: crmFormData.standing || undefined,
-      vision_conciergerie: crmFormData.vision_conciergerie || undefined,
       nb_properties: crmFormData.nb_properties !== '' ? Number(crmFormData.nb_properties) : undefined,
-      source_lead_original: crmFormData.source_lead_original || undefined,
-      // Qualification criteria
-      objectif_parc: crmFormData.objectif_parc.length > 0 ? crmFormData.objectif_parc : undefined,
-      type_organisation: crmFormData.type_organisation.length > 0 ? crmFormData.type_organisation : undefined,
-      qui_controle: crmFormData.qui_controle.length > 0 ? crmFormData.qui_controle : undefined,
-      taille_conciergerie: crmFormData.taille_conciergerie.length > 0 ? crmFormData.taille_conciergerie : undefined,
-      positionnement_logement: crmFormData.positionnement_logement.length > 0 ? crmFormData.positionnement_logement : undefined,
-      type_structure: crmFormData.type_structure.length > 0 ? crmFormData.type_structure : undefined,
-      region: crmFormData.region.length > 0 ? crmFormData.region : undefined,
-      pays_activite: crmFormData.pays_activite.length > 0 ? crmFormData.pays_activite : undefined,
-      source_acquisition: crmFormData.source_acquisition.length > 0 ? crmFormData.source_acquisition : undefined,
-      // Custom qualification criteria
+      // All qualification criteria (from workspace)
       ...Object.fromEntries(
         customCriteria.map((c) => [
           c.key,
@@ -705,18 +670,8 @@ export function ProspectDetail({
             </div>
           )}
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {cf.country && (
-            <div className="flex items-center gap-2">
-              <Flag className="size-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Pays</p>
-                <p className="text-sm">
-                  {countryConfig ? `${countryConfig.flag} ${countryConfig.label}` : cf.country}
-                </p>
-              </div>
-            </div>
-          )}
+        <CardContent className="space-y-4">
+          {/* Nombre de biens */}
           <div className="flex items-center gap-2">
             <Hash className="size-4 text-muted-foreground" />
             <div className="flex-1">
@@ -735,108 +690,10 @@ export function ProspectDetail({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Building2 className="size-4 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Type de biens</p>
-              {isEditingCrm ? (
-                <Input
-                  value={crmFormData.type_biens}
-                  onChange={(e) => setCrmFormData(prev => ({ ...prev, type_biens: e.target.value }))}
-                  disabled={isSavingCrm}
-                  className="h-7 text-sm mt-1"
-                  placeholder="Ex: Appartement, Villa..."
-                />
-              ) : (
-                <p className="text-sm">{cf.type_biens || <span className="text-muted-foreground">-</span>}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Briefcase className="size-4 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Type de conciergerie</p>
-              {isEditingCrm ? (
-                <Input
-                  value={crmFormData.type_conciergerie}
-                  onChange={(e) => setCrmFormData(prev => ({ ...prev, type_conciergerie: e.target.value }))}
-                  disabled={isSavingCrm}
-                  className="h-7 text-sm mt-1"
-                  placeholder="Ex: Airbnb, Booking..."
-                />
-              ) : (
-                <p className="text-sm">{cf.type_conciergerie || <span className="text-muted-foreground">-</span>}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="size-4 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Standing</p>
-              {isEditingCrm ? (
-                <Input
-                  value={crmFormData.standing}
-                  onChange={(e) => setCrmFormData(prev => ({ ...prev, standing: e.target.value }))}
-                  disabled={isSavingCrm}
-                  className="h-7 text-sm mt-1"
-                  placeholder="Ex: Standard, Premium..."
-                />
-              ) : (
-                <p className="text-sm">{cf.standing || <span className="text-muted-foreground">-</span>}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Globe className="size-4 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Vision</p>
-              {isEditingCrm ? (
-                <Input
-                  value={crmFormData.vision_conciergerie}
-                  onChange={(e) => setCrmFormData(prev => ({ ...prev, vision_conciergerie: e.target.value }))}
-                  disabled={isSavingCrm}
-                  className="h-7 text-sm mt-1"
-                  placeholder="Ex: Developpement, Maintien..."
-                />
-              ) : (
-                <p className="text-sm">{cf.vision_conciergerie || <span className="text-muted-foreground">-</span>}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Send className="size-4 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Source du lead</p>
-              {isEditingCrm ? (
-                <Input
-                  value={crmFormData.source_lead_original}
-                  onChange={(e) => setCrmFormData(prev => ({ ...prev, source_lead_original: e.target.value }))}
-                  disabled={isSavingCrm}
-                  className="h-7 text-sm mt-1"
-                  placeholder="Ex: Google Maps, LinkedIn..."
-                />
-              ) : (
-                <p className="text-sm">{cf.source_lead_original || <span className="text-muted-foreground">-</span>}</p>
-              )}
-            </div>
-          </div>
 
-          {/* Qualification criteria (multi-select) */}
-          <div className="col-span-full pt-3 border-t space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Qualification</p>
+          {/* Qualification criteria (multi-select, from workspace) */}
+          <div className="pt-2 border-t space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(QUALIFICATION_CRITERIA).map(([key, criteria]) => (
-                <MultiSelectField
-                  key={key}
-                  label={criteria.label}
-                  options={criteria.options}
-                  value={(crmFormData as Record<string, unknown>)[key] as string[] || []}
-                  onChange={(val) => setCrmFormData(prev => ({ ...prev, [key]: val }))}
-                  disabled={isSavingCrm}
-                  readOnly={!isEditingCrm}
-                />
-              ))}
-              {/* Custom qualification criteria from workspace */}
               {customCriteria.map((criteria) => (
                 <div key={criteria.key} className="relative group">
                   <MultiSelectField
@@ -1022,9 +879,12 @@ export function ProspectDetail({
               <AddSignalDialog prospectId={prospect.id} />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {signals.length > 0 ? (
-              <SignalBadges signals={signals} />
+              <>
+                <SignalBadges signals={signals} />
+                <GenerateSignalEmail prospect={prospect} signals={signals} />
+              </>
             ) : (
               <p className="text-xs text-muted-foreground">
                 Aucun signal detecte. Ajoutez des signaux d&apos;achat pour prioriser ce prospect.
