@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { PhoneCall, CalendarCheck, StickyNote, Mail, MessageSquare, ArrowRightLeft, Mic, Loader2 } from "lucide-react";
 
+import { CALL_OUTCOMES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +55,7 @@ export function AddActivityDialog({ open, onOpenChange, prospectId, prospectName
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
+  const [callOutcome, setCallOutcome] = useState("");
 
   // Audio recording states
   const [showRecorder, setShowRecorder] = useState(false);
@@ -166,7 +168,10 @@ export function AddActivityDialog({ open, onOpenChange, prospectId, prospectName
           channel: typeInfo?.channel || "manual",
           subject: subject.trim() || typeInfo?.label || "Activite",
           body: body.trim(),
-          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+          metadata: {
+            ...(Object.keys(metadata).length > 0 ? metadata : {}),
+            ...(callOutcome ? { call_outcome: callOutcome } : {}),
+          },
           created_at: new Date(date).toISOString(),
         }),
       });
@@ -180,6 +185,7 @@ export function AddActivityDialog({ open, onOpenChange, prospectId, prospectName
       setSubject("");
       setBody("");
       setDate(new Date().toISOString().slice(0, 16));
+      setCallOutcome("");
       resetAudio();
       setShowRecorder(false);
       onOpenChange(false);
@@ -236,6 +242,25 @@ export function AddActivityDialog({ open, onOpenChange, prospectId, prospectName
               disabled={isLoading || isTranscribing}
             />
           </div>
+
+          {/* Call outcome (only for call type) */}
+          {activityType === "call_logged" && (
+            <div className="space-y-2">
+              <Label>Resultat de l&apos;appel</Label>
+              <Select value={callOutcome} onValueChange={setCallOutcome}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selectionner le resultat..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CALL_OUTCOMES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className={config.color}>{config.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Audio Recorder for call_logged */}
           {isCallType && !showRecorder && !hasRecording && (

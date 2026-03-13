@@ -121,6 +121,28 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // 5a. Save qualification criteria if AI deduced them
+    const qualificationKeys = [
+      'objectif_parc', 'type_organisation', 'qui_controle', 'taille_conciergerie',
+      'positionnement_logement', 'type_structure', 'region', 'pays_activite', 'source_acquisition',
+    ];
+    const qualificationUpdates: Record<string, string[]> = {};
+    for (const key of qualificationKeys) {
+      const val = researchContent[key];
+      if (Array.isArray(val) && val.length > 0) {
+        qualificationUpdates[key] = val as string[];
+      }
+    }
+    if (Object.keys(qualificationUpdates).length > 0) {
+      const currentCf = (prospect.custom_fields || {}) as Record<string, unknown>;
+      await supabase
+        .from('prospects')
+        .update({
+          custom_fields: { ...currentCf, ...enrichmentUpdates.custom_fields as Record<string, unknown> || {}, ...qualificationUpdates },
+        })
+        .eq('id', prospectId);
+    }
+
     // 5. Save contact_type if AI classified it
     const aiContactType = researchContent.contact_type as string | undefined;
     const validContactTypes = ['prospect', 'lead_chaud', 'client', 'ancien_client', 'partenaire', 'concurrent', 'influenceur', 'a_recontacter', 'mauvaise_cible'];

@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ACTIVITY_TYPES, ACTIVITY_PRIORITIES } from "@/lib/constants";
+import { ACTIVITY_TYPES, ACTIVITY_PRIORITIES, CALL_OUTCOMES } from "@/lib/constants";
 
 type ActivityType = keyof typeof ACTIVITY_TYPES;
 
@@ -84,6 +84,7 @@ export function AddActivityDialog({
   const [priority, setPriority] = useState("normal");
   const [dealId, setDealId] = useState(defaultDealId || "");
   const [prospectId, setProspectId] = useState(defaultProspectId || "");
+  const [callOutcome, setCallOutcome] = useState("");
 
   function resetForm() {
     setActivityType("call");
@@ -94,6 +95,7 @@ export function AddActivityDialog({
     setPriority("normal");
     setDealId(defaultDealId || "");
     setProspectId(defaultProspectId || "");
+    setCallOutcome("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -118,6 +120,7 @@ export function AddActivityDialog({
             ? parseInt(durationMinutes, 10)
             : null,
           priority,
+          call_outcome: activityType === "call" && callOutcome ? callOutcome : null,
           deal_id: dealId === "none" || !dealId ? null : dealId,
           prospect_id: prospectId === "none" || !prospectId ? null : prospectId,
         }),
@@ -246,6 +249,25 @@ export function AddActivityDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Call outcome (only for call type) */}
+          {activityType === "call" && (
+            <div className="space-y-2">
+              <Label>Resultat de l&apos;appel</Label>
+              <Select value={callOutcome} onValueChange={setCallOutcome}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selectionner le resultat..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CALL_OUTCOMES).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className={config.color}>{config.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Deal link */}
           <div className="space-y-2">

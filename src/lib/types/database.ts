@@ -6,12 +6,19 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export interface CustomQualificationCriteria {
+  key: string;
+  label: string;
+  options: { value: string; label: string }[];
+}
+
 export interface WorkspaceSettings {
   timezone: string;
   daily_sending_limit: number;
   sending_window_start: string;
   sending_window_end: string;
   sending_days: number[];
+  custom_qualification_criteria?: CustomQualificationCriteria[];
 }
 
 export interface Database {

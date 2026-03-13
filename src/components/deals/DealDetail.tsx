@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -13,6 +13,9 @@ import {
   Building2,
   Save,
   Percent,
+  UserPlus,
+  X,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -37,7 +40,8 @@ import {
 import { MarkDealDialog } from "@/components/deals/MarkDealDialog";
 import { NoteList } from "@/components/notes/NoteList";
 import { AddActivityDialog } from "@/components/activities/AddActivityDialog";
-import type { Deal, PipelineStageConfig } from "@/lib/types/crm";
+import { DEAL_CONTACT_ROLES } from "@/lib/constants";
+import type { Deal, DealContact, PipelineStageConfig } from "@/lib/types/crm";
 
 interface DealDetailProps {
   deal: Deal;
@@ -87,6 +91,73 @@ export function DealDetail({ deal, stages }: DealDetailProps) {
   const [markWonOpen, setMarkWonOpen] = useState(false);
   const [markLostOpen, setMarkLostOpen] = useState(false);
   const [addActivityOpen, setAddActivityOpen] = useState(false);
+
+  // Deal contacts state
+  const [contacts, setContacts] = useState<DealContact[]>([]);
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [newContactProspectId, setNewContactProspectId] = useState("");
+  const [newContactRole, setNewContactRole] = useState("contact");
+  const [addingContact, setAddingContact] = useState(false);
+  const [availableProspects, setAvailableProspects] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string; company: string | null }[]>([]);
+
+  const loadContacts = useCallback(async () => {
+    const res = await fetch(`/api/deals/${deal.id}/contacts`);
+    if (res.ok) {
+      const data = await res.json();
+      setContacts(data.contacts || []);
+    }
+  }, [deal.id]);
+
+  const loadAvailableProspects = useCallback(async () => {
+    const res = await fetch("/api/prospects?limit=100");
+    if (res.ok) {
+      const data = await res.json();
+      setAvailableProspects(data.prospects || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
+
+  async function handleAddContact() {
+    if (!newContactProspectId) return;
+    setAddingContact(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospect_id: newContactProspectId, role: newContactRole }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erreur");
+      }
+      toast.success("Contact ajoute");
+      setNewContactProspectId("");
+      setNewContactRole("contact");
+      setAddContactOpen(false);
+      loadContacts();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setAddingContact(false);
+    }
+  }
+
+  async function handleRemoveContact(prospectId: string) {
+    const res = await fetch(`/api/deals/${deal.id}/contacts`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prospect_id: prospectId }),
+    });
+    if (res.ok) {
+      toast.success("Contact retire");
+      loadContacts();
+    } else {
+      toast.error("Erreur lors de la suppression");
+    }
+  }
 
   const hasChanges =
     title !== deal.title ||
@@ -349,45 +420,129 @@ export function DealDetail({ deal, stages }: DealDetailProps) {
             </CardContent>
           </Card>
 
-          {/* Prospect info card */}
-          {deal.prospect && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="size-4" />
-                  Prospect associe
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Nom</p>
-                    <p className="font-medium">{prospectName || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Email</p>
-                    <p className="font-medium">{deal.prospect.email}</p>
-                  </div>
-                  {deal.prospect.company && (
-                    <div>
-                      <p className="text-muted-foreground flex items-center gap-1">
-                        <Building2 className="size-3" />
-                        Entreprise
+          {/* Contacts section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <User className="size-4" />
+                Contacts ({contacts.length})
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setAddContactOpen(true); loadAvailableProspects(); }}
+              >
+                <UserPlus className="size-3.5" />
+                Ajouter
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Existing primary prospect */}
+              {deal.prospect && contacts.length === 0 && (
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="text-sm">
+                    <p className="font-medium">{prospectName || deal.prospect.email}</p>
+                    <p className="text-muted-foreground text-xs">{deal.prospect.email}</p>
+                    {deal.prospect.company && (
+                      <p className="text-muted-foreground text-xs flex items-center gap-1 mt-0.5">
+                        <Building2 className="size-3" /> {deal.prospect.company}
                       </p>
-                      <p className="font-medium">{deal.prospect.company}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/prospects/${deal.prospect.id}`}>
-                      Voir la fiche prospect
-                    </Link>
+                    )}
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/prospects/${deal.prospect.id}`}>Voir</Link>
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+
+              {/* Deal contacts list */}
+              {contacts.map((contact) => {
+                const name = [contact.prospect?.first_name, contact.prospect?.last_name].filter(Boolean).join(" ") || contact.prospect?.email || "-";
+                const roleConfig = DEAL_CONTACT_ROLES[contact.role as keyof typeof DEAL_CONTACT_ROLES];
+                return (
+                  <div key={contact.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="text-sm flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{name}</p>
+                        {roleConfig && (
+                          <Badge variant="secondary" className={`text-[10px] shrink-0 ${roleConfig.color}`}>
+                            {roleConfig.label}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground text-xs truncate">{contact.prospect?.email}</p>
+                      {contact.prospect?.company && (
+                        <p className="text-muted-foreground text-xs flex items-center gap-1 mt-0.5">
+                          <Building2 className="size-3" /> {contact.prospect.company}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/prospects/${contact.prospect_id}`}>Voir</Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleRemoveContact(contact.prospect_id)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {contacts.length === 0 && !deal.prospect && (
+                <p className="text-sm text-muted-foreground">Aucun contact associe a ce deal.</p>
+              )}
+
+              {/* Add contact inline form */}
+              {addContactOpen && (
+                <div className="border rounded-lg p-3 space-y-3 bg-slate-50/50">
+                  <div className="space-y-2">
+                    <Label>Prospect</Label>
+                    <Select value={newContactProspectId} onValueChange={setNewContactProspectId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selectionner un prospect..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProspects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {[p.first_name, p.last_name].filter(Boolean).join(" ") || p.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={newContactRole} onValueChange={setNewContactRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(DEAL_CONTACT_ROLES).map(([key, config]) => (
+                          <SelectItem key={key} value={key}>
+                            {config.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddContact} disabled={addingContact || !newContactProspectId}>
+                      {addingContact ? "Ajout..." : "Ajouter"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAddContactOpen(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Deal metadata */}
           <Card>
@@ -427,6 +582,35 @@ export function DealDetail({ deal, stages }: DealDetailProps) {
                       {deal.owner.full_name || "Non assigne"}
                     </p>
                   </div>
+                )}
+                {(deal.email_count ?? 0) > 0 && (
+                  <>
+                    <div>
+                      <p className="text-muted-foreground flex items-center gap-1">
+                        <Mail className="size-3" />
+                        Emails echanges
+                      </p>
+                      <p className="font-medium">{deal.email_count}</p>
+                    </div>
+                    {deal.last_email_sent_at && (
+                      <div>
+                        <p className="text-muted-foreground flex items-center gap-1">
+                          <Mail className="size-3" />
+                          Dernier email envoye
+                        </p>
+                        <p className="font-medium">{formatDate(deal.last_email_sent_at)}</p>
+                      </div>
+                    )}
+                    {deal.last_email_received_at && (
+                      <div>
+                        <p className="text-muted-foreground flex items-center gap-1">
+                          <Mail className="size-3" />
+                          Derniere reponse
+                        </p>
+                        <p className="font-medium">{formatDate(deal.last_email_received_at)}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>

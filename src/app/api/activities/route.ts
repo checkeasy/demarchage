@@ -110,6 +110,9 @@ export async function POST(request: NextRequest) {
     deal_id,
     prospect_id,
     assigned_to,
+    call_outcome,
+    duration_minutes,
+    priority,
   } = await request.json();
 
   if (!activity_type) {
@@ -127,6 +130,9 @@ export async function POST(request: NextRequest) {
       title: title || null,
       description: description || null,
       due_date: due_date || null,
+      duration_minutes: duration_minutes || null,
+      priority: priority || "normal",
+      call_outcome: call_outcome || null,
       deal_id: deal_id || null,
       prospect_id: prospect_id || null,
       assigned_to: assigned_to || user.id,

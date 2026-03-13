@@ -176,6 +176,14 @@ export function DealKanbanCard({ deal, isDragOverlay }: DealKanbanCardProps) {
             );
           })()}
 
+          {/* Email count indicator */}
+          {(deal.email_count ?? 0) > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-blue-600">
+              <Mail className="size-2.5" />
+              <span>{deal.email_count} email{(deal.email_count ?? 0) > 1 ? "s" : ""}</span>
+            </div>
+          )}
+
           {/* Last contact + Days in stage */}
           <div className="flex items-center justify-between gap-1 flex-wrap">
             {deal.prospect?.last_contacted_at ? (

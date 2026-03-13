@@ -230,6 +230,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update deal email stats if prospect has an open deal
+    if (emailSent.campaign_prospect_id && (type === "email.delivered" || type === "email.opened")) {
+      try {
+        const { data: cp } = await supabase
+          .from("campaign_prospects")
+          .select("prospect_id")
+          .eq("id", emailSent.campaign_prospect_id)
+          .single();
+
+        if (cp) {
+          // Find open deals for this prospect
+          const { data: openDeals } = await supabase
+            .from("deals")
+            .select("id")
+            .eq("prospect_id", cp.prospect_id)
+            .eq("status", "open");
+
+          if (openDeals && openDeals.length > 0) {
+            for (const d of openDeals) {
+              if (type === "email.delivered") {
+                await supabase.rpc("increment_deal_email_count", { p_deal_id: d.id });
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-blocking: deal email tracking is best-effort
+      }
+    }
+
     return NextResponse.json({ message: "Webhook processed" });
   } catch (err) {
     console.error("Webhook error:", err);

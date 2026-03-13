@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
 import { PAGE_TITLES } from "@/lib/constants";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 
 interface HeaderProps {
   user?: {
@@ -124,6 +125,9 @@ export function Header({ user }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Global Search */}
+        <GlobalSearch />
+
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

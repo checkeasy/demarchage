@@ -424,6 +424,21 @@ REGLES DE CLASSIFICATION :
 6. Si le prospect est pertinent mais pas pret maintenant → contact_type = "a_recontacter"
 7. Sinon → contact_type = "prospect"
 
+QUALIFICATION PIPEDRIVE (MULTI-SELECT) :
+Pour chaque critere ci-dessous, retourne un tableau de valeurs possibles dans ton JSON de reponse.
+Deduis les valeurs a partir des donnees disponibles (site web, localisation, taille, type d'activite).
+Si tu ne peux pas deduire, retourne un tableau vide [].
+
+- "objectif_parc": ["reduire" | "maintenir" | "grandir"] — objectif sur le parc de biens
+- "type_organisation": ["interne" | "externe"] — gestion interne ou externalisee
+- "qui_controle": ["agents_menage" | "voyageurs"] — qui fait le controle qualite
+- "taille_conciergerie": ["petits_moyens" | "grands"] — deduis depuis nb_properties (<=50 = petits_moyens, >50 = grands)
+- "positionnement_logement": ["luxe" | "haut_de_gamme" | "standard"] — deduis depuis standing, type de biens, prix
+- "type_structure": ["independante" | "reseau_independants" | "reseau_franchise"] — deduis depuis le site/nom
+- "region": ex: ["paca", "ile_de_france"] — deduis depuis la localisation/ville (valeurs: ile_de_france, paca, occitanie, nouvelle_aquitaine, auvergne_rhone_alpes, bretagne, pays_de_la_loire, normandie, grand_est, hauts_de_france, bourgogne_franche_comte, centre_val_de_loire, corse, dom_tom, international)
+- "pays_activite": ex: ["france", "espagne"] — deduis depuis country/location (valeurs: france, espagne, portugal, italie, grece, croatie, thailande, maurice, republique_dominicaine, maroc, autre)
+- "source_acquisition": ex: ["google_maps"] — comment ce prospect a ete trouve (valeurs: google_maps, linkedin, bouche_a_oreille, site_web, cold_email, cold_call, salon, partenaire, annuaire)
+
 Reponds UNIQUEMENT en JSON valide selon le format specifie.`;
 
     const response = await getAnthropic().messages.create({
