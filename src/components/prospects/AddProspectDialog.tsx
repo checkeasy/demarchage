@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
@@ -69,6 +69,7 @@ export function AddProspectDialog({
   );
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutofilling, setIsAutofilling] = useState(false);
 
   useEffect(() => {
     setFormData(defaultValues ?? emptyForm);
@@ -85,6 +86,49 @@ export function AddProspectDialog({
   function resetForm() {
     setFormData(defaultValues ?? emptyForm);
     setErrors({});
+  }
+
+  async function handleAutofill() {
+    const email = formData.email?.trim();
+    const company = formData.company?.trim();
+    if (!email && !company) {
+      toast.error("Renseignez d'abord l'email ou l'entreprise");
+      return;
+    }
+
+    setIsAutofilling(true);
+    try {
+      const res = await fetch("/api/prospects/autofill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, company }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.data) {
+        toast.error(json.error || "Impossible de remplir automatiquement");
+        return;
+      }
+
+      // Only fill empty fields
+      setFormData((prev) => {
+        const updated = { ...prev };
+        const fields = [
+          "first_name", "last_name", "company", "job_title", "phone",
+          "linkedin_url", "website", "location", "city", "industry", "employee_count",
+        ] as const;
+        for (const field of fields) {
+          if (!updated[field] && json.data[field]) {
+            updated[field] = json.data[field];
+          }
+        }
+        return updated;
+      });
+      toast.success("Informations trouvees et remplies");
+    } catch {
+      toast.error("Erreur lors de la recherche automatique");
+    } finally {
+      setIsAutofilling(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -192,15 +236,35 @@ export function AddProspectDialog({
             <Label htmlFor="email">
               Email <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="prospect@entreprise.com"
-              value={formData.email}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="prospect@entreprise.com"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={isLoading || isAutofilling}
+              />
+              {!isEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 h-9"
+                  onClick={handleAutofill}
+                  disabled={isLoading || isAutofilling || (!formData.email?.trim() && !formData.company?.trim())}
+                  title="Remplir automatiquement a partir de l'email ou l'entreprise"
+                >
+                  {isAutofilling ? (
+                    <Loader2 className="animate-spin size-4" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  <span className="hidden sm:inline ml-1">Auto</span>
+                </Button>
+              )}
+            </div>
             {errors.email && (
               <p className="text-sm text-destructive">{errors.email}</p>
             )}
