@@ -56,6 +56,12 @@ const JOBS: CronJob[] = [
     intervalMs: 24 * 60 * 60 * 1000, // Every 24 hours
     businessHoursOnly: false,
   },
+  {
+    name: 'web-watch-recap',
+    path: '/api/web-watch/recap',
+    intervalMs: 24 * 60 * 60 * 1000, // Every 24 hours (sends after scan)
+    businessHoursOnly: true, // Only send during business hours
+  },
 ];
 
 function isBusinessHours(): boolean {
