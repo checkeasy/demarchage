@@ -38,8 +38,9 @@ import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { prospectSchema, type ProspectFormData } from "@/lib/validations";
-import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, CONTACT_TYPES } from "@/lib/constants";
+import { PROSPECT_STATUSES, CRM_STATUSES, PIPELINE_STAGES, COUNTRIES, SOURCE_LABELS, CONTACT_TYPES, QUALIFICATION_CRITERIA } from "@/lib/constants";
 import type { Prospect } from "@/lib/types/database";
+import { MultiSelectField } from "@/components/ui/multi-select-field";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,10 @@ import { NoteList } from "@/components/notes/NoteList";
 import ContactBadges from "@/components/prospects/ContactBadges";
 import { AddActivityDialog } from "./AddActivityDialog";
 import { ImportCrmHistoryDialog } from "./ImportCrmHistoryDialog";
+import { AddCriteriaInline } from "./AddCriteriaInline";
+import { SignalBadges } from "./SignalBadges";
+import { AddSignalDialog } from "./AddSignalDialog";
+import type { CustomQualificationCriteria } from "@/lib/types/database";
 
 type ProspectStatus = keyof typeof PROSPECT_STATUSES;
 type CrmStatus = keyof typeof CRM_STATUSES;
@@ -88,6 +93,16 @@ interface CustomFields {
   type_biens?: string;
   type_conciergerie?: string;
   vision_conciergerie?: string;
+  // Qualification criteria (multi-select arrays)
+  objectif_parc?: string[];
+  type_organisation?: string[];
+  qui_controle?: string[];
+  taille_conciergerie?: string[];
+  positionnement_logement?: string[];
+  type_structure?: string[];
+  region?: string[];
+  pays_activite?: string[];
+  source_acquisition?: string[];
   [key: string]: unknown;
 }
 
@@ -155,11 +170,46 @@ export function ProspectDetail({
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showImportCrm, setShowImportCrm] = useState(false);
 
+  // Signals state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [signals, setSignals] = useState<any[]>([]);
+  useEffect(() => {
+    fetch(`/api/prospects/${prospect.id}/signals`)
+      .then(r => r.json())
+      .then(d => setSignals(d.signals || []))
+      .catch(() => {});
+  }, [prospect.id]);
+
   const prospectName = [prospect.first_name, prospect.last_name].filter(Boolean).join(' ') || prospect.company || 'Prospect';
 
   const handleActivityRefresh = () => {
     router.refresh();
   };
+
+  // Custom qualification criteria from workspace
+  const [customCriteria, setCustomCriteria] = useState<CustomQualificationCriteria[]>([]);
+  const [customCriteriaValues, setCustomCriteriaValues] = useState<Record<string, string[]>>({});
+
+  function loadCustomCriteria() {
+    fetch("/api/workspaces/criteria")
+      .then((res) => res.json())
+      .then((data) => {
+        const criteria = (data.criteria || []) as CustomQualificationCriteria[];
+        setCustomCriteria(criteria);
+        // Initialize values from prospect's custom_fields
+        const vals: Record<string, string[]> = {};
+        for (const c of criteria) {
+          vals[c.key] = (cf[c.key] as string[]) || [];
+        }
+        setCustomCriteriaValues(vals);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadCustomCriteria();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // CRM custom fields editing state
   const [isEditingCrm, setIsEditingCrm] = useState(false);
@@ -171,6 +221,16 @@ export function ProspectDetail({
     vision_conciergerie: cf.vision_conciergerie || '',
     nb_properties: cf.nb_properties ?? '',
     source_lead_original: cf.source_lead_original || '',
+    // Qualification criteria (multi-select)
+    objectif_parc: (cf.objectif_parc as string[]) || [],
+    type_organisation: (cf.type_organisation as string[]) || [],
+    qui_controle: (cf.qui_controle as string[]) || [],
+    taille_conciergerie: (cf.taille_conciergerie as string[]) || [],
+    positionnement_logement: (cf.positionnement_logement as string[]) || [],
+    type_structure: (cf.type_structure as string[]) || [],
+    region: (cf.region as string[]) || [],
+    pays_activite: (cf.pays_activite as string[]) || [],
+    source_acquisition: (cf.source_acquisition as string[]) || [],
   });
 
   function cancelCrmEdit() {
@@ -182,6 +242,15 @@ export function ProspectDetail({
       vision_conciergerie: cf.vision_conciergerie || '',
       nb_properties: cf.nb_properties ?? '',
       source_lead_original: cf.source_lead_original || '',
+      objectif_parc: (cf.objectif_parc as string[]) || [],
+      type_organisation: (cf.type_organisation as string[]) || [],
+      qui_controle: (cf.qui_controle as string[]) || [],
+      taille_conciergerie: (cf.taille_conciergerie as string[]) || [],
+      positionnement_logement: (cf.positionnement_logement as string[]) || [],
+      type_structure: (cf.type_structure as string[]) || [],
+      region: (cf.region as string[]) || [],
+      pays_activite: (cf.pays_activite as string[]) || [],
+      source_acquisition: (cf.source_acquisition as string[]) || [],
     });
   }
 
@@ -195,6 +264,23 @@ export function ProspectDetail({
       vision_conciergerie: crmFormData.vision_conciergerie || undefined,
       nb_properties: crmFormData.nb_properties !== '' ? Number(crmFormData.nb_properties) : undefined,
       source_lead_original: crmFormData.source_lead_original || undefined,
+      // Qualification criteria
+      objectif_parc: crmFormData.objectif_parc.length > 0 ? crmFormData.objectif_parc : undefined,
+      type_organisation: crmFormData.type_organisation.length > 0 ? crmFormData.type_organisation : undefined,
+      qui_controle: crmFormData.qui_controle.length > 0 ? crmFormData.qui_controle : undefined,
+      taille_conciergerie: crmFormData.taille_conciergerie.length > 0 ? crmFormData.taille_conciergerie : undefined,
+      positionnement_logement: crmFormData.positionnement_logement.length > 0 ? crmFormData.positionnement_logement : undefined,
+      type_structure: crmFormData.type_structure.length > 0 ? crmFormData.type_structure : undefined,
+      region: crmFormData.region.length > 0 ? crmFormData.region : undefined,
+      pays_activite: crmFormData.pays_activite.length > 0 ? crmFormData.pays_activite : undefined,
+      source_acquisition: crmFormData.source_acquisition.length > 0 ? crmFormData.source_acquisition : undefined,
+      // Custom qualification criteria
+      ...Object.fromEntries(
+        customCriteria.map((c) => [
+          c.key,
+          (customCriteriaValues[c.key] || []).length > 0 ? customCriteriaValues[c.key] : undefined,
+        ])
+      ),
     };
     const { error } = await supabase
       .from('prospects')
@@ -734,6 +820,62 @@ export function ProspectDetail({
               )}
             </div>
           </div>
+
+          {/* Qualification criteria (multi-select) */}
+          <div className="col-span-full pt-3 border-t space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Qualification</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(QUALIFICATION_CRITERIA).map(([key, criteria]) => (
+                <MultiSelectField
+                  key={key}
+                  label={criteria.label}
+                  options={criteria.options}
+                  value={(crmFormData as Record<string, unknown>)[key] as string[] || []}
+                  onChange={(val) => setCrmFormData(prev => ({ ...prev, [key]: val }))}
+                  disabled={isSavingCrm}
+                  readOnly={!isEditingCrm}
+                />
+              ))}
+              {/* Custom qualification criteria from workspace */}
+              {customCriteria.map((criteria) => (
+                <div key={criteria.key} className="relative group">
+                  <MultiSelectField
+                    label={criteria.label}
+                    options={criteria.options}
+                    value={customCriteriaValues[criteria.key] || []}
+                    onChange={(val) => setCustomCriteriaValues(prev => ({ ...prev, [criteria.key]: val }))}
+                    disabled={isSavingCrm}
+                    readOnly={!isEditingCrm}
+                  />
+                  {isEditingCrm && (
+                    <button
+                      type="button"
+                      className="absolute -top-1 -right-1 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Supprimer ce critere"
+                      onClick={async () => {
+                        const res = await fetch("/api/workspaces/criteria", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ key: criteria.key }),
+                        });
+                        if (res.ok) {
+                          toast.success(`Critere "${criteria.label}" supprime`);
+                          loadCustomCriteria();
+                        } else {
+                          toast.error("Erreur lors de la suppression");
+                        }
+                      }}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {isEditingCrm && (
+              <AddCriteriaInline onCreated={loadCustomCriteria} />
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -868,6 +1010,29 @@ export function ProspectDetail({
 
       {/* Hot Prospect Banner */}
       <HotProspectBanner prospect={prospect} />
+
+      {/* Intent Signals Section */}
+      {(signals.length > 0 || true) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <span className="text-amber-500">&#9889;</span> Signaux d&apos;intention
+              </CardTitle>
+              <AddSignalDialog prospectId={prospect.id} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {signals.length > 0 ? (
+              <SignalBadges signals={signals} />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Aucun signal detecte. Ajoutez des signaux d&apos;achat pour prioriser ce prospect.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI Research Card */}
       <AIResearchCard prospect={prospect} />

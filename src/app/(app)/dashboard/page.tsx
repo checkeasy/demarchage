@@ -42,6 +42,7 @@ import { DealsWonLostChartLazy } from "@/components/dashboard/DealsWonLostChartL
 import { ActivitySummaryCard } from "@/components/dashboard/ActivitySummaryCard";
 import { DailyRoutine } from "@/components/dashboard/DailyRoutine";
 import { classifyProspect, ROUTING_BUCKETS, type OutreachBucket } from "@/lib/outreach-routing";
+import { SignalsDashboard } from "@/components/dashboard/SignalsDashboard";
 
 // --- Activity type icon map for upcoming activities ---
 const ACTIVITY_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -436,6 +437,77 @@ export default async function DashboardPage() {
       .in("status", ["active", "to_contact", "standby"])
       .eq("pipeline_stage", "to_contact"),
   ]);
+
+  // --- Fetch intent signals for dashboard ---
+  const [{ data: recentSignalsRaw }, { data: signalAggRaw }] = await Promise.all([
+    supabase
+      .from("prospect_signals")
+      .select("id, signal_type, title, signal_score, detected_at, prospect_id")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true)
+      .order("detected_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("prospect_signals")
+      .select("prospect_id, signal_score")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true),
+  ]);
+
+  // Build recent signals with prospect names
+  const signalProspectIds = [...new Set((recentSignalsRaw || []).map((s: { prospect_id: string }) => s.prospect_id))];
+  const { data: signalProspects } = signalProspectIds.length > 0
+    ? await supabase
+        .from("prospects")
+        .select("id, first_name, last_name, company")
+        .in("id", signalProspectIds)
+    : { data: [] };
+
+  const spMap = new Map((signalProspects || []).map((p: { id: string; first_name: string | null; last_name: string | null; company: string | null }) => [p.id, p]));
+
+  const dashboardSignals = (recentSignalsRaw || []).map((s: { id: string; signal_type: string; title: string; signal_score: number; detected_at: string; prospect_id: string }) => {
+    const p = spMap.get(s.prospect_id) as { first_name: string | null; last_name: string | null; company: string | null } | undefined;
+    return {
+      ...s,
+      prospect_name: p ? [p.first_name, p.last_name].filter(Boolean).join(" ") || "Sans nom" : "Sans nom",
+      prospect_company: p?.company || null,
+    };
+  });
+
+  // Build hot prospects (most signals)
+  const prospectSignalMap = new Map<string, { count: number; total: number }>();
+  for (const s of signalAggRaw || []) {
+    const sig = s as { prospect_id: string; signal_score: number };
+    const entry = prospectSignalMap.get(sig.prospect_id) || { count: 0, total: 0 };
+    entry.count++;
+    entry.total += sig.signal_score || 0;
+    prospectSignalMap.set(sig.prospect_id, entry);
+  }
+  const hotSignalProspectIds = [...prospectSignalMap.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 8)
+    .map(([id]) => id);
+
+  const { data: hotSignalProspectsData } = hotSignalProspectIds.length > 0
+    ? await supabase
+        .from("prospects")
+        .select("id, first_name, last_name, company")
+        .in("id", hotSignalProspectIds)
+    : { data: [] };
+
+  const hspMap = new Map((hotSignalProspectsData || []).map((p: { id: string; first_name: string | null; last_name: string | null; company: string | null }) => [p.id, p]));
+
+  const dashboardHotProspects = hotSignalProspectIds.map((id) => {
+    const p = hspMap.get(id) as { first_name: string | null; last_name: string | null; company: string | null } | undefined;
+    const agg = prospectSignalMap.get(id)!;
+    return {
+      id,
+      name: p ? [p.first_name, p.last_name].filter(Boolean).join(" ") || "Sans nom" : "Sans nom",
+      company: p?.company || null,
+      signal_count: agg.count,
+      total_score: agg.total,
+    };
+  });
 
   // --- Derive onboarding state ---
   const onboardingSteps = [
@@ -846,6 +918,14 @@ export default async function DashboardPage() {
         languageCounts={languageCounts}
         activeMissions={activeMissions}
       />
+
+      {/* Intent Signals Dashboard */}
+      {(dashboardSignals.length > 0 || dashboardHotProspects.length > 0) && (
+        <SignalsDashboard
+          recentSignals={dashboardSignals}
+          hotProspects={dashboardHotProspects}
+        />
+      )}
 
       {/* Onboarding Checklist */}
       {!onboardingComplete && (

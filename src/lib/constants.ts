@@ -16,6 +16,7 @@ import {
   FileText,
   Target,
   Building2,
+  Signal,
 } from "lucide-react";
 
 export const APP_NAME = "ColdReach";
@@ -51,6 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Google Maps", href: "/maps-scraper", icon: MapPin, group: "tools" },
   { label: "Agents IA", href: "/agents", icon: Brain, group: "tools" },
   { label: "Lead Magnets", href: "/lead-magnets", icon: FileText, group: "tools" },
+  { label: "Signaux", href: "/signals", icon: Signal, group: "tools" },
   // Settings
   { label: "Parametres", href: "/settings", icon: Settings, group: "settings" },
 ];
@@ -93,6 +95,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/scraper": "Scraper",
   "/maps-scraper": "Google Maps",
   "/missions": "Missions",
+  "/signals": "Signaux d'intention",
   "/onboarding": "Onboarding",
 };
 
@@ -426,3 +429,161 @@ export const ACTIVITY_PRIORITIES = {
   high: { label: "Haute", color: "text-orange-500" },
   urgent: { label: "Urgente", color: "text-red-500" },
 } as const;
+
+// Call outcomes (structured results for phone activities)
+export const CALL_OUTCOMES = {
+  connected: { label: "Connecte", color: "text-green-600", icon: "PhoneCall" },
+  no_answer: { label: "Pas de reponse", color: "text-orange-500", icon: "PhoneOff" },
+  left_message: { label: "Message laisse", color: "text-blue-500", icon: "MessageSquare" },
+  left_voicemail: { label: "Messagerie vocale", color: "text-indigo-500", icon: "Voicemail" },
+  wrong_number: { label: "Mauvais numero", color: "text-red-500", icon: "PhoneOff" },
+  busy: { label: "Occupe", color: "text-yellow-600", icon: "PhoneMissed" },
+  callback_scheduled: { label: "Rappel prevu", color: "text-cyan-600", icon: "PhoneForwarded" },
+} as const;
+
+// Deal contact roles (multi-participants on deals)
+export const DEAL_CONTACT_ROLES = {
+  primary: { label: "Contact principal", color: "text-blue-600" },
+  contact: { label: "Contact", color: "text-slate-600" },
+  decision_maker: { label: "Decideur", color: "text-purple-600" },
+  influencer: { label: "Influenceur", color: "text-amber-600" },
+  champion: { label: "Champion", color: "text-green-600" },
+  blocker: { label: "Bloqueur", color: "text-red-600" },
+} as const;
+
+// Intent Signal types (inspired by Gojiberry AI)
+export const SIGNAL_TYPES: Record<string, { label: string; icon: string; color: string; defaultScore: number }> = {
+  job_change: { label: "Changement de poste", icon: "Briefcase", color: "text-blue-600", defaultScore: 25 },
+  funding: { label: "Levee de fonds", icon: "TrendingUp", color: "text-green-600", defaultScore: 30 },
+  hiring: { label: "Recrutement en cours", icon: "UserPlus", color: "text-purple-600", defaultScore: 20 },
+  competitor_engagement: { label: "Engage avec un concurrent", icon: "Swords", color: "text-orange-600", defaultScore: 35 },
+  content_engagement: { label: "Engage avec notre contenu", icon: "Heart", color: "text-pink-600", defaultScore: 40 },
+  website_visit: { label: "Visite du site", icon: "Globe", color: "text-cyan-600", defaultScore: 15 },
+  technology_change: { label: "Changement de techno", icon: "Zap", color: "text-amber-600", defaultScore: 20 },
+  social_engagement: { label: "Actif sur LinkedIn", icon: "Linkedin", color: "text-blue-500", defaultScore: 10 },
+  event_attendance: { label: "Participe a un evenement", icon: "Calendar", color: "text-indigo-600", defaultScore: 20 },
+  warm_intro: { label: "Introduction chaude", icon: "Handshake", color: "text-emerald-600", defaultScore: 50 },
+  pain_point_detected: { label: "Point de douleur detecte", icon: "AlertTriangle", color: "text-red-600", defaultScore: 30 },
+  expansion: { label: "Expansion / croissance", icon: "Rocket", color: "text-violet-600", defaultScore: 25 },
+};
+
+export const SIGNAL_SOURCES = {
+  manual: { label: "Manuel" },
+  linkedin: { label: "LinkedIn" },
+  web_scrape: { label: "Web scraping" },
+  enrichment: { label: "Enrichissement IA" },
+  pipedrive: { label: "Pipedrive" },
+  content_tracking: { label: "Tracking contenu" },
+} as const;
+
+// Qualification criteria (Pipedrive-style, multi-select)
+export const QUALIFICATION_CRITERIA: Record<string, {
+  label: string;
+  icon: string;
+  options: readonly { value: string; label: string }[];
+}> = {
+  objectif_parc: {
+    label: "Objectif sur le parc",
+    icon: "Target",
+    options: [
+      { value: "reduire", label: "Reduire" },
+      { value: "maintenir", label: "Maintenir" },
+      { value: "grandir", label: "Grandir" },
+    ],
+  },
+  type_organisation: {
+    label: "Type d'organisation",
+    icon: "Building2",
+    options: [
+      { value: "interne", label: "Interne" },
+      { value: "externe", label: "Externe" },
+    ],
+  },
+  qui_controle: {
+    label: "Qui realise le controle",
+    icon: "ClipboardCheck",
+    options: [
+      { value: "agents_menage", label: "Agents de menage" },
+      { value: "voyageurs", label: "Voyageurs" },
+    ],
+  },
+  taille_conciergerie: {
+    label: "Taille de la conciergerie",
+    icon: "Scaling",
+    options: [
+      { value: "petits_moyens", label: "Petits & moyens" },
+      { value: "grands", label: "Grands" },
+    ],
+  },
+  positionnement_logement: {
+    label: "Positionnement du logement",
+    icon: "Star",
+    options: [
+      { value: "luxe", label: "Luxe" },
+      { value: "haut_de_gamme", label: "Haut de gamme" },
+      { value: "standard", label: "Standard" },
+    ],
+  },
+  type_structure: {
+    label: "Type de structure",
+    icon: "Network",
+    options: [
+      { value: "independante", label: "Independante" },
+      { value: "reseau_independants", label: "Reseau d'independants" },
+      { value: "reseau_franchise", label: "Reseau franchise" },
+    ],
+  },
+  region: {
+    label: "Region",
+    icon: "MapPin",
+    options: [
+      { value: "ile_de_france", label: "Ile-de-France" },
+      { value: "paca", label: "PACA" },
+      { value: "occitanie", label: "Occitanie" },
+      { value: "nouvelle_aquitaine", label: "Nouvelle-Aquitaine" },
+      { value: "auvergne_rhone_alpes", label: "Auvergne-Rhone-Alpes" },
+      { value: "bretagne", label: "Bretagne" },
+      { value: "pays_de_la_loire", label: "Pays de la Loire" },
+      { value: "normandie", label: "Normandie" },
+      { value: "grand_est", label: "Grand Est" },
+      { value: "hauts_de_france", label: "Hauts-de-France" },
+      { value: "bourgogne_franche_comte", label: "Bourgogne-Franche-Comte" },
+      { value: "centre_val_de_loire", label: "Centre-Val de Loire" },
+      { value: "corse", label: "Corse" },
+      { value: "dom_tom", label: "DOM-TOM" },
+      { value: "international", label: "International" },
+    ],
+  },
+  pays: {
+    label: "Pays",
+    icon: "Flag",
+    options: [
+      { value: "france", label: "France" },
+      { value: "espagne", label: "Espagne" },
+      { value: "portugal", label: "Portugal" },
+      { value: "italie", label: "Italie" },
+      { value: "grece", label: "Grece" },
+      { value: "croatie", label: "Croatie" },
+      { value: "thailande", label: "Thailande" },
+      { value: "maurice", label: "Maurice" },
+      { value: "republique_dominicaine", label: "Republique Dominicaine" },
+      { value: "maroc", label: "Maroc" },
+      { value: "autre", label: "Autre" },
+    ],
+  },
+  source_acquisition: {
+    label: "Source d'acquisition",
+    icon: "Megaphone",
+    options: [
+      { value: "google_maps", label: "Google Maps" },
+      { value: "linkedin", label: "LinkedIn" },
+      { value: "bouche_a_oreille", label: "Bouche a oreille" },
+      { value: "site_web", label: "Site web" },
+      { value: "cold_email", label: "Cold email" },
+      { value: "cold_call", label: "Cold call" },
+      { value: "salon", label: "Salon/Evenement" },
+      { value: "partenaire", label: "Partenaire" },
+      { value: "annuaire", label: "Annuaire pro" },
+    ],
+  },
+};
