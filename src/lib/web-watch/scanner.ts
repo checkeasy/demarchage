@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from "@/lib/ai/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendDailyRecap } from "@/lib/web-watch/daily-recap";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,7 @@ interface SearchResult {
   title: string;
   url: string;
   snippet: string;
+  published_at?: string;
 }
 
 interface WatchResult {
@@ -17,6 +19,7 @@ interface WatchResult {
   source: string;
   relevance_score: number;
   prospect_id: string | null;
+  published_at: string | null;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -93,12 +96,22 @@ async function searchGoogleNews(query: string): Promise<SearchResult[]> {
       const title = $(el).find("title").text().trim();
       const link = $(el).find("link").text().trim();
       const description = $(el).find("description").text().trim();
+      const pubDate = $(el).find("pubDate").text().trim();
 
       // Strip HTML from description
       const snippet = description.replace(/<[^>]+>/g, "").trim();
 
+      // Parse pubDate to ISO string
+      let published_at: string | undefined;
+      if (pubDate) {
+        const parsed = new Date(pubDate);
+        if (!isNaN(parsed.getTime())) {
+          published_at = parsed.toISOString();
+        }
+      }
+
       if (title && link) {
-        results.push({ title, url: link, snippet });
+        results.push({ title, url: link, snippet, published_at });
       }
     });
 
@@ -163,12 +176,15 @@ Ne garde que les resultats avec relevance >= 40.`,
     });
 
     const text = extractTextContent(response);
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    // Strip markdown code fences before parsing
+    const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
+    console.warn("[WebWatch] AI returned non-JSON response:", text.slice(0, 200));
   } catch (error) {
-    console.error("[WebWatch] AI summary error:", error);
+    console.error("[WebWatch] AI summary error:", (error as Error).message || error);
   }
 
   return {
@@ -278,6 +294,7 @@ export async function runWebWatchScan(workspaceId: string, userId: string) {
         source: result.url.includes("news.google") ? "google_news" : "duckduckgo",
         relevance_score: s.relevance,
         prospect_id: prospectId,
+        published_at: result.published_at || null,
       });
     }
 
@@ -313,7 +330,7 @@ export async function runWebWatchScan(workspaceId: string, userId: string) {
     // Auto-create signals for matched prospects
     for (const r of toInsert) {
       if (r.prospect_id) {
-        await supabase.from("prospect_signals").insert({
+        const { error: signalError } = await supabase.from("prospect_signals").insert({
           workspace_id: workspaceId,
           prospect_id: r.prospect_id,
           signal_type: "content_engagement",
@@ -323,6 +340,15 @@ export async function runWebWatchScan(workspaceId: string, userId: string) {
           signal_score: Math.min(Math.round(r.relevance_score / 3), 30),
           created_by: userId,
         });
+
+        // Mark signal_created on the web_watch_result
+        if (!signalError && r.url) {
+          await supabase
+            .from("web_watch_results")
+            .update({ signal_created: true })
+            .eq("watch_id", r.watch_id)
+            .eq("url", r.url);
+        }
       }
     }
 
@@ -331,6 +357,14 @@ export async function runWebWatchScan(workspaceId: string, userId: string) {
       .from("web_watches")
       .update({ last_run_at: new Date().toISOString() })
       .eq("id", w.id);
+  }
+
+  // Send daily recap after scan completes
+  try {
+    const recapResult = await sendDailyRecap(workspaceId);
+    console.log(`[WebWatch] Recap sent: ${recapResult.sent}, results: ${recapResult.resultsCount}`);
+  } catch (recapErr) {
+    console.error("[WebWatch] Recap error:", recapErr);
   }
 
   return {

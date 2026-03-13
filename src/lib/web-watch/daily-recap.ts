@@ -3,6 +3,7 @@ import { getAnthropic, CLAUDE_HAIKU, extractTextContent } from "@/lib/ai/client"
 import { sendEmail } from "@/lib/email/resend-client";
 
 interface RecapResult {
+  id: string;
   title: string;
   url: string | null;
   snippet: string | null;
@@ -28,7 +29,7 @@ export async function sendDailyRecap(workspaceId: string): Promise<{
 
   const { data: results } = await supabase
     .from("web_watch_results")
-    .select("title, url, snippet, source, relevance_score, prospect_id, web_watches(topic)")
+    .select("id, title, url, snippet, source, relevance_score, prospect_id, web_watches(topic)")
     .eq("workspace_id", workspaceId)
     .gte("detected_at", since.toISOString())
     .order("relevance_score", { ascending: false });
@@ -90,7 +91,7 @@ export async function sendDailyRecap(workspaceId: string): Promise<{
   });
 
   // 6. Mark results as read
-  const resultIds = recapResults.map((r) => (r as unknown as { id: string }).id).filter(Boolean);
+  const resultIds = recapResults.map((r) => r.id).filter(Boolean);
   if (resultIds.length > 0) {
     await supabase
       .from("web_watch_results")

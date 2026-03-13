@@ -53,14 +53,20 @@ const JOBS: CronJob[] = [
   {
     name: 'web-watch',
     path: '/api/web-watch/scan',
-    intervalMs: 24 * 60 * 60 * 1000, // Every 24 hours
+    intervalMs: 24 * 60 * 60 * 1000, // Every 24 hours (recap sent automatically after scan)
     businessHoursOnly: false,
   },
   {
-    name: 'web-watch-recap',
-    path: '/api/web-watch/recap',
-    intervalMs: 24 * 60 * 60 * 1000, // Every 24 hours (sends after scan)
-    businessHoursOnly: true, // Only send during business hours
+    name: 'enrich-prospects',
+    path: '/api/cron/enrich-prospects',
+    intervalMs: 6 * 60 * 60 * 1000, // Every 6 hours
+    businessHoursOnly: true,
+  },
+  {
+    name: 'business-alerts',
+    path: '/api/cron/business-alerts',
+    intervalMs: 24 * 60 * 60 * 1000, // Daily
+    businessHoursOnly: false,
   },
 ];
 
